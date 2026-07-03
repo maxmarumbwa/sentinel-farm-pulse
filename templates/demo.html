@@ -1,0 +1,13 @@
+<body>
+    <h1>Vegetation Monitoring Data</h1>
+
+    {% if data %}
+        <ul>
+            <li>NDVI: {{ data.ndvi }}</li>
+            <li>EVI: {{ data.evi }}</li>
+            <li>SAVI: {{ data.savi }}</li>
+        </ul>
+    {% else %}
+        <p>No data available.</p>
+    {% endif %}
+</body>

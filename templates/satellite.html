@@ -1,0 +1,17 @@
+HTML
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Earth Engine Test</title>
+</head>
+<body>
+    <h1>Earth Engine is Working!</h1>
+    {% if error %}
+        <p style="color: red;">Error: {{ error }}</p>
+    {% else %}
+        <p>Image ID: {{ image_id }}</p>
+        <p>Date: {{ date }}</p>
+        <p>Bands: {{ bands|join:", " }}</p>
+    {% endif %}
+</body>
+</html>

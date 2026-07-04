@@ -30,7 +30,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DEBUG", "False") == "True"
 ALLOWED_HOSTS = os.environ.get(
-    "ALLOWED_HOSTS", "localhost,127.0.0.1,geostat-agro-monitor.onrender.com"
+    "ALLOWED_HOSTS", "localhost,127.0.0.1,sentinel-farm-pulse.onrender.com"
 ).split(",")
 
 # Application definition

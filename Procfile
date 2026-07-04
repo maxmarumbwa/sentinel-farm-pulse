@@ -1,0 +1,1 @@
+web: gunicorn Sentinel_Farm_Pulse.wsgi:application

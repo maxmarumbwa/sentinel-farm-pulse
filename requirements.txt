@@ -1,5 +1,10 @@
 django
- djangorestframework
+djangorestframework
 python-dotenv
 earthengine-api
-    
+whitenoise
+google-auth
+gunicorn
+
+
+

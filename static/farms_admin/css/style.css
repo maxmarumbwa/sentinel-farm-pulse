@@ -1,0 +1,158 @@
+/* Styles for Farm Digitization - Zimbabwe */
+
+body {
+    background-color: #f0f4f0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    margin-bottom: 15px;
+}
+
+.card-header {
+    background: white;
+    border-bottom: 1px solid #e8ece8;
+    padding: 12px 20px;
+}
+
+.card-header.bg-success {
+    background: linear-gradient(135deg, #28a745, #1e7e34) !important;
+}
+
+.card-header.bg-info {
+    background: linear-gradient(135deg, #17a2b8, #117a8b) !important;
+}
+
+/* Zimbabwe colors for buttons */
+.btn-zimbabwe-green {
+    background: linear-gradient(135deg, #28a745, #1e7e34);
+    border: none;
+    color: white;
+}
+
+.btn-zimbabwe-green:hover {
+    background: linear-gradient(135deg, #1e7e34, #155724);
+    color: white;
+}
+
+/* Map container */
+#map {
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Form controls */
+.form-control,
+.form-select {
+    border-radius: 6px;
+    border: 1px solid #d4dcd4;
+    padding: 8px 12px;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: #28a745;
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.15);
+}
+
+.form-control-sm {
+    font-size: 0.9rem;
+}
+
+/* Table styles */
+.table {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.table thead th {
+    background: #f8faf8;
+    border-bottom: 2px solid #e8ece8;
+    font-weight: 600;
+    color: #2d3e2d;
+}
+
+.table tbody tr:hover {
+    background-color: #f0f7f0;
+}
+
+/* Badge styles */
+.badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-weight: 500;
+}
+
+.badge-success {
+    background: #28a745;
+}
+
+.badge-info {
+    background: #17a2b8;
+}
+
+.badge-secondary {
+    background: #6c757d;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    #map {
+        height: 300px !important;
+    }
+
+    .card-body {
+        padding: 15px;
+    }
+
+    .table-responsive {
+        font-size: 0.85rem;
+    }
+
+    .btn-group-sm .btn {
+        padding: 2px 6px;
+    }
+}
+
+/* Footer */
+.footer {
+    border-top: 1px solid #e8ece8;
+    background: white !important;
+}
+
+/* Zimbabwe flag colors accent */
+.text-zimbabwe-green {
+    color: #1a7a3a;
+}
+
+.text-zimbabwe-yellow {
+    color: #ffd700;
+}
+
+.text-zimbabwe-red {
+    color: #d92b2b;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f0f4f0;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #28a745;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #1e7e34;
+}

@@ -47,8 +47,10 @@ INSTALLED_APPS = [
     'apps.gee',
     'apps.indicators',
     'apps.reports',
+    'apps.fields_admin',
     'rest_framework',
-    
+    'django.contrib.gis',  # For GeoDjango
+    'leaflet',             # For maps
 ]
 
 MIDDLEWARE = [
@@ -85,12 +87,23 @@ WSGI_APPLICATION = 'Sentinel_Farm_Pulse.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# Database - PostgreSQL with PostGIS
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.contrib.gis.db.backends.postgis',
+        'NAME': 'sentinel_farm',
+        'USER': 'sentinel_user',
+        'PASSWORD': 'sentinel_password',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
 
 
 # Password validation
@@ -131,9 +144,22 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Leaflet Configuration
+LEAFLET_CONFIG = {
+    'DEFAULT_CENTER': (-15.0, 28.0),  # Zambia
+    'DEFAULT_ZOOM': 6,
+    'MIN_ZOOM': 3,
+    'MAX_ZOOM': 18,
+    'ATTRIBUTION_PREFIX': 'Farm Digitization',
+}
+
+
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"

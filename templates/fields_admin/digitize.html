@@ -4,57 +4,139 @@
 {% block title %}Digitize Field{% endblock %}
 
 {% block extra_css %}
-<!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<!-- Leaflet Draw CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
 <style>
-    #map {
-        height: 600px;
-        width: 100%;
-        border-radius: 8px;
-        border: 1px solid #ddd;
+    /* ===== RESET & BASE ===== */
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        background: #f5f7fa;
     }
     
     .container {
-        max-width: 1200px;
+        max-width: 1400px;
         margin: 0 auto;
+        padding: 15px;
+    }
+    
+    h1 {
+        font-size: 24px;
+        margin-bottom: 5px;
+        color: #1a1a2e;
+    }
+    
+    .subtitle {
+        color: #666;
+        margin-bottom: 20px;
+        font-size: 14px;
+    }
+    
+    /* ===== MAP - 50% larger ===== */
+    #map {
+        height: 600px;
+        width: 100%;
+        border-radius: 10px;
+        border: 2px solid #e0e0e0;
+        transition: height 0.3s ease;
+    }
+    
+    /* ===== FORM - Reduced width ===== */
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 0.5fr;
+        gap: 20px;
+        margin-top: 20px;
+    }
+    
+    .form-section {
+        background: white;
         padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    /* Right pane - smaller */
+    .form-section:last-child {
+        max-width: 100%;
     }
     
     .form-group {
-        margin-bottom: 15px;
+        margin-bottom: 12px;
+    }
+    
+    .form-group:last-child {
+        margin-bottom: 0;
     }
     
     .form-group label {
         display: block;
-        margin-bottom: 5px;
-        font-weight: 500;
+        font-weight: 600;
+        font-size: 13px;
+        color: #333;
+        margin-bottom: 4px;
+    }
+    
+    .form-group label .required {
+        color: #dc3545;
     }
     
     .form-group input,
     .form-group select {
         width: 100%;
-        padding: 8px 12px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 14px;
+        padding: 8px 10px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 13px;
+        transition: border-color 0.2s;
+        background: white;
+        -webkit-appearance: none;
+        appearance: none;
     }
     
-    .form-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 20px;
+    .form-group input:focus,
+    .form-group select:focus {
+        outline: none;
+        border-color: #4a90d9;
+        box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.1);
+    }
+    
+    .form-group select {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        padding-right: 35px;
+    }
+    
+    /* ===== BUTTONS ===== */
+    .btn-group {
+        display: flex;
+        gap: 10px;
+        margin-top: 15px;
+        flex-wrap: wrap;
     }
     
     .btn {
-        padding: 10px 20px;
+        padding: 10px 24px;
         border: none;
-        border-radius: 4px;
-        cursor: pointer;
+        border-radius: 8px;
         font-size: 14px;
-        font-weight: 500;
-        margin-right: 10px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        flex: 1;
+        min-width: 120px;
+        text-align: center;
+    }
+    
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
     }
     
     .btn-success {
@@ -62,13 +144,10 @@
         color: white;
     }
     
-    .btn-success:hover {
-        background: #1e7e34;
-    }
-    
-    .btn-success:disabled {
-        background: #6c757d;
-        cursor: not-allowed;
+    .btn-success:hover:not(:disabled) {
+        background: #218838;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
     }
     
     .btn-danger {
@@ -78,19 +157,43 @@
     
     .btn-danger:hover {
         background: #c82333;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
     }
     
+    /* ===== FIELD INFO ===== */
     .field-info {
-        padding: 15px;
         background: #f8f9fa;
-        border-radius: 4px;
+        padding: 12px 15px;
+        border-radius: 8px;
         margin-top: 15px;
+        font-size: 13px;
+    }
+    
+    .field-info p {
+        margin: 4px 0;
+    }
+    
+    .field-info strong {
+        color: #333;
+    }
+    
+    .field-info .value {
+        color: #4a90d9;
+        font-weight: 600;
+    }
+    
+    /* ===== ALERTS ===== */
+    #alert-container {
+        margin-bottom: 15px;
     }
     
     .alert {
-        padding: 12px;
-        border-radius: 4px;
-        margin-bottom: 15px;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        animation: slideDown 0.3s ease;
     }
     
     .alert-success {
@@ -105,83 +208,176 @@
         color: #721c24;
     }
     
-    .map-controls {
-        margin-top: 10px;
-        display: flex;
-        gap: 10px;
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
     
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 1024px) {
+        .form-grid {
+            grid-template-columns: 1fr 0.7fr;
+            gap: 15px;
+        }
+        
+        #map {
+            height: 500px;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .container {
+            padding: 10px;
+        }
+        
+        h1 {
+            font-size: 20px;
+        }
+        
+        .form-grid {
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+        
+        #map {
+            height: 450px;
+        }
+        
+        .form-section {
+            padding: 15px;
+        }
+        
+        .form-section:last-child {
+            max-width: 100%;
+        }
+        
+        .btn {
+            min-width: 80px;
+            padding: 10px 16px;
+            font-size: 13px;
+        }
+        
+        .btn-group {
+            gap: 8px;
+        }
+        
+        .field-info {
+            font-size: 13px;
+            padding: 12px;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        #map {
+            height: 350px;
+        }
+        
+        .form-group input,
+        .form-group select {
+            padding: 8px 10px;
+            font-size: 13px;
+        }
+        
+        .btn {
+            padding: 8px 14px;
+            font-size: 12px;
+            min-width: 60px;
+        }
+        
+        .form-section {
+            padding: 12px;
+        }
+        
+        .field-info {
+            font-size: 12px;
+        }
+    }
+    
+    /* ===== DEBUG (Hidden by default) ===== */
     .debug-info {
+        display: none;
         margin-top: 10px;
         padding: 10px;
         background: #f8f9fa;
         border: 1px solid #dee2e6;
-        border-radius: 4px;
+        border-radius: 8px;
         font-size: 12px;
-        max-height: 150px;
-        overflow: auto;
         font-family: monospace;
+        max-height: 100px;
+        overflow: auto;
     }
     
-    .loading {
-        opacity: 0.6;
-        pointer-events: none;
+    .debug-info:not(:empty) {
+        display: block;
     }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container">
-    <h1>Digitize Field</h1>
-    <p>Draw a polygon on the map to digitize your field</p>
+    <h1>🌾 Digitize Field</h1>
+    <p class="subtitle">Draw your field on the map and fill in the details</p>
     
     <div id="alert-container"></div>
     
-    <div class="form-row">
-        <div>
+    <div class="form-grid">
+        <!-- LEFT: Map (50% larger) -->
+        <div class="form-section">
             <div id="map"></div>
             
-            <div class="map-controls">
-                <button class="btn btn-danger" id="clear-draw">Clear Drawing</button>
-                <button class="btn btn-success" id="save-field" disabled>Save Field</button>
+            <div class="btn-group">
+                <button class="btn btn-danger" id="clear-draw">🗑️ Clear</button>
+                <button class="btn btn-success" id="save-field" disabled>💾 Save Field</button>
+            </div>
+            
+            <div class="field-info">
+                <p>📐 <strong>Area:</strong> <span class="value" id="area-display">0.00</span> ha</p>
+                <p>📍 <strong>Coordinates:</strong> <span id="coords-display">Draw a polygon</span></p>
             </div>
         </div>
         
-        <div>
+        <!-- RIGHT: Form (Reduced width) -->
+        <div class="form-section">
             <form id="field-form">
                 <div class="form-group">
-                    <label for="field_name">Field Name *</label>
+                    <label>Field Name <span class="required">*</span></label>
                     <input type="text" id="field_name" name="field_name" required placeholder="e.g., North Field" />
                 </div>
                 
                 <div class="form-group">
-                    <label for="crop">Crop *</label>
+                    <label>Crop <span class="required">*</span></label>
                     <select id="crop" name="crop" required>
-                        <option value="Maize">Maize</option>
-                        <option value="Groundnuts">Groundnuts</option>
-                        <option value="Soybeans">Soybeans</option>
-                        <option value="Cotton">Cotton</option>
-                        <option value="Tobacco">Tobacco</option>
-                        <option value="Sunflower">Sunflower</option>
-                        <option value="Sorghum">Sorghum</option>
-                        <option value="Millet">Millet</option>
-                        <option value="Beans">Beans</option>
-                        <option value="Potatoes">Potatoes</option>
-                        <option value="Tomatoes">Tomatoes</option>
-                        <option value="Other">Other</option>
+                        <option value="Maize">🌽 Maize</option>
+                        <option value="Groundnuts">🥜 Groundnuts</option>
+                        <option value="Soybeans">🫘 Soybeans</option>
+                        <option value="Cotton">🌿 Cotton</option>
+                        <option value="Tobacco">🚬 Tobacco</option>
+                        <option value="Sunflower">🌻 Sunflower</option>
+                        <option value="Sorghum">🌾 Sorghum</option>
+                        <option value="Millet">🌾 Millet</option>
+                        <option value="Beans">🫘 Beans</option>
+                        <option value="Potatoes">🥔 Potatoes</option>
+                        <option value="Tomatoes">🍅 Tomatoes</option>
+                        <option value="Other">🌱 Other</option>
                     </select>
                 </div>
                 
                 <div class="form-group">
-                    <label for="production_system">Production System *</label>
+                    <label>Production System <span class="required">*</span></label>
                     <select id="production_system" name="production_system" required>
-                        <option value="Rainfed">Rainfed</option>
-                        <option value="Irrigated">Irrigated</option>
+                        <option value="Rainfed">☔ Rainfed</option>
+                        <option value="Irrigated">💧 Irrigated</option>
                     </select>
                 </div>
                 
                 <div class="form-group">
-                    <label for="adm1">Admin Level 1</label>
+                    <label>Province</label>
                     <select id="adm1" name="adm1">
                         <option value="">Select Province</option>
                         {% for admin in admins %}
@@ -191,59 +387,44 @@
                 </div>
                 
                 <div class="form-group">
-                    <label for="adm2">Admin Level 2</label>
+                    <label>District</label>
                     <select id="adm2" name="adm2">
                         <option value="">Select District</option>
                     </select>
                 </div>
-                
-                <div class="field-info">
-                    <p><strong>Area:</strong> <span id="area-display">0.00</span> ha</p>
-                    <p><strong>Coordinates:</strong> <span id="coords-display">No polygon drawn</span></p>
-                </div>
             </form>
-            
-            <!-- Debug info -->
-            <div class="debug-info" id="debug-info">
-                <strong>Debug:</strong> Select a province to load districts
-            </div>
         </div>
     </div>
+    
+    <!-- Hidden debug -->
+    <div class="debug-info" id="debug-info"></div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<!-- Leaflet Draw JS -->
 <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const debugInfo = document.getElementById('debug-info');
-        
-        // Initialize map
+        // ===== MAP =====
         const map = L.map('map').setView([-19.0, 28.0], 6);
         
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
+            attribution: '© OpenStreetMap'
         }).addTo(map);
         
-        // Create feature group for drawn items
+        // ===== DRAW TOOLS =====
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
         
-        // Initialize draw control
         const drawControl = new L.Control.Draw({
             position: 'topleft',
             draw: {
                 polygon: {
                     allowIntersection: false,
                     showArea: true,
-                    shapeOptions: {
-                        color: '#3388ff',
-                        weight: 3
-                    }
+                    shapeOptions: { color: '#4a90d9', weight: 3 }
                 },
                 polyline: false,
                 rectangle: false,
@@ -251,130 +432,84 @@
                 circlemarker: false,
                 marker: false
             },
-            edit: {
-                featureGroup: drawnItems,
-                remove: true
-            }
+            edit: { featureGroup: drawnItems, remove: true }
         });
-        
         map.addControl(drawControl);
         
         let drawnPolygon = null;
         
-        // Handle polygon drawing
-        map.on(L.Draw.Event.CREATED, function(event) {
-            const layer = event.layer;
+        // ===== DRAW EVENTS =====
+        map.on(L.Draw.Event.CREATED, function(e) {
             drawnItems.clearLayers();
-            drawnItems.addLayer(layer);
-            drawnPolygon = layer;
+            drawnItems.addLayer(e.layer);
+            drawnPolygon = e.layer;
             document.getElementById('save-field').disabled = false;
-            updateFieldInfo(layer);
+            updateInfo(e.layer);
         });
         
-        // Handle polygon editing
-        map.on(L.Draw.Event.EDITED, function(event) {
-            const layers = event.layers;
-            layers.eachLayer(function(layer) {
+        map.on(L.Draw.Event.EDITED, function(e) {
+            e.layers.eachLayer(function(layer) {
                 drawnPolygon = layer;
-                updateFieldInfo(layer);
+                updateInfo(layer);
             });
         });
         
-        // Handle polygon deletion
         map.on(L.Draw.Event.DELETED, function() {
             drawnPolygon = null;
             document.getElementById('save-field').disabled = true;
-            document.getElementById('area-display').textContent = '0.00';
-            document.getElementById('coords-display').textContent = 'No polygon drawn';
+            resetInfo();
         });
         
-        // Clear drawing button
+        // ===== CLEAR BUTTON =====
         document.getElementById('clear-draw').addEventListener('click', function() {
             drawnItems.clearLayers();
             drawnPolygon = null;
             document.getElementById('save-field').disabled = true;
-            document.getElementById('area-display').textContent = '0.00';
-            document.getElementById('coords-display').textContent = 'No polygon drawn';
+            resetInfo();
         });
         
-        // Update field info
-        function updateFieldInfo(layer) {
-            try {
-                const latlngs = layer.getLatLngs()[0];
-                const area = L.GeometryUtil.geodesicArea(latlngs);
-                const areaHa = (area / 10000).toFixed(2);
-                document.getElementById('area-display').textContent = areaHa;
-                
-                const coordStr = latlngs.map(c => `${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`).join('; ');
-                document.getElementById('coords-display').textContent = coordStr;
-            } catch(e) {
-                console.error('Error updating field info:', e);
-            }
+        // ===== UPDATE INFO =====
+        function updateInfo(layer) {
+            const latlngs = layer.getLatLngs()[0];
+            const area = L.GeometryUtil.geodesicArea(latlngs);
+            document.getElementById('area-display').textContent = (area / 10000).toFixed(2);
+            document.getElementById('coords-display').textContent = 
+                latlngs.map(c => `${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`).join('; ');
         }
         
-        // Admin2 dropdown
+        function resetInfo() {
+            document.getElementById('area-display').textContent = '0.00';
+            document.getElementById('coords-display').textContent = 'Draw a polygon';
+        }
+        
+        // ===== ADMIN2 DROPDOWN =====
         document.getElementById('adm1').addEventListener('change', function() {
-            const adm1Id = this.value;
-            const adm2Select = document.getElementById('adm2');
+            const id = this.value;
+            const select = document.getElementById('adm2');
+            select.innerHTML = '<option value="">Loading...</option>';
             
-            debugInfo.innerHTML = `<strong>Debug:</strong> Province selected: ${adm1Id}`;
-            
-            adm2Select.innerHTML = '<option value="">Loading districts...</option>';
-            
-            if (!adm1Id) {
-                adm2Select.innerHTML = '<option value="">Select District</option>';
-                debugInfo.innerHTML = `<strong>Debug:</strong> No province selected`;
+            if (!id) {
+                select.innerHTML = '<option value="">Select District</option>';
                 return;
             }
             
-            const url = `/api/admin2/?admin1=${adm1Id}`;
-            debugInfo.innerHTML += `<br>Fetching: ${url}`;
-            
-            fetch(url, {
-                headers: {
-                    'Accept': 'application/json',
-                },
-                credentials: 'same-origin'
-            })
-            .then(response => {
-                debugInfo.innerHTML += `<br>Response status: ${response.status}`;
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log('Admin2 data received:', data);
-                debugInfo.innerHTML += `<br>Data received: ${JSON.stringify(data)}`;
-                
-                adm2Select.innerHTML = '<option value="">Select District</option>';
-                
-                if (Array.isArray(data) && data.length > 0) {
+            fetch(`/api/admin2/?admin1=${id}`)
+                .then(r => r.json())
+                .then(data => {
+                    select.innerHTML = '<option value="">Select District</option>';
                     data.forEach(item => {
-                        const option = document.createElement('option');
-                        option.value = item.id;
-                        option.textContent = item.name;
-                        adm2Select.appendChild(option);
+                        const opt = document.createElement('option');
+                        opt.value = item.id;
+                        opt.textContent = item.name;
+                        select.appendChild(opt);
                     });
-                    debugInfo.innerHTML += `<br>✅ Loaded ${data.length} districts`;
-                } else {
-                    const option = document.createElement('option');
-                    option.value = '';
-                    option.textContent = 'No districts available';
-                    adm2Select.appendChild(option);
-                    debugInfo.innerHTML += `<br>⚠️ No districts found for this province`;
-                }
-            })
-            .catch(error => {
-                console.error('Error loading districts:', error);
-                debugInfo.innerHTML += `<br>❌ Error: ${error.message}`;
-                adm2Select.innerHTML = '<option value="">Error loading districts</option>';
-            });
+                })
+                .catch(() => {
+                    select.innerHTML = '<option value="">Error loading districts</option>';
+                });
         });
         
-        // =============================================
-        // FIXED: Save Field with proper URL handling
-        // =============================================
+        // ===== SAVE FIELD =====
         document.getElementById('save-field').addEventListener('click', function() {
             if (!drawnPolygon) {
                 showAlert('Please draw a polygon first', 'danger');
@@ -384,10 +519,9 @@
             const form = document.getElementById('field-form');
             const formData = new FormData(form);
             
-            // Get polygon coordinates
             const coords = drawnPolygon.getLatLngs()[0];
             const polygonCoords = coords.map(c => [c.lng, c.lat]);
-            polygonCoords.push(polygonCoords[0]); // Close polygon
+            polygonCoords.push(polygonCoords[0]);
             
             const data = {
                 field_name: formData.get('field_name'),
@@ -395,117 +529,71 @@
                 production_system: formData.get('production_system'),
                 adm1: formData.get('adm1') || null,
                 adm2: formData.get('adm2') || null,
-                geometry: {
-                    type: 'Polygon',
-                    coordinates: [polygonCoords]
-                }
+                geometry: { type: 'Polygon', coordinates: [polygonCoords] }
             };
             
-            // Validate
             if (!data.field_name) {
                 showAlert('Please enter a field name', 'danger');
                 return;
             }
             
-            // Get CSRF token
-            const csrftoken = getCookie('csrftoken');
-            if (!csrftoken) {
-                showAlert('CSRF token not found. Please refresh the page.', 'danger');
-                return;
-            }
+            const btn = this;
+            btn.disabled = true;
+            btn.textContent = '⏳ Saving...';
             
-            // Disable save button and show loading
-            const saveBtn = document.getElementById('save-field');
-            saveBtn.disabled = true;
-            saveBtn.textContent = 'Saving...';
-            
-            debugInfo.innerHTML += `<br>📤 Sending data to server...`;
-            
-            // Send to server - use absolute URL
             fetch('/api/fields/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': csrftoken,
-                    'Accept': 'application/json'
+                    'X-CSRFToken': getCookie('csrftoken')
                 },
-                body: JSON.stringify(data),
-                credentials: 'same-origin'
+                body: JSON.stringify(data)
             })
-            .then(response => {
-                debugInfo.innerHTML += `<br>📥 Response status: ${response.status}`;
-                
-                // Check if response is JSON
-                const contentType = response.headers.get('content-type');
-                if (contentType && contentType.includes('application/json')) {
-                    return response.json().then(data => {
-                        if (!response.ok) {
-                            throw data;
-                        }
-                        return data;
-                    });
-                } else {
-                    // If not JSON, something went wrong
-                    return response.text().then(text => {
-                        debugInfo.innerHTML += `<br>❌ Response is not JSON: ${text.substring(0, 100)}`;
-                        throw new Error('Server returned non-JSON response. Check URL and authentication.');
-                    });
-                }
+            .then(r => {
+                if (!r.ok) throw new Error('Server error');
+                return r.json();
             })
             .then(data => {
-                debugInfo.innerHTML += `<br>✅ Field saved successfully!`;
-                showAlert('Field saved successfully! Area: ' + data.area_ha + ' ha', 'success');
-                
-                // Reset form
-                document.getElementById('field-form').reset();
+                showAlert(`✅ Field "${data.field_name}" saved! Area: ${data.area_ha} ha`, 'success');
+                form.reset();
                 drawnItems.clearLayers();
                 drawnPolygon = null;
-                document.getElementById('save-field').disabled = true;
-                document.getElementById('area-display').textContent = '0.00';
-                document.getElementById('coords-display').textContent = 'No polygon drawn';
-                saveBtn.textContent = 'Save Field';
+                btn.disabled = true;
+                btn.textContent = '💾 Save Field';
+                resetInfo();
+                document.getElementById('adm2').innerHTML = '<option value="">Select District</option>';
             })
-            .catch(error => {
-                console.error('Error:', error);
-                debugInfo.innerHTML += `<br>❌ Error: ${error.error || error.message || 'Unknown error'}`;
-                showAlert('Error saving field: ' + (error.error || error.message || 'Check console for details'), 'danger');
-                saveBtn.disabled = false;
-                saveBtn.textContent = 'Save Field';
+            .catch(err => {
+                showAlert('❌ Error: ' + err.message, 'danger');
+                btn.disabled = false;
+                btn.textContent = '💾 Save Field';
             });
         });
         
-        // Utility functions
-        function showAlert(message, type) {
+        // ===== HELPERS =====
+        function showAlert(msg, type) {
             const container = document.getElementById('alert-container');
-            const alert = document.createElement('div');
-            alert.className = `alert alert-${type}`;
-            alert.textContent = message;
-            container.innerHTML = '';
-            container.appendChild(alert);
-            
-            setTimeout(() => {
-                if (alert.parentNode) {
-                    alert.remove();
-                }
-            }, 5000);
+            container.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+            setTimeout(() => container.innerHTML = '', 5000);
         }
         
         function getCookie(name) {
-            let cookieValue = null;
+            let v = null;
             if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
+                document.cookie.split(';').forEach(c => {
+                    const cookie = c.trim();
                     if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
+                        v = decodeURIComponent(cookie.substring(name.length + 1));
                     }
-                }
+                });
             }
-            return cookieValue;
+            return v;
         }
         
-        console.log('Map initialized successfully');
+        // ===== MOBILE: Fit map on orientation change =====
+        window.addEventListener('resize', function() {
+            setTimeout(() => map.invalidateSize(), 100);
+        });
     });
 </script>
 {% endblock %}

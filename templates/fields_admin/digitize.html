@@ -1,0 +1,511 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Digitize Field{% endblock %}
+
+{% block extra_css %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<!-- Leaflet Draw CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+<style>
+    #map {
+        height: 600px;
+        width: 100%;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+    }
+    
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .form-group {
+        margin-bottom: 15px;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+    }
+    
+    .form-group input,
+    .form-group select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+    
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        margin-right: 10px;
+    }
+    
+    .btn-success {
+        background: #28a745;
+        color: white;
+    }
+    
+    .btn-success:hover {
+        background: #1e7e34;
+    }
+    
+    .btn-success:disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+    }
+    
+    .btn-danger {
+        background: #dc3545;
+        color: white;
+    }
+    
+    .btn-danger:hover {
+        background: #c82333;
+    }
+    
+    .field-info {
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 4px;
+        margin-top: 15px;
+    }
+    
+    .alert {
+        padding: 12px;
+        border-radius: 4px;
+        margin-bottom: 15px;
+    }
+    
+    .alert-success {
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+    }
+    
+    .alert-danger {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+    }
+    
+    .map-controls {
+        margin-top: 10px;
+        display: flex;
+        gap: 10px;
+    }
+    
+    .debug-info {
+        margin-top: 10px;
+        padding: 10px;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        font-size: 12px;
+        max-height: 150px;
+        overflow: auto;
+        font-family: monospace;
+    }
+    
+    .loading {
+        opacity: 0.6;
+        pointer-events: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Digitize Field</h1>
+    <p>Draw a polygon on the map to digitize your field</p>
+    
+    <div id="alert-container"></div>
+    
+    <div class="form-row">
+        <div>
+            <div id="map"></div>
+            
+            <div class="map-controls">
+                <button class="btn btn-danger" id="clear-draw">Clear Drawing</button>
+                <button class="btn btn-success" id="save-field" disabled>Save Field</button>
+            </div>
+        </div>
+        
+        <div>
+            <form id="field-form">
+                <div class="form-group">
+                    <label for="field_name">Field Name *</label>
+                    <input type="text" id="field_name" name="field_name" required placeholder="e.g., North Field" />
+                </div>
+                
+                <div class="form-group">
+                    <label for="crop">Crop *</label>
+                    <select id="crop" name="crop" required>
+                        <option value="Maize">Maize</option>
+                        <option value="Groundnuts">Groundnuts</option>
+                        <option value="Soybeans">Soybeans</option>
+                        <option value="Cotton">Cotton</option>
+                        <option value="Tobacco">Tobacco</option>
+                        <option value="Sunflower">Sunflower</option>
+                        <option value="Sorghum">Sorghum</option>
+                        <option value="Millet">Millet</option>
+                        <option value="Beans">Beans</option>
+                        <option value="Potatoes">Potatoes</option>
+                        <option value="Tomatoes">Tomatoes</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="production_system">Production System *</label>
+                    <select id="production_system" name="production_system" required>
+                        <option value="Rainfed">Rainfed</option>
+                        <option value="Irrigated">Irrigated</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="adm1">Admin Level 1</label>
+                    <select id="adm1" name="adm1">
+                        <option value="">Select Province</option>
+                        {% for admin in admins %}
+                        <option value="{{ admin.id }}">{{ admin.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="adm2">Admin Level 2</label>
+                    <select id="adm2" name="adm2">
+                        <option value="">Select District</option>
+                    </select>
+                </div>
+                
+                <div class="field-info">
+                    <p><strong>Area:</strong> <span id="area-display">0.00</span> ha</p>
+                    <p><strong>Coordinates:</strong> <span id="coords-display">No polygon drawn</span></p>
+                </div>
+            </form>
+            
+            <!-- Debug info -->
+            <div class="debug-info" id="debug-info">
+                <strong>Debug:</strong> Select a province to load districts
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Leaflet Draw JS -->
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const debugInfo = document.getElementById('debug-info');
+        
+        // Initialize map
+        const map = L.map('map').setView([-19.0, 28.0], 6);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        
+        // Create feature group for drawn items
+        const drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+        
+        // Initialize draw control
+        const drawControl = new L.Control.Draw({
+            position: 'topleft',
+            draw: {
+                polygon: {
+                    allowIntersection: false,
+                    showArea: true,
+                    shapeOptions: {
+                        color: '#3388ff',
+                        weight: 3
+                    }
+                },
+                polyline: false,
+                rectangle: false,
+                circle: false,
+                circlemarker: false,
+                marker: false
+            },
+            edit: {
+                featureGroup: drawnItems,
+                remove: true
+            }
+        });
+        
+        map.addControl(drawControl);
+        
+        let drawnPolygon = null;
+        
+        // Handle polygon drawing
+        map.on(L.Draw.Event.CREATED, function(event) {
+            const layer = event.layer;
+            drawnItems.clearLayers();
+            drawnItems.addLayer(layer);
+            drawnPolygon = layer;
+            document.getElementById('save-field').disabled = false;
+            updateFieldInfo(layer);
+        });
+        
+        // Handle polygon editing
+        map.on(L.Draw.Event.EDITED, function(event) {
+            const layers = event.layers;
+            layers.eachLayer(function(layer) {
+                drawnPolygon = layer;
+                updateFieldInfo(layer);
+            });
+        });
+        
+        // Handle polygon deletion
+        map.on(L.Draw.Event.DELETED, function() {
+            drawnPolygon = null;
+            document.getElementById('save-field').disabled = true;
+            document.getElementById('area-display').textContent = '0.00';
+            document.getElementById('coords-display').textContent = 'No polygon drawn';
+        });
+        
+        // Clear drawing button
+        document.getElementById('clear-draw').addEventListener('click', function() {
+            drawnItems.clearLayers();
+            drawnPolygon = null;
+            document.getElementById('save-field').disabled = true;
+            document.getElementById('area-display').textContent = '0.00';
+            document.getElementById('coords-display').textContent = 'No polygon drawn';
+        });
+        
+        // Update field info
+        function updateFieldInfo(layer) {
+            try {
+                const latlngs = layer.getLatLngs()[0];
+                const area = L.GeometryUtil.geodesicArea(latlngs);
+                const areaHa = (area / 10000).toFixed(2);
+                document.getElementById('area-display').textContent = areaHa;
+                
+                const coordStr = latlngs.map(c => `${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`).join('; ');
+                document.getElementById('coords-display').textContent = coordStr;
+            } catch(e) {
+                console.error('Error updating field info:', e);
+            }
+        }
+        
+        // Admin2 dropdown
+        document.getElementById('adm1').addEventListener('change', function() {
+            const adm1Id = this.value;
+            const adm2Select = document.getElementById('adm2');
+            
+            debugInfo.innerHTML = `<strong>Debug:</strong> Province selected: ${adm1Id}`;
+            
+            adm2Select.innerHTML = '<option value="">Loading districts...</option>';
+            
+            if (!adm1Id) {
+                adm2Select.innerHTML = '<option value="">Select District</option>';
+                debugInfo.innerHTML = `<strong>Debug:</strong> No province selected`;
+                return;
+            }
+            
+            const url = `/api/admin2/?admin1=${adm1Id}`;
+            debugInfo.innerHTML += `<br>Fetching: ${url}`;
+            
+            fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                },
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                debugInfo.innerHTML += `<br>Response status: ${response.status}`;
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Admin2 data received:', data);
+                debugInfo.innerHTML += `<br>Data received: ${JSON.stringify(data)}`;
+                
+                adm2Select.innerHTML = '<option value="">Select District</option>';
+                
+                if (Array.isArray(data) && data.length > 0) {
+                    data.forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.id;
+                        option.textContent = item.name;
+                        adm2Select.appendChild(option);
+                    });
+                    debugInfo.innerHTML += `<br>✅ Loaded ${data.length} districts`;
+                } else {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = 'No districts available';
+                    adm2Select.appendChild(option);
+                    debugInfo.innerHTML += `<br>⚠️ No districts found for this province`;
+                }
+            })
+            .catch(error => {
+                console.error('Error loading districts:', error);
+                debugInfo.innerHTML += `<br>❌ Error: ${error.message}`;
+                adm2Select.innerHTML = '<option value="">Error loading districts</option>';
+            });
+        });
+        
+        // =============================================
+        // FIXED: Save Field with proper URL handling
+        // =============================================
+        document.getElementById('save-field').addEventListener('click', function() {
+            if (!drawnPolygon) {
+                showAlert('Please draw a polygon first', 'danger');
+                return;
+            }
+            
+            const form = document.getElementById('field-form');
+            const formData = new FormData(form);
+            
+            // Get polygon coordinates
+            const coords = drawnPolygon.getLatLngs()[0];
+            const polygonCoords = coords.map(c => [c.lng, c.lat]);
+            polygonCoords.push(polygonCoords[0]); // Close polygon
+            
+            const data = {
+                field_name: formData.get('field_name'),
+                crop: formData.get('crop'),
+                production_system: formData.get('production_system'),
+                adm1: formData.get('adm1') || null,
+                adm2: formData.get('adm2') || null,
+                geometry: {
+                    type: 'Polygon',
+                    coordinates: [polygonCoords]
+                }
+            };
+            
+            // Validate
+            if (!data.field_name) {
+                showAlert('Please enter a field name', 'danger');
+                return;
+            }
+            
+            // Get CSRF token
+            const csrftoken = getCookie('csrftoken');
+            if (!csrftoken) {
+                showAlert('CSRF token not found. Please refresh the page.', 'danger');
+                return;
+            }
+            
+            // Disable save button and show loading
+            const saveBtn = document.getElementById('save-field');
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+            
+            debugInfo.innerHTML += `<br>📤 Sending data to server...`;
+            
+            // Send to server - use absolute URL
+            fetch('/api/fields/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(data),
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                debugInfo.innerHTML += `<br>📥 Response status: ${response.status}`;
+                
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json().then(data => {
+                        if (!response.ok) {
+                            throw data;
+                        }
+                        return data;
+                    });
+                } else {
+                    // If not JSON, something went wrong
+                    return response.text().then(text => {
+                        debugInfo.innerHTML += `<br>❌ Response is not JSON: ${text.substring(0, 100)}`;
+                        throw new Error('Server returned non-JSON response. Check URL and authentication.');
+                    });
+                }
+            })
+            .then(data => {
+                debugInfo.innerHTML += `<br>✅ Field saved successfully!`;
+                showAlert('Field saved successfully! Area: ' + data.area_ha + ' ha', 'success');
+                
+                // Reset form
+                document.getElementById('field-form').reset();
+                drawnItems.clearLayers();
+                drawnPolygon = null;
+                document.getElementById('save-field').disabled = true;
+                document.getElementById('area-display').textContent = '0.00';
+                document.getElementById('coords-display').textContent = 'No polygon drawn';
+                saveBtn.textContent = 'Save Field';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                debugInfo.innerHTML += `<br>❌ Error: ${error.error || error.message || 'Unknown error'}`;
+                showAlert('Error saving field: ' + (error.error || error.message || 'Check console for details'), 'danger');
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save Field';
+            });
+        });
+        
+        // Utility functions
+        function showAlert(message, type) {
+            const container = document.getElementById('alert-container');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            container.innerHTML = '';
+            container.appendChild(alert);
+            
+            setTimeout(() => {
+                if (alert.parentNode) {
+                    alert.remove();
+                }
+            }, 5000);
+        }
+        
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        console.log('Map initialized successfully');
+    });
+</script>
+{% endblock %}

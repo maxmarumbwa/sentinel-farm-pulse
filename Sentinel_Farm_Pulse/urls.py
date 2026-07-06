@@ -9,6 +9,6 @@ urlpatterns = [
     path('', include('apps.gee.urls')),
     path('indicators/', include('apps.indicators.urls')),
     path('reports/', include('apps.reports.urls')),
-    path('fields/', include('apps.fields_admin.urls')),
+    path('', include('apps.fields_admin.urls')),
 ]
 

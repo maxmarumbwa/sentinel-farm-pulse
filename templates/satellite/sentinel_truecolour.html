@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sentinel-2 True Colour</title>
+
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+    <style>
+        html, body {
+            margin: 0;
+            height: 100%;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        #header {
+            height: 50px;
+            background: #2c3e50;
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            font-size: 18px;
+        }
+
+        #map {
+            width: 100%;
+            height: calc(100vh - 50px);
+        }
+
+        .info {
+            position: absolute;
+            top: 65px;
+            right: 10px;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            box-shadow: 0 0 8px rgba(0,0,0,.3);
+            z-index: 1000;
+            font-size: 14px;
+        }
+
+        .error {
+            color: red;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="header">
+    Sentinel-2 Monthly True Colour Composite
+</div>
+<form method="get" style="margin-bottom:15px;">
+    <label>Maximum Cloud Cover (%)</label>
+
+    <input
+        type="range"
+        name="cloud"
+        min="0"
+        max="100"
+        value="{{ cloud_cover }}"
+        oninput="cloudValue.innerText=this.value">
+
+    <span id="cloudValue">{{ cloud_cover }}</span> %
+
+    <button type="submit">Load Image</button>
+</form>
+{% if error %}
+
+<div class="error">
+    <h3>Error</h3>
+    <p>{{ error }}</p>
+</div>
+
+{% else %}
+
+<div class="info">
+    <strong>{{ date }}</strong>
+</div>
+
+<div id="map"></div>
+
+{% endif %}
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+{% if not error %}
+
+<script>
+
+    // Zimbabwe center
+    var map = L.map('map').setView([-19.0, 29.5], 6);
+
+    // OpenStreetMap
+    L.tileLayer(
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }
+    ).addTo(map);
+
+    // Sentinel layer
+    L.tileLayer('{{ tile_url }}', {
+        attribution: 'Google Earth Engine'
+    }).addTo(map);
+
+</script>
+
+{% endif %}
+
+</body>
+</html>

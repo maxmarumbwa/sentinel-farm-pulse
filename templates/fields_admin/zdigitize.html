@@ -39,7 +39,7 @@
     
     /* ===== MAP - 50% larger ===== */
     #map {
-        height: 600px;
+        height: 500px;
         width: 100%;
         border-radius: 10px;
         border: 2px solid #e0e0e0;
@@ -59,6 +59,11 @@
         padding: 20px;
         border-radius: 10px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    /* Right pane - smaller */
+    .form-section:last-child {
+        max-width: 100%;
     }
     
     .form-group {
@@ -294,7 +299,7 @@
         }
     }
     
-    /* ===== DEBUG ===== */
+    /* ===== DEBUG (Hidden by default) ===== */
     .debug-info {
         display: none;
         margin-top: 10px;
@@ -311,21 +316,6 @@
     .debug-info:not(:empty) {
         display: block;
     }
-    
-    /* ===== LAYER CONTROL STYLING ===== */
-    .leaflet-control-layers {
-        border-radius: 8px !important;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.15) !important;
-    }
-    
-    .leaflet-control-layers label {
-        font-size: 13px !important;
-        padding: 4px 8px !important;
-    }
-    
-    .leaflet-control-layers input[type="radio"] {
-        margin-right: 6px !important;
-    }
 </style>
 {% endblock %}
 
@@ -337,7 +327,7 @@
     <div id="alert-container"></div>
     
     <div class="form-grid">
-        <!-- LEFT: Map -->
+        <!-- LEFT: Map (50% larger) -->
         <div class="form-section">
             <div id="map"></div>
             
@@ -352,7 +342,7 @@
             </div>
         </div>
         
-        <!-- RIGHT: Form -->
+        <!-- RIGHT: Form (Reduced width) -->
         <div class="form-section">
             <form id="field-form">
                 <div class="form-group">
@@ -417,91 +407,14 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // =============================================
-        // BASE MAPS
-        // =============================================
+        // ===== MAP =====
+        const map = L.map('map').setView([-19.0, 28.0], 6);
         
-        // 1. OpenStreetMap (Default)
-        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
-            maxZoom: 19
-        });
-        
-        // 2. Google Satellite
-        const googleSat = L.tileLayer('http://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-            subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-            attribution: '© Google',
-            maxZoom: 20
-        });
-        
-        // 3. Google Hybrid (Satellite + Labels)
-        const googleHybrid = L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-            subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-            attribution: '© Google',
-            maxZoom: 20
-        });
-        
-        // 4. ESRI Satellite
-        const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles © Esri',
-            maxZoom: 19
-        });
-        
-        // 5. ESRI World Imagery (with labels)
-        const esriLabel = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles © Esri',
-            maxZoom: 19
-        });
-        
-        // 6. Sentinel-2 (Cloudless - from EO Browser)
-        const sentinel = L.tileLayer('https://tiles.maps.eox.at/wms?service=WMS&request=GetMap&layers=s2cloudless&styles=&format=image/jpeg&transparent=false&version=1.1.1&width=256&height=256&srs=EPSG:3857&bbox={bbox-epsg-3857}', {
-            attribution: 'Sentinel-2 Cloudless © EOX',
-            maxZoom: 16
-        });
-        
-        // 7. Stamen Terrain (Topographic)
-        const stamenTerrain = L.tileLayer('https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png', {
-            attribution: 'Map tiles by Stamen Design',
-            maxZoom: 18
-        });
-        
-        // 8. CartoDB Voyager (Clean, light)
-        const cartoDB = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap, © CartoDB',
-            maxZoom: 19
-        });
-        
-        // =============================================
-        // INITIALIZE MAP WITH DEFAULT LAYER
-        // =============================================
-        const map = L.map('map', {
-            center: [-19.0, 28.0],
-            zoom: 6,
-            layers: [osm]  // Default layer
-        });
-        
-        // =============================================
-        // LAYER CONTROL
-        // =============================================
-        const baseMaps = {
-            '🗺️ OpenStreetMap': osm,
-            '🛰️ Google Satellite': googleSat,
-            '🗺️ Google Hybrid': googleHybrid,
-            '🛰️ ESRI Satellite': esriSat,
-            '🛰️ Sentinel-2': sentinel,
-            '🗺️ Stamen Terrain': stamenTerrain,
-            '🗺️ CartoDB Voyager': cartoDB
-        };
-        
-        // Add layer control to map
-        L.control.layers(baseMaps, null, {
-            position: 'topright',
-            collapsed: true  // Collapse on mobile for cleaner UI
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
         }).addTo(map);
         
-        // =============================================
-        // DRAW TOOLS
-        // =============================================
+        // ===== DRAW TOOLS =====
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
         
@@ -525,9 +438,7 @@
         
         let drawnPolygon = null;
         
-        // =============================================
-        // DRAW EVENTS
-        // =============================================
+        // ===== DRAW EVENTS =====
         map.on(L.Draw.Event.CREATED, function(e) {
             drawnItems.clearLayers();
             drawnItems.addLayer(e.layer);
@@ -549,9 +460,7 @@
             resetInfo();
         });
         
-        // =============================================
-        // CLEAR BUTTON
-        // =============================================
+        // ===== CLEAR BUTTON =====
         document.getElementById('clear-draw').addEventListener('click', function() {
             drawnItems.clearLayers();
             drawnPolygon = null;
@@ -559,9 +468,7 @@
             resetInfo();
         });
         
-        // =============================================
-        // UPDATE INFO
-        // =============================================
+        // ===== UPDATE INFO =====
         function updateInfo(layer) {
             const latlngs = layer.getLatLngs()[0];
             const area = L.GeometryUtil.geodesicArea(latlngs);
@@ -575,9 +482,7 @@
             document.getElementById('coords-display').textContent = 'Draw a polygon';
         }
         
-        // =============================================
-        // ADMIN2 DROPDOWN
-        // =============================================
+        // ===== ADMIN2 DROPDOWN =====
         document.getElementById('adm1').addEventListener('change', function() {
             const id = this.value;
             const select = document.getElementById('adm2');
@@ -604,9 +509,7 @@
                 });
         });
         
-        // =============================================
-        // SAVE FIELD
-        // =============================================
+        // ===== SAVE FIELD =====
         document.getElementById('save-field').addEventListener('click', function() {
             if (!drawnPolygon) {
                 showAlert('Please draw a polygon first', 'danger');
@@ -667,9 +570,7 @@
             });
         });
         
-        // =============================================
-        // HELPERS
-        // =============================================
+        // ===== HELPERS =====
         function showAlert(msg, type) {
             const container = document.getElementById('alert-container');
             container.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
@@ -689,9 +590,7 @@
             return v;
         }
         
-        // =============================================
-        // MOBILE: Fit map on orientation change
-        // =============================================
+        // ===== MOBILE: Fit map on orientation change =====
         window.addEventListener('resize', function() {
             setTimeout(() => map.invalidateSize(), 100);
         });

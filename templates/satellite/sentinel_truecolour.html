@@ -1,83 +1,255 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Sentinel-2 True Colour</title>
 
-    <link rel="stylesheet"
-          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<meta charset="UTF-8">
 
-    <style>
-        html, body {
-            margin: 0;
-            height: 100%;
-            font-family: Arial, Helvetica, sans-serif;
-        }
+<title>Sentinel-2 True Colour Composite</title>
 
-        #header {
-            height: 50px;
-            background: #2c3e50;
-            color: white;
-            display: flex;
-            align-items: center;
-            padding: 0 20px;
-            font-size: 18px;
-        }
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
-        #map {
-            width: 100%;
-            height: calc(100vh - 50px);
-        }
+<style>
 
-        .info {
-            position: absolute;
-            top: 65px;
-            right: 10px;
-            background: white;
-            padding: 10px 15px;
-            border-radius: 4px;
-            box-shadow: 0 0 8px rgba(0,0,0,.3);
-            z-index: 1000;
-            font-size: 14px;
-        }
+html,body{
+    margin:0;
+    height:100%;
+    font-family:Arial,Helvetica,sans-serif;
+}
 
-        .error {
-            color: red;
-            padding: 20px;
-        }
-    </style>
+#header{
+    height:55px;
+    background:#2c3e50;
+    color:white;
+    display:flex;
+    align-items:center;
+    padding:0 20px;
+    font-size:18px;
+}
+
+#toolbar{
+
+    background:#f5f5f5;
+    padding:10px 20px;
+    border-bottom:1px solid #ccc;
+
+}
+
+#toolbar form{
+
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:10px;
+
+}
+
+label{
+
+    font-weight:bold;
+
+}
+
+select{
+
+    padding:5px;
+
+}
+
+button{
+
+    padding:7px 15px;
+    background:#2c3e50;
+    color:white;
+    border:none;
+    cursor:pointer;
+
+}
+
+button:hover{
+
+    background:#34495e;
+
+}
+
+#map{
+
+    width:100%;
+    height:calc(100vh - 115px);
+
+}
+
+.info{
+
+    position:absolute;
+    right:15px;
+    top:125px;
+    z-index:1000;
+
+    background:white;
+
+    padding:12px;
+
+    border-radius:4px;
+
+    box-shadow:0 0 8px rgba(0,0,0,.25);
+
+}
+
+.error{
+
+    padding:20px;
+    color:red;
+
+}
+
+</style>
+
 </head>
+
 <body>
 
 <div id="header">
-    Sentinel-2 Monthly True Colour Composite
+
+Sentinel-2 Monthly True Colour Composite
+
 </div>
-<form method="get" style="margin-bottom:15px;">
-    <label>Maximum Cloud Cover (%)</label>
 
-    <input
-        type="range"
-        name="cloud"
-        min="0"
-        max="100"
-        value="{{ cloud_cover }}"
-        oninput="cloudValue.innerText=this.value">
+<div id="toolbar">
 
-    <span id="cloudValue">{{ cloud_cover }}</span> %
+<form method="get">
 
-    <button type="submit">Load Image</button>
+<label>Start Year</label>
+
+<select name="start_year">
+
+{% for y in years %}
+
+<option value="{{ y }}"
+{% if y == start_year %}selected{% endif %}>
+{{ y }}
+</option>
+
+{% endfor %}
+
+</select>
+
+<label>Start Month</label>
+
+<select name="start_month">
+
+{% for value,name in months %}
+
+<option value="{{ value }}"
+{% if value == start_month %}selected{% endif %}>
+{{ name }}
+</option>
+
+{% endfor %}
+
+</select>
+
+<label>End Year</label>
+
+<select name="end_year">
+
+{% for y in years %}
+
+<option value="{{ y }}"
+{% if y == end_year %}selected{% endif %}>
+{{ y }}
+</option>
+
+{% endfor %}
+
+</select>
+
+<label>End Month</label>
+
+<select name="end_month">
+
+{% for value,name in months %}
+
+<option value="{{ value }}"
+{% if value == end_month %}selected{% endif %}>
+{{ name }}
+</option>
+
+{% endfor %}
+
+</select>
+
+<label>Cloud Cover</label>
+
+<select name="cloud">
+
+<option value="5" {% if cloud_cover == 5 %}selected{% endif %}>5%</option>
+
+<option value="10" {% if cloud_cover == 10 %}selected{% endif %}>10%</option>
+
+<option value="20" {% if cloud_cover == 20 %}selected{% endif %}>20%</option>
+
+<option value="30" {% if cloud_cover == 30 %}selected{% endif %}>30%</option>
+
+<option value="40" {% if cloud_cover == 40 %}selected{% endif %}>40%</option>
+
+<option value="50" {% if cloud_cover == 50 %}selected{% endif %}>50%</option>
+
+<option value="60" {% if cloud_cover == 60 %}selected{% endif %}>60%</option>
+
+<option value="70" {% if cloud_cover == 70 %}selected{% endif %}>70%</option>
+
+<option value="80" {% if cloud_cover == 80 %}selected{% endif %}>80%</option>
+
+<option value="90" {% if cloud_cover == 90 %}selected{% endif %}>90%</option>
+
+<option value="100" {% if cloud_cover == 100 %}selected{% endif %}>100%</option>
+
+</select>
+
+<label>Province</label>
+
+<select name="province">
+
+{% for p in provinces %}
+
+<option value="{{ p }}"
+{% if p == province %}selected{% endif %}>
+{{ p }}
+</option>
+
+{% endfor %}
+
+</select>
+
+<button type="submit">
+
+Load Composite
+
+</button>
+
 </form>
+
+</div>
+
 {% if error %}
 
 <div class="error">
-    <h3>Error</h3>
-    <p>{{ error }}</p>
+
+<h3>Error</h3>
+
+{{ error }}
+
 </div>
 
 {% else %}
 
 <div class="info">
-    <strong>{{ date }}</strong>
+
+<b>{{ date }}</b><br>
+
+Cloud Threshold: {{ cloud_cover }}%
+
 </div>
 
 <div id="map"></div>
@@ -90,26 +262,48 @@
 
 <script>
 
-    // Zimbabwe center
-    var map = L.map('map').setView([-19.0, 29.5], 6);
+var map = L.map('map');
 
-    // OpenStreetMap
-    L.tileLayer(
-        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap contributors'
-        }
-    ).addTo(map);
 
-    // Sentinel layer
-    L.tileLayer('{{ tile_url }}', {
-        attribution: 'Google Earth Engine'
-    }).addTo(map);
+{% if bounds %}
 
-</script>
+var provinceBounds = [
+    [{{ bounds.0.0 }}, {{ bounds.0.1 }}],
+    [{{ bounds.1.0 }}, {{ bounds.1.1 }}]
+];
+
+map.fitBounds(provinceBounds);
+
+
+{% else %}
+
+map.setView([-19.0,29.5],6);
 
 {% endif %}
 
+
+
+L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+        attribution:'© OpenStreetMap contributors',
+        maxZoom:19
+    }
+).addTo(map);
+
+
+
+L.tileLayer(
+    '{{ tile_url }}',
+    {
+        attribution:'Google Earth Engine'
+    }
+).addTo(map);
+
+
+</script>
+{% endif %}
+
 </body>
+
 </html>

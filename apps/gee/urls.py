@@ -6,5 +6,5 @@ urlpatterns = [
     path('', views.rainfall_raster, name='rainfall_raster'),
     path("sentinel/",views.sentinel_truecolour,name="sentinel_truecolour"),
     path("sentinel/<int:year>/<int:month>/",views.sentinel_truecolour,name="sentinel_truecolour_date"),
-    
+       
 ]

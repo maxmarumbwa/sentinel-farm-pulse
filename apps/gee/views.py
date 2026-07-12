@@ -406,6 +406,7 @@ def sentinel_truecolour(request):
     return render(
         request,
         "satellite/sentinel_truecolour.html",
+        
         context
     )
 

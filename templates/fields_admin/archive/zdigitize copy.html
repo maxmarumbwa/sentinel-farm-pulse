@@ -1,0 +1,912 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Digitize Field with Sentinel-2{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+<style>
+    /* ===== RESET & BASE ===== */
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: #f5f7fa;
+    }
+    
+    /* ===== HEADER ===== */
+    #header {
+        background: #1a1a2e;
+        color: white;
+        padding: 12px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    
+    #header h1 {
+        font-size: 20px;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    #header .subtitle {
+        font-size: 13px;
+        color: #a8b5c8;
+        font-weight: normal;
+    }
+    
+    .header-links {
+        display: flex;
+        gap: 10px;
+    }
+    
+    .header-links a {
+        color: white;
+        text-decoration: none;
+        padding: 5px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        background: rgba(255,255,255,0.1);
+        transition: background 0.2s;
+    }
+    
+    .header-links a:hover {
+        background: rgba(255,255,255,0.2);
+    }
+    
+    /* ===== TOOLBAR ===== */
+    #toolbar {
+        background: white;
+        padding: 12px 20px;
+        border-bottom: 2px solid #e0e0e0;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    
+    #toolbar form {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+    }
+    
+    #toolbar label {
+        font-weight: 600;
+        font-size: 13px;
+        color: #333;
+        margin: 0;
+    }
+    
+    #toolbar select,
+    #toolbar input {
+        padding: 6px 10px;
+        border: 2px solid #e0e0e0;
+        border-radius: 6px;
+        font-size: 13px;
+        background: white;
+        min-width: 80px;
+    }
+    
+    #toolbar select:focus,
+    #toolbar input:focus {
+        outline: none;
+        border-color: #4a90d9;
+    }
+    
+    #toolbar .btn {
+        padding: 7px 18px;
+        background: #4a90d9;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 13px;
+    }
+    
+    #toolbar .btn:hover {
+        background: #357abd;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(74, 144, 217, 0.3);
+    }
+    
+    #toolbar .btn-success {
+        background: #28a745;
+    }
+    
+    #toolbar .btn-success:hover {
+        background: #218838;
+    }
+    
+    #toolbar .btn-danger {
+        background: #dc3545;
+    }
+    
+    #toolbar .btn-danger:hover {
+        background: #c82333;
+    }
+    
+    /* ===== MAP ===== */
+    #map-container {
+        position: relative;
+        height: calc(100vh - 220px);
+        min-height: 500px;
+    }
+    
+    #map {
+        width: 100%;
+        height: 100%;
+        border-radius: 0;
+    }
+    
+    /* ===== INFO PANEL ===== */
+    .map-info {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        z-index: 1000;
+        background: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+        font-size: 13px;
+        min-width: 150px;
+        pointer-events: none;
+    }
+    
+    .map-info .label {
+        color: #666;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .map-info .value {
+        font-weight: 600;
+        color: #1a1a2e;
+        margin-top: 2px;
+    }
+    
+    /* ===== FORM PANEL (Bottom) ===== */
+    #form-panel {
+        background: white;
+        padding: 15px 20px;
+        border-top: 2px solid #e0e0e0;
+        display: none;
+        grid-template-columns: 1fr 1fr 1fr 1fr;
+        gap: 15px;
+        align-items: end;
+        box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
+    }
+    
+    #form-panel.active {
+        display: grid;
+    }
+    
+    #form-panel .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    #form-panel .form-group label {
+        font-weight: 600;
+        font-size: 12px;
+        color: #555;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    #form-panel .form-group input,
+    #form-panel .form-group select {
+        padding: 8px 12px;
+        border: 2px solid #e0e0e0;
+        border-radius: 6px;
+        font-size: 13px;
+    }
+    
+    #form-panel .form-group input:focus,
+    #form-panel .form-group select:focus {
+        outline: none;
+        border-color: #4a90d9;
+    }
+    
+    #form-panel .btn-group {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+    
+    #form-panel .btn {
+        padding: 8px 20px;
+        border: none;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 13px;
+        white-space: nowrap;
+    }
+    
+    #form-panel .btn-save {
+        background: #28a745;
+        color: white;
+    }
+    
+    #form-panel .btn-save:hover:not(:disabled) {
+        background: #218838;
+    }
+    
+    #form-panel .btn-save:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    #form-panel .btn-cancel {
+        background: #dc3545;
+        color: white;
+    }
+    
+    #form-panel .btn-cancel:hover {
+        background: #c82333;
+    }
+    
+    /* ===== FIELD INFO ===== */
+    .field-info {
+        background: #f8f9fa;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        grid-column: span 1;
+    }
+    
+    .field-info p {
+        margin: 2px 0;
+    }
+    
+    /* ===== ALERT ===== */
+    .alert {
+        padding: 10px 16px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        margin: 0;
+        animation: slideDown 0.3s ease;
+        position: fixed;
+        top: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9999;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        max-width: 90%;
+    }
+    
+    .alert-success {
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+    }
+    
+    .alert-danger {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+    }
+    
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateX(-50%) translateY(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    }
+    
+    /* ===== LOADING ===== */
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 999;
+        color: white;
+        font-size: 18px;
+        border-radius: 0;
+    }
+    
+    .loading-overlay.hidden {
+        display: none;
+    }
+    
+    .spinner {
+        border: 4px solid rgba(255,255,255,0.1);
+        border-top: 4px solid white;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin-right: 15px;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    /* ===== DRAW TOOLBAR STYLING ===== */
+    .leaflet-draw-toolbar {
+        margin-top: 10px !important;
+    }
+    
+    .leaflet-control-layers {
+        border-radius: 8px !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.15) !important;
+    }
+    
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 1024px) {
+        #form-panel {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        #header {
+            flex-direction: column;
+            align-items: stretch;
+            padding: 10px 15px;
+        }
+        
+        #header h1 {
+            font-size: 17px;
+        }
+        
+        #toolbar {
+            padding: 10px 15px;
+        }
+        
+        #toolbar form {
+            gap: 6px;
+        }
+        
+        #toolbar select,
+        #toolbar input {
+            min-width: 60px;
+            font-size: 12px;
+            padding: 5px 8px;
+        }
+        
+        #toolbar label {
+            font-size: 12px;
+        }
+        
+        #toolbar .btn {
+            padding: 6px 14px;
+            font-size: 12px;
+        }
+        
+        #map-container {
+            height: calc(100vh - 300px);
+            min-height: 350px;
+        }
+        
+        .map-info {
+            top: 10px;
+            right: 10px;
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+        
+        #form-panel {
+            grid-template-columns: 1fr;
+            padding: 12px 15px;
+            gap: 10px;
+        }
+        
+        #form-panel .btn-group {
+            flex-wrap: wrap;
+        }
+        
+        #form-panel .btn {
+            flex: 1;
+            text-align: center;
+        }
+        
+        .field-info {
+            grid-column: span 1;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        #map-container {
+            height: calc(100vh - 350px);
+            min-height: 250px;
+        }
+        
+        #toolbar .btn {
+            width: 100%;
+        }
+        
+        .map-info {
+            display: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ===== HEADER ===== -->
+<div id="header">
+    <div>
+        <h1>
+            🛰️ Sentinel-2 Field Digitizer
+            <span class="subtitle">Zimbabwe</span>
+        </h1>
+    </div>
+    <div class="header-links">
+        <a href="{% url 'fields_admin:digitize_field' %}">🗺️ Standard Map</a>
+        <a href="{% url 'fields_admin:sentinel_ndvi' %}">🌿 NDVI View</a>
+    </div>
+</div>
+
+<!-- ===== TOOLBAR ===== -->
+<div id="toolbar">
+    <form method="get" id="filter-form">
+        <label>Year</label>
+        <select name="year">
+            {% for y in years %}
+            <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+        
+        <label>Month</label>
+        <select name="month">
+            {% for value, name in months %}
+            <option value="{{ value }}" {% if value == month %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+        </select>
+        
+        <label>Cloud</label>
+        <select name="cloud">
+            <option value="5" {% if cloud == 5 %}selected{% endif %}>5%</option>
+            <option value="10" {% if cloud == 10 %}selected{% endif %}>10%</option>
+            <option value="20" {% if cloud == 20 %}selected{% endif %}>20%</option>
+            <option value="30" {% if cloud == 30 %}selected{% endif %}>30%</option>
+            <option value="40" {% if cloud == 40 %}selected{% endif %}>40%</option>
+            <option value="50" {% if cloud == 50 %}selected{% endif %}>50%</option>
+            <option value="60" {% if cloud == 60 %}selected{% endif %}>60%</option>
+            <option value="70" {% if cloud == 70 %}selected{% endif %}>70%</option>
+            <option value="80" {% if cloud == 80 %}selected{% endif %}>80%</option>
+            <option value="90" {% if cloud == 90 %}selected{% endif %}>90%</option>
+            <option value="100" {% if cloud == 100 %}selected{% endif %}>100%</option>
+        </select>
+        
+        <button type="submit" class="btn">🔄 Load</button>
+        <button type="button" class="btn btn-success" id="toggle-form">✏️ Digitize</button>
+        <button type="button" class="btn btn-danger" id="clear-draw">🗑️ Clear</button>
+    </form>
+</div>
+
+<!-- ===== MAP ===== -->
+<div id="map-container">
+    <div id="map"></div>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="spinner"></div>
+        <span>Loading Sentinel-2 Imagery...</span>
+    </div>
+    
+    <!-- Info Panel -->
+    {% if not error %}
+    <div class="map-info">
+        <div class="label">📅 Date Range</div>
+        <div class="value">{{ date_range }}</div>
+        <div class="label" style="margin-top:8px;">☁️ Cloud Threshold</div>
+        <div class="value">{{ cloud }}%</div>
+        <div class="label" style="margin-top:8px;">📍 Location</div>
+        <div class="value">Zimbabwe</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ===== ERROR ===== -->
+{% if error %}
+<div class="alert alert-danger" style="position:static;transform:none;margin:20px;">
+    ❌ {{ error }}
+</div>
+{% endif %}
+
+<!-- ===== FORM PANEL ===== -->
+<div id="form-panel">
+    <div class="form-group">
+        <label>Field Name *</label>
+        <input type="text" id="field_name" placeholder="e.g., North Field" />
+    </div>
+    
+    <div class="form-group">
+        <label>Crop *</label>
+        <select id="crop">
+            <option value="Maize">🌽 Maize</option>
+            <option value="Groundnuts">🥜 Groundnuts</option>
+            <option value="Soybeans">🫘 Soybeans</option>
+            <option value="Cotton">🌿 Cotton</option>
+            <option value="Tobacco">🚬 Tobacco</option>
+            <option value="Sunflower">🌻 Sunflower</option>
+            <option value="Sorghum">🌾 Sorghum</option>
+            <option value="Millet">🌾 Millet</option>
+            <option value="Beans">🫘 Beans</option>
+            <option value="Potatoes">🥔 Potatoes</option>
+            <option value="Tomatoes">🍅 Tomatoes</option>
+            <option value="Other">🌱 Other</option>
+        </select>
+    </div>
+    
+    <div class="form-group">
+        <label>Production System</label>
+        <select id="production_system">
+            <option value="Rainfed">☔ Rainfed</option>
+            <option value="Irrigated">💧 Irrigated</option>
+        </select>
+    </div>
+    
+    <div class="btn-group">
+        <button class="btn btn-save" id="save-field" disabled>💾 Save Field</button>
+        <button class="btn btn-cancel" id="cancel-form">❌ Cancel</button>
+    </div>
+    
+    <div class="field-info">
+        <p>📐 <strong>Area:</strong> <span id="area-display">0.00</span> ha</p>
+        <p>📍 <strong>Coordinates:</strong> <span id="coords-display">Draw a polygon</span></p>
+    </div>
+</div>
+
+<!-- ===== ALERT CONTAINER ===== -->
+<div id="alert-container"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // =============================================
+        // VARIABLES
+        // =============================================
+        let drawnPolygon = null;
+        let isDrawingMode = false;
+        
+        // =============================================
+        // INITIALIZE MAP
+        // =============================================
+        const map = L.map('map', {
+            center: [-19.0, 29.5],
+            zoom: 6,
+            zoomControl: true
+        });
+        
+        // =============================================
+        // BASE LAYERS
+        // =============================================
+        // OpenStreetMap (for reference)
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap',
+            maxZoom: 19
+        });
+        
+        // Sentinel-2 Tile Layer
+        {% if not error and tile_url %}
+        const sentinelLayer = L.tileLayer('{{ tile_url|safe }}', {
+            attribution: '© Sentinel-2, Google Earth Engine',
+            maxZoom: 18,
+            opacity: 0.9
+        }).addTo(map);
+        {% endif %}
+        
+        // Add OSM as reference (not active by default)
+        osm.addTo(map);
+        
+        // =============================================
+        // ZIMBABWE BOUNDARY (Visual Reference)
+        // =============================================
+        const zimbabweBounds = [
+            [-22.5, 25.0],
+            [-15.5, 33.0]
+        ];
+        
+        const bounds = L.rectangle(zimbabweBounds, {
+            color: '#ff6b6b',
+            weight: 2,
+            opacity: 0.6,
+            fillOpacity: 0,
+            dashArray: '5,5'
+        }).addTo(map);
+        
+        // =============================================
+        // DRAW TOOLS
+        // =============================================
+        const drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+        
+        const drawControl = new L.Control.Draw({
+            position: 'topleft',
+            draw: {
+                polygon: {
+                    allowIntersection: false,
+                    showArea: true,
+                    shapeOptions: {
+                        color: '#4a90d9',
+                        weight: 3,
+                        fillColor: '#4a90d9',
+                        fillOpacity: 0.2
+                    }
+                },
+                polyline: false,
+                rectangle: false,
+                circle: false,
+                circlemarker: false,
+                marker: false
+            },
+            edit: {
+                featureGroup: drawnItems,
+                remove: true
+            }
+        });
+        map.addControl(drawControl);
+        
+        // =============================================
+        // LAYER CONTROL
+        // =============================================
+        const baseMaps = {
+            '🗺️ OpenStreetMap': osm,
+            {% if not error and tile_url %}
+            '🛰️ Sentinel-2': sentinelLayer
+            {% endif %}
+        };
+        
+        L.control.layers(baseMaps, null, {
+            position: 'topright',
+            collapsed: true
+        }).addTo(map);
+        
+        // =============================================
+        // DRAW EVENTS
+        // =============================================
+        map.on(L.Draw.Event.CREATED, function(e) {
+            drawnItems.clearLayers();
+            drawnItems.addLayer(e.layer);
+            drawnPolygon = e.layer;
+            document.getElementById('save-field').disabled = false;
+            document.getElementById('save-field').textContent = '💾 Save Field';
+            updateInfo(e.layer);
+            showAlert('✅ Polygon drawn! Fill in the form and save.', 'success');
+        });
+        
+        map.on(L.Draw.Event.EDITED, function(e) {
+            e.layers.eachLayer(function(layer) {
+                drawnPolygon = layer;
+                updateInfo(layer);
+            });
+        });
+        
+        map.on(L.Draw.Event.DELETED, function() {
+            drawnPolygon = null;
+            document.getElementById('save-field').disabled = true;
+            resetInfo();
+        });
+        
+        // =============================================
+        // UPDATE INFO
+        // =============================================
+        function updateInfo(layer) {
+            const latlngs = layer.getLatLngs()[0];
+            const area = L.GeometryUtil.geodesicArea(latlngs);
+            document.getElementById('area-display').textContent = (area / 10000).toFixed(2);
+            document.getElementById('coords-display').textContent = 
+                latlngs.map(c => `${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`).join('; ');
+        }
+        
+        function resetInfo() {
+            document.getElementById('area-display').textContent = '0.00';
+            document.getElementById('coords-display').textContent = 'Draw a polygon';
+        }
+        
+        // =============================================
+        // TOGGLE FORM
+        // =============================================
+        document.getElementById('toggle-form').addEventListener('click', function() {
+            const panel = document.getElementById('form-panel');
+            panel.classList.toggle('active');
+            
+            if (panel.classList.contains('active')) {
+                this.textContent = '✏️ Close Form';
+                this.style.background = '#6c757d';
+            } else {
+                this.textContent = '✏️ Digitize';
+                this.style.background = '#28a745';
+            }
+        });
+        
+        document.getElementById('cancel-form').addEventListener('click', function() {
+            document.getElementById('form-panel').classList.remove('active');
+            document.getElementById('toggle-form').textContent = '✏️ Digitize';
+            document.getElementById('toggle-form').style.background = '#28a745';
+            drawnItems.clearLayers();
+            drawnPolygon = null;
+            document.getElementById('save-field').disabled = true;
+            resetInfo();
+        });
+        
+        // =============================================
+        // CLEAR DRAWING
+        // =============================================
+        document.getElementById('clear-draw').addEventListener('click', function() {
+            drawnItems.clearLayers();
+            drawnPolygon = null;
+            document.getElementById('save-field').disabled = true;
+            resetInfo();
+            showAlert('🗑️ Drawing cleared', 'success');
+        });
+        
+        // =============================================
+        // SAVE FIELD
+        // =============================================
+        document.getElementById('save-field').addEventListener('click', function() {
+            if (!drawnPolygon) {
+                showAlert('⚠️ Please draw a polygon first', 'danger');
+                return;
+            }
+            
+            const fieldName = document.getElementById('field_name').value.trim();
+            if (!fieldName) {
+                showAlert('⚠️ Please enter a field name', 'danger');
+                document.getElementById('field_name').focus();
+                return;
+            }
+            
+            // Get polygon coordinates
+            const coords = drawnPolygon.getLatLngs()[0];
+            const polygonCoords = coords.map(c => [c.lng, c.lat]);
+            polygonCoords.push(polygonCoords[0]);
+            
+            const data = {
+                field_name: fieldName,
+                crop: document.getElementById('crop').value,
+                production_system: document.getElementById('production_system').value,
+                adm1: null,
+                adm2: null,
+                geometry: {
+                    type: 'Polygon',
+                    coordinates: [polygonCoords]
+                }
+            };
+            
+            const btn = this;
+            btn.disabled = true;
+            btn.textContent = '⏳ Saving...';
+            
+            fetch('/api/fields/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify(data)
+            })
+            .then(r => {
+                if (!r.ok) throw new Error('Server error');
+                return r.json();
+            })
+            .then(data => {
+                showAlert(`✅ Field "${data.field_name}" saved! Area: ${data.area_ha} ha`, 'success');
+                document.getElementById('field_name').value = '';
+                drawnItems.clearLayers();
+                drawnPolygon = null;
+                btn.disabled = true;
+                btn.textContent = '💾 Save Field';
+                resetInfo();
+                document.getElementById('form-panel').classList.remove('active');
+                document.getElementById('toggle-form').textContent = '✏️ Digitize';
+                document.getElementById('toggle-form').style.background = '#28a745';
+            })
+            .catch(err => {
+                showAlert('❌ Error: ' + err.message, 'danger');
+                btn.disabled = false;
+                btn.textContent = '💾 Save Field';
+            });
+        });
+        
+        // =============================================
+        // HELPERS
+        // =============================================
+        function showAlert(msg, type) {
+            const container = document.getElementById('alert-container');
+            container.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+            clearTimeout(window.alertTimeout);
+            window.alertTimeout = setTimeout(() => container.innerHTML = '', 5000);
+        }
+        
+        function getCookie(name) {
+            let v = null;
+            if (document.cookie && document.cookie !== '') {
+                document.cookie.split(';').forEach(c => {
+                    const cookie = c.trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        v = decodeURIComponent(cookie.substring(name.length + 1));
+                    }
+                });
+            }
+            return v;
+        }
+        
+        // =============================================
+        // REMOVE LOADING OVERLAY
+        // =============================================
+        {% if not error %}
+        document.getElementById('loading-overlay').classList.add('hidden');
+        {% endif %}
+        
+        // =============================================
+        // RESPONSIVE: Fit map on resize
+        // =============================================
+        window.addEventListener('resize', function() {
+            setTimeout(() => map.invalidateSize(), 100);
+        });
+        
+        // =============================================
+        // KEYBOARD SHORTCUTS
+        // =============================================
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+Shift+D: Toggle digitize form
+            if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+                e.preventDefault();
+                document.getElementById('toggle-form').click();
+            }
+            // Ctrl+Enter: Save field
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('save-field').click();
+            }
+            // Escape: Cancel
+            if (e.key === 'Escape') {
+                document.getElementById('cancel-form').click();
+            }
+        });
+        
+        console.log('🛰️ Sentinel-2 Field Digitizer initialized');
+        console.log('📅 Date Range: {{ date_range }}');
+        console.log('☁️ Cloud Threshold: {{ cloud }}%');
+        console.log('💡 Press Ctrl+Shift+D to toggle digitize form');
+        console.log('💡 Press Ctrl+Enter to save');
+        console.log('💡 Press Escape to cancel');
+    });
+</script>
+{% endblock %}
+
+
+
+

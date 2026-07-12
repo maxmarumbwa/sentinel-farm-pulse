@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Farms - Zimbabwe</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* ===== ALL CSS IN ONE PLACE ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background: #f0f4f0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 15px;
+        }
+        
+        .navbar-custom {
+            background: linear-gradient(135deg, #1a7a3a, #2d8f4e);
+            padding: 12px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .navbar-custom a { color: white !important; text-decoration: none; }
+        .navbar-custom .brand { font-size: 1.3rem; font-weight: 600; }
+        .navbar-custom .brand i { margin-right: 8px; }
+        
+        .nav-links {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .nav-links a { color: rgba(255,255,255,0.8) !important; transition: 0.3s; }
+        .nav-links a:hover { color: white !important; }
+        
+        .user-info { color: rgba(255,255,255,0.9); font-size: 0.9rem; }
+        
+        .btn-logout {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        
+        .btn-logout:hover { background: rgba(255,255,255,0.25); }
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            margin-bottom: 20px;
+            background: white;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #e8ece8;
+            font-weight: 600;
+        }
+        
+        .card-header.bg-success {
+            background: linear-gradient(135deg, #28a745, #1e7e34) !important;
+            color: white;
+        }
+        
+        .card-body { padding: 20px; }
+        
+        .table {
+            margin-bottom: 0;
+        }
+        
+        .table thead th {
+            background: #f8faf8;
+            border-bottom: 2px solid #e8ece8;
+            font-weight: 600;
+            color: #2d3e2d;
+        }
+        
+        .table tbody tr:hover { background: #f0f7f0; }
+        
+        .badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+        
+        .badge-success { background: #28a745; color: white; }
+        .badge-info { background: #17a2b8; color: white; }
+        .badge-secondary { background: #6c757d; color: white; }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #28a745, #1e7e34);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-weight: 600;
+            color: white;
+            transition: 0.3s;
+        }
+        
+        .btn-success:hover {
+            background: linear-gradient(135deg, #1e7e34, #155724);
+            transform: translateY(-1px);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #ffc107, #e0a800);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-weight: 600;
+            color: #333;
+            transition: 0.3s;
+        }
+        
+        .btn-warning:hover {
+            transform: translateY(-1px);
+        }
+        
+        .btn-info {
+            background: linear-gradient(135deg, #17a2b8, #117a8b);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-weight: 600;
+            color: white;
+            transition: 0.3s;
+        }
+        
+        .btn-info:hover {
+            transform: translateY(-1px);
+            color: white;
+        }
+        
+        .btn-outline-danger {
+            border-radius: 8px;
+        }
+        
+        .alert {
+            border-radius: 10px;
+            border: none;
+            padding: 12px 18px;
+        }
+        
+        .alert-success { background: #d4edda; color: #155724; }
+        .alert-danger { background: #f8d7da; color: #721c24; }
+        .alert-warning { background: #fff3cd; color: #856404; }
+        .alert-info { background: #d1ecf1; color: #0c5460; }
+        
+        .footer {
+            text-align: center;
+            padding: 15px;
+            color: #6c757d;
+            font-size: 0.85rem;
+            border-top: 1px solid #e8ece8;
+            margin-top: 20px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        
+        .empty-state i {
+            font-size: 3rem;
+            color: #c1d4c1;
+            margin-bottom: 15px;
+        }
+        
+        .flag-zw { font-size: 1.2em; }
+        
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .navbar-custom { flex-direction: column; gap: 10px; padding: 15px; }
+            .nav-links { justify-content: center; gap: 12px; }
+            .table-responsive { font-size: 0.85rem; }
+            .btn-group-sm .btn { padding: 2px 6px; font-size: 0.75rem; }
+        }
+        
+        @media (max-width: 576px) {
+            .navbar-custom .brand { font-size: 1.1rem; }
+            .nav-links a { font-size: 0.9rem; }
+            .user-info { font-size: 0.8rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== NAVBAR ===== -->
+    <nav class="navbar-custom">
+        <div>
+            <a href="/farms/" class="brand">
+                <i class="fas fa-seedling"></i> Farm Digitization <span class="flag-zw">🇿🇼</span>
+            </a>
+        </div>
+        <div class="nav-links">
+            <a href="/farms/"><i class="fas fa-list"></i> My Farms</a>
+            <a href="/farms/digitize/"><i class="fas fa-draw-polygon"></i> Digitize</a>
+            {% if user.is_authenticated %}
+                <span class="user-info"><i class="fas fa-user"></i> {{ user.username }}</span>
+                <form method="post" action="/logout/" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-logout"><i class="fas fa-sign-out-alt"></i> Logout</button>
+                </form>
+            {% else %}
+                <a href="/login/"><i class="fas fa-sign-in-alt"></i> Login</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <!-- ===== MESSAGES ===== -->
+    <div id="message-container">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                    <i class="fas fa-info-circle"></i> {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" onclick="this.parentElement.remove()"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-success d-flex justify-content-between align-items-center flex-wrap">
+                    <span><i class="fas fa-tractor"></i> My Farms</span>
+                    <div>
+                        <a href="/farms/digitize/" class="btn btn-success btn-sm" style="background: rgba(255,255,255,0.2);">
+                            <i class="fas fa-plus"></i> New Farm
+                        </a>
+                        <a href="/farms/export/" class="btn btn-info btn-sm">
+                            <i class="fas fa-download"></i> Export
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Import GeoJSON -->
+                    <div class="mb-3">
+                        <form method="post" action="/farms/import/" enctype="multipart/form-data" class="row g-2 align-items-center">
+                            {% csrf_token %}
+                            <div class="col-auto">
+                                <label class="form-label mb-0 me-2"><i class="fas fa-upload"></i> Import:</label>
+                            </div>
+                            <div class="col">
+                                <input type="file" class="form-control form-control-sm" name="geojson_file" accept=".geojson,.json" required>
+                            </div>
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-warning btn-sm">
+                                    <i class="fas fa-upload"></i> Import
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    {% if farms %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Farm</th>
+                                        <th>Field</th>
+                                        <th>Crop</th>
+                                        <th>System</th>
+                                        <th>Province</th>
+                                        <th>Area (ha)</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for farm in farms %}
+                                    <tr>
+                                        <td><strong>{{ farm.name }}</strong></td>
+                                        <td>{{ farm.field_name }}</td>
+                                        <td><span class="badge badge-success">{{ farm.crop }}</span></td>
+                                        <td>
+                                            <span class="badge {% if farm.production_system == 'Irrigated' %}badge-info{% else %}badge-secondary{% endif %}">
+                                                {{ farm.production_system }}
+                                            </span>
+                                        </td>
+                                        <td>{{ farm.adm1 }}</td>
+                                        <td>{{ farm.area_ha|floatformat:2 }}</td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="/farms/edit/{{ farm.id }}/" class="btn btn-warning">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                                <button onclick="deleteFarm({{ farm.id }})" class="btn btn-outline-danger">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="fas fa-map-marked-alt"></i>
+                            <h5>No farms yet!</h5>
+                            <p class="text-muted">Start by digitizing your first farm field in Zimbabwe.</p>
+                            <a href="/farms/digitize/" class="btn btn-success">
+                                <i class="fas fa-draw-polygon"></i> Digitize Now
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== FOOTER ===== -->
+    <div class="footer">
+        <i class="fas fa-map-marked-alt text-success"></i> 
+        Farm Digitization System - Zimbabwe 
+        <span class="mx-2">|</span> 
+        Powered by Django, Leaflet, and PostGIS
+    </div>
+
+    <!-- ===== SCRIPTS ===== -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // CSRF Token
+        const csrfToken = '{{ csrf_token }}';
+        
+        function deleteFarm(farmId) {
+            if (confirm('Are you sure you want to delete this farm?')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = `/farms/delete/${farmId}/`;
+                
+                const csrf = document.createElement('input');
+                csrf.type = 'hidden';
+                csrf.name = 'csrfmiddlewaretoken';
+                csrf.value = csrfToken;
+                form.appendChild(csrf);
+                
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+        
+        // Auto-dismiss alerts after 5 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(function(alert) {
+                setTimeout(function() {
+                    if (alert.parentElement) {
+                        alert.remove();
+                    }
+                }, 5000);
+            });
+        });
+    </script>
+
+</body>
+</html>

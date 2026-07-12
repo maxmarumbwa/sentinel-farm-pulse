@@ -119,3 +119,5 @@ def api_admin2(request):
     except Exception as e:
         logger.error(f"Error in api_admin2: {str(e)}")
         return JsonResponse([], safe=False)
+    
+    

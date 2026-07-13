@@ -222,10 +222,7 @@ import datetime
 import calendar
 import os
 import json
-
 from django.shortcuts import render
-
-
 def sentinel_truecolour(request):
     """Sentinel-2 True Colour Composite"""
 
@@ -539,15 +536,8 @@ def sentinel_truecolour(request):
 
     return render(
         request,
-        "satellite/digitize_sentinel_truecolour.html",
+        "fields_admin/digitize_sentinel_truecolour.html",
         
         context
     )
-
-
-# In views.py, add this for testing
-from django.http import HttpResponse
-
-def test_api(request):
-    return HttpResponse("API is working!", content_type="text/plain")
 

@@ -1,857 +1,708 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sentinel-2 Field Digitizer</title>
-    
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-    <!-- Leaflet Draw CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
-    
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        html, body {
-            height: 100%;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f0f2f5;
-        }
-        
-        /* ===== HEADER ===== */
-        #header {
-            height: 60px;
-            background: linear-gradient(135deg, #1a2a3a 0%, #2c3e50 100%);
-            color: white;
-            display: flex;
-            align-items: center;
-            padding: 0 24px;
-            font-size: 20px;
-            font-weight: 600;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            z-index: 1000;
-            position: relative;
-        }
-        
-        #header .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        
-        #header .logo i {
-            font-size: 28px;
-        }
-        
-        /* ===== MAIN LAYOUT ===== */
-        #main-container {
-            display: flex;
-            height: calc(100vh - 60px);
-        }
-        
-        /* ===== LEFT SIDEBAR ===== */
-        #sidebar {
-            width: 380px;
-            min-width: 380px;
-            background: white;
-            box-shadow: 2px 0 12px rgba(0,0,0,0.1);
-            overflow-y: auto;
-            padding: 20px;
-            z-index: 100;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-        
-        #sidebar::-webkit-scrollbar {
-            width: 6px;
-        }
-        
-        #sidebar::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-        
-        #sidebar::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 3px;
-        }
-        
-        #sidebar::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-        
-        .sidebar-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #2c3e50;
-            padding-bottom: 12px;
-            border-bottom: 2px solid #e8edf2;
-        }
-        
-        /* ===== SENTINEL CONTROLS ===== */
-        .control-section {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 16px;
-            border: 1px solid #e8edf2;
-        }
-        
-        .control-section h3 {
-            font-size: 14px;
-            font-weight: 600;
-            color: #2c3e50;
-            margin-bottom: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-        
-        .form-row.full {
-            grid-template-columns: 1fr;
-        }
-        
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        
-        .form-group label {
-            font-size: 12px;
-            font-weight: 600;
-            color: #555;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-        
-        .form-group select,
-        .form-group input {
-            padding: 8px 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 13px;
-            background: white;
-            transition: border-color 0.2s;
-        }
-        
-        .form-group select:focus,
-        .form-group input:focus {
-            outline: none;
-            border-color: #2c3e50;
-            box-shadow: 0 0 0 2px rgba(44, 62, 80, 0.1);
-        }
-        
-        .btn-primary {
-            width: 100%;
-            padding: 10px;
-            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin-top: 4px;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(44, 62, 80, 0.3);
-        }
-        
-        .btn-primary:active {
-            transform: translateY(0);
-        }
-        
-        .btn-success {
-            width: 100%;
-            padding: 10px;
-            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .btn-success:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
-        }
-        
-        .btn-danger {
-            width: 100%;
-            padding: 10px;
-            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .btn-danger:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
-        }
-        
-        /* ===== FIELD FORM ===== */
-        #field-form {
-            background: white;
-            border-radius: 8px;
-            padding: 0;
-            border: 1px solid #e8edf2;
-            overflow: hidden;
-        }
-        
-        #field-form .form-header {
-            background: #f8f9fa;
-            padding: 12px 16px;
-            border-bottom: 1px solid #e8edf2;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        #field-form .form-header h3 {
-            font-size: 14px;
-            font-weight: 600;
-            color: #2c3e50;
-            margin: 0;
-        }
-        
-        #field-form .form-body {
-            padding: 16px;
-        }
-        
-        .field-input-group {
-            margin-bottom: 12px;
-        }
-        
-        .field-input-group label {
-            display: block;
-            font-size: 13px;
-            font-weight: 500;
-            color: #333;
-            margin-bottom: 4px;
-        }
-        
-        .field-input-group input,
-        .field-input-group select {
-            width: 100%;
-            padding: 8px 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 13px;
-        }
-        
-        .field-input-group input:focus,
-        .field-input-group select:focus {
-            outline: none;
-            border-color: #2c3e50;
-        }
-        
-        .area-display {
-            background: #f0f8ff;
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-size: 13px;
-            color: #2c3e50;
-            border: 1px solid #d4e8f7;
-        }
-        
-        .area-display strong {
-            font-weight: 600;
-        }
-        
-        /* ===== MAP CONTAINER ===== */
-        #map-container {
-            flex: 1;
-            position: relative;
-            background: #e8edf2;
-        }
-        
-        #map {
-            width: 100%;
-            height: 100%;
-        }
-        
-        /* ===== INFO OVERLAY ===== */
-        .info-overlay {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 12px 16px;
-            border-radius: 6px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-            z-index: 1000;
-            font-size: 13px;
-            backdrop-filter: blur(4px);
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-        
-        .info-overlay .date {
-            font-weight: 600;
-            color: #2c3e50;
-        }
-        
-        .info-overlay .cloud {
-            color: #666;
-            font-size: 12px;
-        }
-        
-        /* ===== DRAWING TOOLBAR CUSTOMIZATION ===== */
-        .leaflet-draw-toolbar a {
-            background-color: white !important;
-        }
-        
-        .leaflet-draw-toolbar a:hover {
-            background-color: #f0f0f0 !important;
-        }
-        
-        /* ===== RESPONSIVE ===== */
-        @media (max-width: 1024px) {
-            #sidebar {
-                width: 320px;
-                min-width: 320px;
-                padding: 16px;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            #main-container {
-                flex-direction: column;
-            }
-            
-            #sidebar {
-                width: 100%;
-                min-width: unset;
-                max-height: 50vh;
-                border-right: none;
-                border-bottom: 2px solid #e8edf2;
-            }
-            
-            .form-row {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        /* ===== UTILITY ===== */
-        .hidden {
-            display: none !important;
-        }
-        
-        .text-muted {
-            color: #888;
-            font-size: 12px;
-        }
-        
-        .mt-2 {
-            margin-top: 8px;
-        }
-        
-        .gap-2 {
-            gap: 8px;
-        }
-        
-        .flex {
-            display: flex;
-        }
-        
-        .flex-between {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>Sentinel-2 True Colour Composite & Field Digitization</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
+<style>
+html,body{
+    margin:0;
+    height:100%;
+    font-family:Arial,Helvetica,sans-serif;
+}
+
+#header{
+    height:55px;
+    background:#2c3e50;
+    color:white;
+    display:flex;
+    align-items:center;
+    padding:0 20px;
+    font-size:18px;
+}
+
+#toolbar{
+    background:#f5f5f5;
+    padding:10px 20px;
+    border-bottom:1px solid #ccc;
+}
+
+#toolbar form{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:10px;
+}
+
+label{
+    font-weight:bold;
+}
+
+select{
+    padding:5px;
+}
+
+button{
+    padding:7px 15px;
+    background:#2c3e50;
+    color:white;
+    border:none;
+    cursor:pointer;
+}
+
+button:hover{
+    background:#34495e;
+}
+
+#map{
+    width:100%;
+    height:calc(100vh - 115px);
+}
+
+.info{
+    position:absolute;
+    right:15px;
+    top:125px;
+    z-index:1000;
+    background:white;
+    padding:12px;
+    border-radius:4px;
+    box-shadow:0 0 8px rgba(0,0,0,.25);
+}
+
+.error{
+    padding:20px;
+    color:red;
+}
+
+/* Digitization Panel - Bottom Right */
+#digitize-panel {
+    position: absolute;
+    bottom: 30px;
+    right: 30px;
+    z-index: 1000;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.3);
+    width: 340px;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+    display: block;
+}
+
+#digitize-panel h3 {
+    margin: 0 0 15px 0;
+    color: #2c3e50;
+    font-size: 16px;
+}
+
+.form-group {
+    margin-bottom: 12px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 600;
+    font-size: 13px;
+    color: #333;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 13px;
+    box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #2c3e50;
+}
+
+.coordinates-info {
+    font-size: 12px;
+    color: #666;
+    margin: 5px 0;
+    padding: 8px;
+    background: #f9f9f9;
+    border-radius: 4px;
+    border: 1px solid #eee;
+}
+
+.btn-group {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.btn-group button {
+    flex: 1;
+    padding: 8px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.btn-clear {
+    background: #e74c3c;
+    color: white;
+}
+
+.btn-clear:hover {
+    background: #c0392b;
+}
+
+.btn-save {
+    background: #27ae60;
+    color: white;
+}
+
+.btn-save:hover {
+    background: #229954;
+}
+
+.close-panel {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #999;
+    padding: 0 5px;
+}
+
+.close-panel:hover {
+    color: #333;
+}
+
+.status-message {
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 4px;
+    display: none;
+}
+
+.status-message.success {
+    display: block;
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status-message.error {
+    display: block;
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.status-message.loading {
+    display: block;
+    background: #cce5ff;
+    color: #004085;
+    border: 1px solid #b8daff;
+}
+
+.spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
 </head>
 <body>
 
-<!-- ===== HEADER ===== -->
 <div id="header">
-    <div class="logo">
-        <span>🛰️</span>
-        <span>Sentinel-2 Field Digitizer</span>
-    </div>
+    Sentinel-2 Monthly True Colour Composite & Field Digitization
 </div>
 
-<!-- ===== MAIN CONTAINER ===== -->
-<div id="main-container">
-    
-    <!-- ===== LEFT SIDEBAR ===== -->
-    <div id="sidebar">
-        
-        <!-- Sentinel Controls -->
-        <div class="control-section">
-            <h3>📡 Load Sentinel Imagery</h3>
-            <form id="sentinel-form" method="get">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Start Year</label>
-                        <select name="start_year">
-                            {% for y in years %}
-                            <option value="{{ y }}" {% if y == start_year %}selected{% endif %}>
-                                {{ y }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Start Month</label>
-                        <select name="start_month">
-                            {% for value,name in months %}
-                            <option value="{{ value }}" {% if value == start_month %}selected{% endif %}>
-                                {{ name }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-                
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>End Year</label>
-                        <select name="end_year">
-                            {% for y in years %}
-                            <option value="{{ y }}" {% if y == end_year %}selected{% endif %}>
-                                {{ y }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>End Month</label>
-                        <select name="end_month">
-                            {% for value,name in months %}
-                            <option value="{{ value }}" {% if value == end_month %}selected{% endif %}>
-                                {{ name }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-                
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Cloud Cover</label>
-                        <select name="cloud">
-                            <option value="5" {% if cloud_cover == 5 %}selected{% endif %}>5%</option>
-                            <option value="10" {% if cloud_cover == 10 %}selected{% endif %}>10%</option>
-                            <option value="20" {% if cloud_cover == 20 %}selected{% endif %}>20%</option>
-                            <option value="30" {% if cloud_cover == 30 %}selected{% endif %}>30%</option>
-                            <option value="40" {% if cloud_cover == 40 %}selected{% endif %}>40%</option>
-                            <option value="50" {% if cloud_cover == 50 %}selected{% endif %}>50%</option>
-                            <option value="60" {% if cloud_cover == 60 %}selected{% endif %}>60%</option>
-                            <option value="70" {% if cloud_cover == 70 %}selected{% endif %}>70%</option>
-                            <option value="80" {% if cloud_cover == 80 %}selected{% endif %}>80%</option>
-                            <option value="90" {% if cloud_cover == 90 %}selected{% endif %}>90%</option>
-                            <option value="100" {% if cloud_cover == 100 %}selected{% endif %}>100%</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Province</label>
-                        <select name="province">
-                            <option value="">All Provinces</option>
-                            {% for p in provinces %}
-                            <option value="{{ p }}" {% if p == province %}selected{% endif %}>
-                                {{ p }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-                
-                <button type="submit" class="btn-primary">
-                    🔄 Load Composite
-                </button>
-            </form>
-        </div>
-        
-        <!-- Field Form -->
-        <div id="field-form">
-            <div class="form-header">
-                <h3>📝 Field Details</h3>
-                <span class="text-muted" id="field-status">No polygon drawn</span>
-            </div>
-            <div class="form-body">
-                <form id="field-data-form" method="post" action="{% url 'save_field' %}">
-                    {% csrf_token %}
-                    
-                    <div class="field-input-group">
-                        <label>Field Name *</label>
-                        <input type="text" name="field_name" id="field_name" 
-                               placeholder="Enter field name" required>
-                    </div>
-                    
-                    <div class="field-input-group">
-                        <label>Crop Type</label>
-                        <select name="crop" id="crop">
-                            <option value="Maize">Maize</option>
-                            <option value="Groundnuts">Groundnuts</option>
-                            <option value="Soybeans">Soybeans</option>
-                            <option value="Cotton">Cotton</option>
-                            <option value="Tobacco">Tobacco</option>
-                            <option value="Sunflower">Sunflower</option>
-                            <option value="Sorghum">Sorghum</option>
-                            <option value="Millet">Millet</option>
-                            <option value="Beans">Beans</option>
-                            <option value="Potatoes">Potatoes</option>
-                            <option value="Tomatoes">Tomatoes</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </div>
-                    
-                    <div class="field-input-group">
-                        <label>Production System</label>
-                        <select name="production_system" id="production_system">
-                            <option value="Rainfed">Rainfed</option>
-                            <option value="Irrigated">Irrigated</option>
-                        </select>
-                    </div>
-                    
-                    <div class="field-input-group">
-                        <label>Admin Level 1 (Province)</label>
-                        <select name="adm1" id="adm1">
-                            <option value="">Select Province</option>
-                            <!-- Populated dynamically -->
-                        </select>
-                    </div>
-                    
-                    <div class="field-input-group">
-                        <label>Admin Level 2 (District)</label>
-                        <select name="adm2" id="adm2">
-                            <option value="">Select District</option>
-                            <!-- Populated dynamically -->
-                        </select>
-                    </div>
-                    
-                    <div class="field-input-group">
-                        <label>Area</label>
-                        <div class="area-display">
-                            <strong id="area-display">0.00</strong> hectares
-                        </div>
-                        <input type="hidden" name="area_ha" id="area_ha" value="0">
-                    </div>
-                    
-                    <input type="hidden" name="geometry" id="geometry_wkt">
-                    
-                    <div style="display: flex; gap: 8px; margin-top: 12px;">
-                        <button type="button" id="clear-drawing" class="btn-danger" style="flex:1;">
-                            🗑️ Clear
-                        </button>
-                        <button type="submit" id="save-field" class="btn-success" style="flex:2;">
-                            💾 Save Field
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-        
-        <!-- Drawing Tools Info -->
-        <div style="font-size: 12px; color: #888; padding: 8px; text-align: center; border-top: 1px solid #e8edf2; margin-top: auto;">
-            🖱️ Use drawing tools on the map to digitize fields
-        </div>
-    </div>
-    
-    <!-- ===== MAP CONTAINER ===== -->
-    <div id="map-container">
-        <div id="map"></div>
-        
-        {% if not error %}
-        <div class="info-overlay">
-            <div class="date"><strong>{{ date }}</strong></div>
-            <div class="cloud">☁️ Cloud Threshold: {{ cloud_cover }}%</div>
-        </div>
-        {% endif %}
-    </div>
+<div id="toolbar">
+    <form method="get">
+        <label>Start Year</label>
+        <select name="start_year">
+            {% for y in years %}
+            <option value="{{ y }}" {% if y == start_year %}selected{% endif %}>
+                {{ y }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <label>Start Month</label>
+        <select name="start_month">
+            {% for value,name in months %}
+            <option value="{{ value }}" {% if value == start_month %}selected{% endif %}>
+                {{ name }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <label>End Year</label>
+        <select name="end_year">
+            {% for y in years %}
+            <option value="{{ y }}" {% if y == end_year %}selected{% endif %}>
+                {{ y }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <label>End Month</label>
+        <select name="end_month">
+            {% for value,name in months %}
+            <option value="{{ value }}" {% if value == end_month %}selected{% endif %}>
+                {{ name }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <label>Cloud Cover</label>
+        <select name="cloud">
+            <option value="5" {% if cloud_cover == 5 %}selected{% endif %}>5%</option>
+            <option value="10" {% if cloud_cover == 10 %}selected{% endif %}>10%</option>
+            <option value="20" {% if cloud_cover == 20 %}selected{% endif %}>20%</option>
+            <option value="30" {% if cloud_cover == 30 %}selected{% endif %}>30%</option>
+            <option value="40" {% if cloud_cover == 40 %}selected{% endif %}>40%</option>
+            <option value="50" {% if cloud_cover == 50 %}selected{% endif %}>50%</option>
+            <option value="60" {% if cloud_cover == 60 %}selected{% endif %}>60%</option>
+            <option value="70" {% if cloud_cover == 70 %}selected{% endif %}>70%</option>
+            <option value="80" {% if cloud_cover == 80 %}selected{% endif %}>80%</option>
+            <option value="90" {% if cloud_cover == 90 %}selected{% endif %}>90%</option>
+            <option value="100" {% if cloud_cover == 100 %}selected{% endif %}>100%</option>
+        </select>
+
+        <label>Province</label>
+        <select name="province">
+            {% for p in provinces %}
+            <option value="{{ p }}" {% if p == province %}selected{% endif %}>
+                {{ p }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <button type="submit">Load Composite</button>
+    </form>
 </div>
 
-<!-- ===== SCRIPTS ===== -->
+<div id="digitize-panel">
+    <button class="close-panel" onclick="toggleDigitize()">×</button>
+    <h3>✏️ Digitize Field</h3>
+    <p style="font-size:12px;color:#666;margin:0 0 10px 0;">Draw your field on the map and fill in the details</p>
+    
+    <div id="status-message" class="status-message"></div>
+    
+    <form id="field-form">
+        <div class="form-group">
+            <label for="field_name">Field Name *</label>
+            <input type="text" id="field_name" placeholder="e.g., North Field" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="crop">Crop *</label>
+            <select id="crop">
+                <option value="Maize">Maize</option>
+                <option value="Groundnuts">Groundnuts</option>
+                <option value="Soybeans">Soybeans</option>
+                <option value="Cotton">Cotton</option>
+                <option value="Tobacco">Tobacco</option>
+                <option value="Sunflower">Sunflower</option>
+                <option value="Sorghum">Sorghum</option>
+                <option value="Millet">Millet</option>
+                <option value="Beans">Beans</option>
+                <option value="Potatoes">Potatoes</option>
+                <option value="Tomatoes">Tomatoes</option>
+                <option value="Other">Other</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="production_system">Production System *</label>
+            <select id="production_system">
+                <option value="Rainfed">Rainfed</option>
+                <option value="Irrigated">Irrigated</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="adm1">Province</label>
+            <select id="adm1">
+                <option value="">Select Province</option>
+                {% for p in provinces %}
+                    {% if p != 'Zimbabwe' %}
+                    <option value="{{ forloop.counter0|add:1 }}">{{ p }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="adm2">District</label>
+            <select id="adm2">
+                <option value="">Select District</option>
+            </select>
+        </div>
+        
+        <div class="coordinates-info">
+            <strong>Area:</strong> <span id="area-display">0.00 ha</span><br>
+            <strong>Coordinates:</strong> <span id="coords-display">Draw a polygon</span>
+        </div>
+        
+        <div class="btn-group">
+            <button type="button" class="btn-clear" onclick="clearPolygon()">Clear</button>
+            <button type="button" class="btn-save" onclick="saveField()">Save Field</button>
+        </div>
+    </form>
+</div>
+
+{% if error %}
+<div class="error">
+    <h3>Error</h3>
+    {{ error }}
+</div>
+{% else %}
+<div class="info">
+    <b>{{ date }}</b><br>
+    Cloud Threshold: {{ cloud_cover }}%
+</div>
+<div id="map"></div>
+{% endif %}
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/wicket/1.3.6/wicket.min.js"></script>
 
 {% if not error %}
+
 <script>
-    // ========================================
-    // MAP INITIALIZATION
-    // ========================================
-    
-    var map = L.map('map', {
-        drawControl: false,
-        zoomControl: true
-    });
-    
-    // Set initial view
-    {% if bounds %}
-    var provinceBounds = [
-        [{{ bounds.0.0 }}, {{ bounds.0.1 }}],
-        [{{ bounds.1.0 }}, {{ bounds.1.1 }}]
-    ];
-    map.fitBounds(provinceBounds);
-    {% else %}
-    map.setView([-19.0, 29.5], 6);
-    {% endif %}
-    
-    // Base OSM layer
-    L.tileLayer(
-        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        {
-            attribution: '© OpenStreetMap contributors',
-            maxZoom: 19
-        }
-    ).addTo(map);
-    
-    // Sentinel imagery layer
-    var sentinelLayer = L.tileLayer(
-        '{{ tile_url }}',
-        {
-            attribution: 'Google Earth Engine',
-            maxZoom: 18
-        }
-    ).addTo(map);
-    
-    // ========================================
-    // DRAWING CONTROLS
-    // ========================================
-    
-    var drawnItems = L.featureGroup().addTo(map);
-    
-    var drawControl = new L.Control.Draw({
+// Map initialization
+var map = L.map('map', {
+    drawControl: false
+});
+
+{% if bounds %}
+var provinceBounds = [
+    [{{ bounds.0.0 }}, {{ bounds.0.1 }}],
+    [{{ bounds.1.0 }}, {{ bounds.1.1 }}]
+];
+map.fitBounds(provinceBounds);
+{% else %}
+map.setView([-19.0,29.5],6);
+{% endif %}
+
+// Base tile layer
+L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+        attribution:'© OpenStreetMap contributors',
+        maxZoom:19
+    }
+).addTo(map);
+
+// Sentinel imagery tile layer
+L.tileLayer(
+    '{{ tile_url }}',
+    {
+        attribution:'Google Earth Engine'
+    }
+).addTo(map);
+
+// =====================================================
+// DIGITIZATION FUNCTIONALITY
+// =====================================================
+
+var drawnItems = L.featureGroup().addTo(map);
+var currentPolygon = null;
+var drawControl = null;
+
+// API URLs - Updated to match your urlpatterns
+const API_URLS = {
+    createField: '/api/fields/',  // This matches your urlpattern
+    admin2: '/api/admin2/',
+    test: '/api/test/'
+};
+
+// Initialize draw control
+function initDrawControl() {
+    drawControl = new L.Control.Draw({
         position: 'topleft',
+        edit: {
+            featureGroup: drawnItems,
+            edit: true,
+            remove: true
+        },
         draw: {
             polygon: {
                 allowIntersection: false,
                 showArea: true,
                 shapeOptions: {
-                    color: '#2c3e50',
+                    color: '#27ae60',
                     weight: 2,
                     opacity: 0.8,
-                    fillColor: '#2c3e50',
-                    fillOpacity: 0.2
+                    fillColor: '#27ae60',
+                    fillOpacity: 0.3
                 }
             },
-            rectangle: {
-                shapeOptions: {
-                    color: '#2c3e50',
-                    weight: 2,
-                    opacity: 0.8,
-                    fillColor: '#2c3e50',
-                    fillOpacity: 0.2
-                }
-            },
+            rectangle: false,
             circle: false,
             circlemarker: false,
             marker: false,
             polyline: false
-        },
-        edit: {
-            featureGroup: drawnItems,
-            remove: true
         }
     });
-    
     map.addControl(drawControl);
-    
-    // ========================================
-    // EVENT HANDLING
-    // ========================================
-    
-    var currentPolygon = null;
-    
-    // Handle drawing completion
-    map.on(L.Draw.Event.CREATED, function(event) {
-        var layer = event.layer;
-        
-        // Remove any existing polygon
-        drawnItems.clearLayers();
-        
-        // Add the new polygon
-        drawnItems.addLayer(layer);
+}
+
+// Handle drawing events
+map.on(L.Draw.Event.CREATED, function(event) {
+    var layer = event.layer;
+    drawnItems.clearLayers();
+    drawnItems.addLayer(layer);
+    currentPolygon = layer;
+    updateFieldInfo(layer);
+    hideStatus();
+});
+
+map.on(L.Draw.Event.EDITED, function(event) {
+    var layers = event.layers;
+    layers.eachLayer(function(layer) {
         currentPolygon = layer;
-        
-        // Update form
-        updateFieldForm(layer);
-        
-        // Update status
-        document.getElementById('field-status').textContent = '✅ Polygon drawn';
-        document.getElementById('field-status').style.color = '#27ae60';
+        updateFieldInfo(layer);
     });
-    
-    // Handle editing
-    map.on(L.Draw.Event.EDITED, function(event) {
-        var layers = event.layers;
-        layers.eachLayer(function(layer) {
-            currentPolygon = layer;
-            updateFieldForm(layer);
-        });
-    });
-    
-    // Handle deletion
-    map.on(L.Draw.Event.DELETED, function() {
-        currentPolygon = null;
-        clearFieldForm();
-        document.getElementById('field-status').textContent = 'No polygon drawn';
-        document.getElementById('field-status').style.color = '#888';
-    });
-    
-    // ========================================
-    // FIELD FORM FUNCTIONS
-    // ========================================
-    
-    function updateFieldForm(layer) {
-        var geometry = layer.toGeoJSON();
-        var wkt = new Wkt.Wkt();
-        wkt.fromGeoJSON(geometry);
-        document.getElementById('geometry_wkt').value = wkt.write();
-        
-        // Calculate area
-        var area = 0;
-        if (layer.getArea) {
-            area = layer.getArea(); // Square meters
-        } else if (layer.getLatLngs) {
-            // For polygons
-            var latlngs = layer.getLatLngs()[0];
-            area = L.GeometryUtil.geodesicArea(latlngs);
+    hideStatus();
+});
+
+map.on(L.Draw.Event.DELETED, function(event) {
+    currentPolygon = null;
+    document.getElementById('area-display').textContent = '0.00 ha';
+    document.getElementById('coords-display').textContent = 'Draw a polygon';
+    hideStatus();
+});
+
+// Toggle digitize panel
+function toggleDigitize() {
+    var panel = document.getElementById('digitize-panel');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    if (panel.style.display === 'block') {
+        if (!drawControl) {
+            initDrawControl();
         }
-        
-        var areaHa = area / 10000;
-        document.getElementById('area-display').textContent = areaHa.toFixed(2);
-        document.getElementById('area_ha').value = areaHa.toFixed(2);
-        
-        // Enable save button
-        document.getElementById('save-field').disabled = false;
+    } else {
+        if (drawControl) {
+            map.removeControl(drawControl);
+            drawControl = null;
+        }
     }
+    hideStatus();
+}
+
+// Update field info display
+function updateFieldInfo(layer) {
+    if (!layer) return;
     
-    function clearFieldForm() {
-        document.getElementById('geometry_wkt').value = '';
-        document.getElementById('area-display').textContent = '0.00';
-        document.getElementById('area_ha').value = '0';
-        document.getElementById('save-field').disabled = true;
-    }
+    var latlngs = layer.getLatLngs()[0];
+    var coordsStr = latlngs.map(function(p) {
+        return '[' + p.lat.toFixed(5) + ', ' + p.lng.toFixed(5) + ']';
+    }).join(', ');
     
-    // Clear drawing button
-    document.getElementById('clear-drawing').addEventListener('click', function() {
-        drawnItems.clearLayers();
-        currentPolygon = null;
-        clearFieldForm();
-        document.getElementById('field-status').textContent = 'No polygon drawn';
-        document.getElementById('field-status').style.color = '#888';
-    });
+    document.getElementById('coords-display').textContent = coordsStr.substring(0, 100) + '...';
     
-    // ========================================
-    // ADMIN HIERARCHY (Dynamic Loading)
-    // ========================================
+    // Calculate area in hectares
+    var area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+    var areaHa = (area / 10000).toFixed(2);
+    document.getElementById('area-display').textContent = areaHa + ' ha';
+}
+
+// Show status message
+function showStatus(message, type) {
+    var statusDiv = document.getElementById('status-message');
+    statusDiv.innerHTML = message;
+    statusDiv.className = 'status-message ' + type;
+}
+
+function hideStatus() {
+    var statusDiv = document.getElementById('status-message');
+    statusDiv.className = 'status-message';
+    statusDiv.innerHTML = '';
+}
+
+// Load districts when province changes
+document.getElementById('adm1').addEventListener('change', function() {
+    var admin1Id = this.value;
+    var districtSelect = document.getElementById('adm2');
+    districtSelect.innerHTML = '<option value="">Select District</option>';
     
-    // Load admin1 (provinces)
-    fetch('/api/admin1/')
-        .then(response => response.json())
-        .then(data => {
-            var select = document.getElementById('adm1');
-            data.forEach(function(item) {
-                var option = document.createElement('option');
-                option.value = item.id;
-                option.textContent = item.name;
-                select.appendChild(option);
-            });
-        });
-    
-    // Load admin2 based on admin1 selection
-    document.getElementById('adm1').addEventListener('change', function() {
-        var admin1Id = this.value;
-        var admin2Select = document.getElementById('adm2');
-        admin2Select.innerHTML = '<option value="">Select District</option>';
+    if (admin1Id) {
+        var url = API_URLS.admin2 + '?admin1=' + admin1Id;
+        console.log('Fetching districts from:', url);
         
-        if (admin1Id) {
-            fetch('/api/admin2/?admin1=' + admin1Id)
-                .then(response => response.json())
-                .then(data => {
-                    data.forEach(function(item) {
-                        var option = document.createElement('option');
-                        option.value = item.id;
-                        option.textContent = item.name;
-                        admin2Select.appendChild(option);
-                    });
+        fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                data.forEach(function(district) {
+                    var option = document.createElement('option');
+                    option.value = district.id;
+                    option.textContent = district.name;
+                    districtSelect.appendChild(option);
                 });
+            })
+            .catch(error => {
+                console.error('Error loading districts:', error);
+                showStatus('Error loading districts', 'error');
+            });
+    }
+});
+
+// Clear polygon
+function clearPolygon() {
+    drawnItems.clearLayers();
+    currentPolygon = null;
+    document.getElementById('area-display').textContent = '0.00 ha';
+    document.getElementById('coords-display').textContent = 'Draw a polygon';
+    hideStatus();
+}
+
+// Save field
+function saveField() {
+    var fieldName = document.getElementById('field_name').value.trim();
+    var crop = document.getElementById('crop').value;
+    var productionSystem = document.getElementById('production_system').value;
+    var adm1 = document.getElementById('adm1').value;
+    var adm2 = document.getElementById('adm2').value;
+    
+    // Validate
+    if (!fieldName) {
+        showStatus('Please enter a field name', 'error');
+        return;
+    }
+    
+    if (!currentPolygon) {
+        showStatus('Please draw a polygon on the map', 'error');
+        return;
+    }
+    
+    // Get polygon coordinates
+    var latlngs = currentPolygon.getLatLngs()[0];
+    var coordinates = latlngs.map(function(p) {
+        return [p.lng, p.lat];
+    });
+    
+    // Make sure polygon is closed
+    if (coordinates[0][0] !== coordinates[coordinates.length-1][0] ||
+        coordinates[0][1] !== coordinates[coordinates.length-1][1]) {
+        coordinates.push(coordinates[0]);
+    }
+    
+    var geojson = {
+        type: 'Polygon',
+        coordinates: [coordinates]
+    };
+    
+    // Prepare data
+    var data = {
+        field_name: fieldName,
+        crop: crop,
+        production_system: productionSystem,
+        geometry: geojson
+    };
+    
+    if (adm1) data.adm1 = parseInt(adm1);
+    if (adm2) data.adm2 = parseInt(adm2);
+    
+    // Show loading status
+    showStatus('<span class="spinner"></span> Saving field...', 'loading');
+    
+    // Get CSRF token
+    var csrftoken = getCookie('csrftoken');
+    
+    // Use the correct URL from API_URLS
+    var url = API_URLS.createField;
+    console.log('Sending to:', url);
+    console.log('Data:', data);
+    
+    // Send to server
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            return response.text().then(text => {
+                console.log('Error response:', text);
+                throw new Error('Server returned ' + response.status + ': ' + text.substring(0, 200));
+            });
         }
-    });
-    
-    // ========================================
-    // FORM SUBMISSION
-    // ========================================
-    
-    document.getElementById('field-data-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        // Validate polygon exists
-        if (!currentPolygon) {
-            alert('Please draw a polygon on the map first.');
-            return;
+        return response.json();
+    })
+    .then(data => {
+        console.log('Success response:', data);
+        if (data.error) {
+            showStatus('Error: ' + data.error, 'error');
+        } else {
+            showStatus('✅ Field "' + fieldName + '" created successfully! Area: ' + data.area_ha + ' ha', 'success');
+            clearPolygon();
+            document.getElementById('field_name').value = '';
+            document.getElementById('crop').value = 'Maize';
+            document.getElementById('production_system').value = 'Rainfed';
+            document.getElementById('adm1').value = '';
+            document.getElementById('adm2').innerHTML = '<option value="">Select District</option>';
         }
-        
-        var formData = new FormData(this);
-        
-        fetch(this.action, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('✅ Field saved successfully!');
-                // Clear drawing
-                drawnItems.clearLayers();
-                currentPolygon = null;
-                clearFieldForm();
-                document.getElementById('field-status').textContent = '✅ Saved!';
-                document.getElementById('field-status').style.color = '#27ae60';
-                // Reset form
-                this.reset();
-                document.getElementById('field_name').value = '';
-            } else {
-                alert('❌ Error: ' + (data.error || 'Unknown error'));
-            }
-        })
-        .catch(error => {
-            alert('❌ Error saving field: ' + error.message);
-        });
+    })
+    .catch(error => {
+        console.error('Error saving field:', error);
+        showStatus('❌ Error saving field: ' + error.message, 'error');
     });
-    
-    // ========================================
-    // UTILITY FUNCTIONS
-    // ========================================
-    
-    // Handle window resize
-    window.addEventListener('resize', function() {
-        map.invalidateSize();
-    });
-    
-    // Initial status
-    document.getElementById('field-status').textContent = 'No polygon drawn';
-    document.getElementById('field-status').style.color = '#888';
-    
-    console.log('🌍 Field Digitizer initialized');
-    console.log('📍 Use the drawing tools on the map to digitize fields');
+}
+
+// Helper function to get CSRF token
+function getCookie(name) {
+    var cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Initialize draw control when page loads - expanded by default
+document.addEventListener('DOMContentLoaded', function() {
+    initDrawControl();
+});
+
 </script>
 {% endif %}
 

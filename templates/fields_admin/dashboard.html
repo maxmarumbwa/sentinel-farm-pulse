@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Fields Dashboard</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; }
+        
+        /* Header */
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 15px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .header h1 { font-size: 20px; }
+        .header h1 i { margin-right: 10px; }
+        .header-actions a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.15);
+            transition: 0.3s;
+            font-size: 14px;
+        }
+        .header-actions a:hover { background: rgba(255,255,255,0.25); }
+        .header-actions a i { margin-right: 5px; }
+        
+        /* Stats Panel */
+        .stats-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            padding: 15px 20px;
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 12px 15px;
+            border-radius: 6px;
+            border-left: 3px solid #2c3e50;
+            text-align: center;
+        }
+        .stat-card .number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .stat-card .label {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 3px;
+        }
+        .stat-card .sub-label {
+            font-size: 11px;
+            color: #95a5a6;
+        }
+        .stat-card.crop-stat { border-left-color: #f1c40f; }
+        
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            height: calc(100vh - 180px);
+            gap: 0;
+        }
+        
+        /* Left Panel */
+        .left-panel {
+            width: 50%;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #e0e0e0;
+        }
+        
+        /* Filters */
+        .filters-bar {
+            padding: 10px 15px;
+            background: #fafafa;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .filters-bar select, .filters-bar input {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            background: white;
+        }
+        .filters-bar select:focus, .filters-bar input:focus {
+            outline: none;
+            border-color: #2c3e50;
+        }
+        .filters-bar .search-box {
+            display: flex;
+            gap: 0;
+        }
+        .filters-bar .search-box input {
+            border-radius: 4px 0 0 4px;
+            width: 150px;
+        }
+        .filters-bar .search-box button {
+            border-radius: 0 4px 4px 0;
+            background: #2c3e50;
+            color: white;
+            border: none;
+            padding: 5px 12px;
+            cursor: pointer;
+        }
+        .filters-bar .search-box button:hover { background: #1a252f; }
+        .btn-clear {
+            color: #e74c3c;
+            cursor: pointer;
+            font-size: 13px;
+            padding: 5px 12px;
+            border: 1px solid #e74c3c;
+            border-radius: 4px;
+            background: transparent;
+        }
+        .btn-clear:hover { background: #e74c3c; color: white; }
+        
+        /* Table */
+        .table-container {
+            flex: 1;
+            overflow: auto;
+            padding: 10px 15px;
+        }
+        .table-container table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .table-container th {
+            background: #f8f9fa;
+            padding: 8px 10px;
+            text-align: left;
+            font-weight: 600;
+            color: #2c3e50;
+            border-bottom: 2px solid #e0e0e0;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .table-container td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #f0f0f0;
+            vertical-align: middle;
+        }
+        .table-container tr:hover { background: #f8f9fa; }
+        .crop-badge {
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-block;
+        }
+        .actions {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .actions button {
+            padding: 3px 7px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: 0.2s;
+        }
+        .btn-view { background: #3498db; color: white; }
+        .btn-view:hover { background: #2980b9; }
+        .btn-zoom { background: #2ecc71; color: white; }
+        .btn-zoom:hover { background: #27ae60; }
+        .btn-edit { background: #f39c12; color: white; }
+        .btn-edit:hover { background: #e67e22; }
+        .btn-delete { background: #e74c3c; color: white; }
+        .btn-delete:hover { background: #c0392b; }
+        .btn-export { background: #9b59b6; color: white; }
+        .btn-export:hover { background: #8e44ad; }
+        
+        /* Right Panel - Map */
+        .right-panel {
+            width: 50%;
+            position: relative;
+            background: #ecf0f1;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Map Controls */
+        .map-controls {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 6px 14px;
+            border-radius: 6px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            z-index: 1000;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .map-controls button {
+            padding: 4px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .map-controls button:hover { background: #f0f0f0; }
+        .map-controls input[type="range"] { width: 80px; }
+        .map-controls label { font-size: 12px; color: #666; display: flex; align-items: center; gap: 5px; }
+        
+        /* Legend */
+        .map-legend {
+            position: absolute;
+            bottom: 70px;
+            right: 10px;
+            background: white;
+            padding: 10px 12px;
+            border-radius: 6px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            max-height: 180px;
+            overflow-y: auto;
+            font-size: 12px;
+            min-width: 100px;
+        }
+        .map-legend h4 { margin-bottom: 5px; font-size: 13px; }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 2px 0;
+        }
+        .color-box {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            border: 1px solid #ddd;
+            flex-shrink: 0;
+        }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .modal-content h2 { margin-bottom: 15px; color: #2c3e50; font-size: 20px; }
+        .modal-content .detail-row { margin: 6px 0; }
+        .modal-content .detail-row strong { display: inline-block; width: 120px; }
+        .modal-close {
+            float: right;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+        .modal-close:hover { color: #333; }
+        .modal-actions { margin-top: 15px; display: flex; gap: 8px; flex-wrap: wrap; }
+        .modal-actions button {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            color: white;
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            font-size: 16px;
+            color: #2c3e50;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2c3e50;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin-right: 12px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+        .empty-state i { font-size: 48px; margin-bottom: 15px; display: block; }
+        
+        /* Responsive */
+        @media (max-width: 900px) {
+            .main-container { flex-direction: column; height: auto; }
+            .left-panel { width: 100%; max-height: 400px; }
+            .right-panel { width: 100%; height: 400px; }
+            .stats-panel { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 600px) {
+            .header { flex-direction: column; align-items: stretch; text-align: center; }
+            .filters-bar { flex-direction: column; align-items: stretch; }
+            .filters-bar .search-box input { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <h1><i class="fas fa-map-marked-alt"></i> My Fields</h1>
+        <div class="header-actions">
+            <a href="{% url 'fields_admin:sentinel_truecolour' %}">
+                <i class="fas fa-plus-circle"></i> New Field
+            </a>
+            <a href="#" onclick="exportAll()">
+                <i class="fas fa-download"></i> Export All
+            </a>
+        </div>
+    </header>
+
+    <!-- Statistics -->
+    <div class="stats-panel" id="statsPanel">
+        <div class="stat-card">
+            <div class="number" id="totalFields">0</div>
+            <div class="label">Total Fields</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" id="totalArea">0.0</div>
+            <div class="label">Total Area (ha)</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" id="avgArea">0.0</div>
+            <div class="label">Average Size (ha)</div>
+        </div>
+        <div class="stat-card crop-stat">
+            <div class="number" id="topCrop">-</div>
+            <div class="label">Top Crop</div>
+            <div class="sub-label" id="topCropPercent">0%</div>
+        </div>
+        <div class="stat-card crop-stat">
+            <div class="number" id="cropCount">0</div>
+            <div class="label">Crop Types</div>
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="main-container">
+        <!-- Left: Filters + Table -->
+        <div class="left-panel">
+            <div class="filters-bar">
+                <select id="filterProvince" onchange="applyFilters()">
+                    <option value="">All Provinces</option>
+                    {% for p in admins1 %}
+                    <option value="{{ p.id }}">{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+                
+                <select id="filterCrop" onchange="applyFilters()">
+                    <option value="">All Crops</option>
+                    {% for c in crops %}
+                    <option value="{{ c }}">{{ c }}</option>
+                    {% endfor %}
+                </select>
+                
+                <select id="filterProduction" onchange="applyFilters()">
+                    <option value="">All Systems</option>
+                    <option value="Rainfed">Rainfed</option>
+                    <option value="Irrigated">Irrigated</option>
+                </select>
+                
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Search..." onkeypress="if(event.key==='Enter') applyFilters()">
+                    <button onclick="applyFilters()"><i class="fas fa-search"></i></button>
+                </div>
+                
+                <button class="btn-clear" onclick="clearFilters()"><i class="fas fa-times"></i> Clear</button>
+            </div>
+            
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Crop</th>
+                            <th>Area</th>
+                            <th>Province</th>
+                            <th>District</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <tr><td colspan="7" class="empty-state"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Right: Map -->
+        <div class="right-panel">
+            <div id="map"></div>
+            <div class="loading-overlay" id="mapLoading">
+                <div class="spinner"></div>
+                <span>Loading fields...</span>
+            </div>
+            
+            <div class="map-controls">
+                <button onclick="zoomToAll()" title="Zoom all"><i class="fas fa-expand"></i></button>
+                <button onclick="locateMe()" title="Locate me"><i class="fas fa-location-dot"></i></button>
+                <button onclick="toggleBasemap()" title="Basemap"><i class="fas fa-layer-group"></i></button>
+                <button onclick="window.print()" title="Print"><i class="fas fa-print"></i></button>
+                <label>
+                    <i class="fas fa-eye"></i>
+                    <input type="range" id="opacitySlider" min="0" max="100" value="80" oninput="updateOpacity()">
+                </label>
+            </div>
+            
+            <div class="map-legend" id="mapLegend">
+                <h4>Crops</h4>
+                <div id="legendItems">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal" id="detailModal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal()">&times;</span>
+            <h2 id="modalTitle">Field Details</h2>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // =====================================================
+        // GLOBALS
+        // =====================================================
+        var map, fieldLayer;
+        var basemapToggle = false;
+        var allFields = [];
+        var currentHighlight = null;
+        
+        var cropColors = {
+            'Maize': '#f1c40f',
+            'Groundnuts': '#e67e22',
+            'Soybeans': '#2ecc71',
+            'Cotton': '#ecf0f1',
+            'Tobacco': '#e74c3c',
+            'Sunflower': '#f39c12',
+            'Sorghum': '#d35400',
+            'Millet': '#f1c40f',
+            'Beans': '#27ae60',
+            'Potatoes': '#8e44ad',
+            'Tomatoes': '#e74c3c',
+            'Other': '#95a5a6'
+        };
+        var defaultColor = '#95a5a6';
+
+        // =====================================================
+        // INIT MAP
+        // =====================================================
+        function initMap() {
+            map = L.map('map').setView([-19.0, 29.5], 6);
+            
+            // Base layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap',
+                maxZoom: 19
+            }).addTo(map);
+            
+            // Field layer
+            fieldLayer = L.geoJSON(null, {
+                style: function(feature) {
+                    var color = feature.properties.color || defaultColor;
+                    return {
+                        color: color,
+                        weight: 2,
+                        opacity: 0.8,
+                        fillColor: color,
+                        fillOpacity: 0.35
+                    };
+                },
+                onEachFeature: function(feature, layer) {
+                    var p = feature.properties;
+                    var popup = `
+                        <div style="min-width:180px;">
+                            <h4 style="margin:0 0 6px 0; color:#2c3e50;">${p.field_name}</h4>
+                            <div style="font-size:13px;">
+                                <strong>Crop:</strong> <span style="color:${p.color};">${p.crop}</span><br>
+                                <strong>Area:</strong> ${p.area_ha} ha<br>
+                                <strong>Production:</strong> ${p.production_system}<br>
+                                <strong>Province:</strong> ${p.province || '-'}<br>
+                                <strong>District:</strong> ${p.district || '-'}<br>
+                                <strong>Created:</strong> ${p.created_at}
+                            </div>
+                            <div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">
+                                <button onclick="viewField(${p.id})" style="padding:2px 8px; background:#3498db; color:white; border:none; border-radius:3px; cursor:pointer; font-size:11px;">
+                                    <i class="fas fa-eye"></i> View
+                                </button>
+                                <button onclick="zoomToField(${p.id})" style="padding:2px 8px; background:#2ecc71; color:white; border:none; border-radius:3px; cursor:pointer; font-size:11px;">
+                                    <i class="fas fa-search-plus"></i> Zoom
+                                </button>
+                                <button onclick="deleteField(${p.id})" style="padding:2px 8px; background:#e74c3c; color:white; border:none; border-radius:3px; cursor:pointer; font-size:11px;">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    layer.bindPopup(popup, { maxWidth: 280 });
+                }
+            }).addTo(map);
+            
+            document.getElementById('mapLoading').style.display = 'none';
+            setTimeout(function() { map.invalidateSize(); }, 300);
+        }
+
+        // =====================================================
+        // LOAD DATA
+        // =====================================================
+        function loadFields() {
+            var params = new URLSearchParams();
+            var province = document.getElementById('filterProvince').value;
+            var crop = document.getElementById('filterCrop').value;
+            var production = document.getElementById('filterProduction').value;
+            var search = document.getElementById('searchInput').value;
+            
+            if (province) params.append('province', province);
+            if (crop) params.append('crop', crop);
+            if (production) params.append('production_system', production);
+            if (search) params.append('search', search);
+            
+            var url = '/api/fields/list/?' + params.toString();
+            
+            document.getElementById('mapLoading').style.display = 'flex';
+            document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    
+                    allFields = data.features || [];
+                    updateMap(allFields);
+                    updateTable(allFields);
+                    updateStats();
+                    updateLegend();
+                    document.getElementById('mapLoading').style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('mapLoading').style.display = 'none';
+                    document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:red;">Error loading fields</td></tr>';
+                });
+        }
+
+        // =====================================================
+        // UPDATE MAP
+        // =====================================================
+        function updateMap(features) {
+            fieldLayer.clearLayers();
+            
+            if (features.length === 0) {
+                return;
+            }
+            
+            var geojson = { type: 'FeatureCollection', features: features };
+            fieldLayer.addData(geojson);
+            
+            if (features.length > 0) {
+                try {
+                    var bounds = fieldLayer.getBounds();
+                    if (bounds.isValid()) {
+                        map.fitBounds(bounds, { padding: [40, 40] });
+                    }
+                } catch(e) {}
+            }
+        }
+
+        // =====================================================
+        // UPDATE TABLE
+        // =====================================================
+        function updateTable(features) {
+            var tbody = document.getElementById('tableBody');
+            
+            if (features.length === 0) {
+                tbody.innerHTML = `
+                    <tr><td colspan="7" class="empty-state">
+                        <i class="fas fa-map-marked-alt"></i>
+                        No fields found
+                        <br><small><a href="{% url 'fields_admin:sentinel_truecolour' %}" style="color:#2c3e50;">Create your first field</a></small>
+                    </td></tr>
+                `;
+                return;
+            }
+            
+            var html = '';
+            features.forEach(function(f) {
+                var p = f.properties;
+                var color = p.color || defaultColor;
+                html += `
+                    <tr>
+                        <td><strong>${p.field_name}</strong></td>
+                        <td><span class="crop-badge" style="background:${color}20; color:${color};">${p.crop}</span></td>
+                        <td>${p.area_ha}</td>
+                        <td>${p.province || '-'}</td>
+                        <td>${p.district || '-'}</td>
+                        <td style="font-size:11px;">${p.created_at}</td>
+                        <td>
+                            <div class="actions">
+                                <button class="btn-view" onclick="viewField(${p.id})" title="View"><i class="fas fa-eye"></i></button>
+                                <button class="btn-zoom" onclick="zoomToField(${p.id})" title="Zoom"><i class="fas fa-search-plus"></i></button>
+                                <button class="btn-edit" onclick="editField(${p.id})" title="Edit"><i class="fas fa-edit"></i></button>
+                                <button class="btn-delete" onclick="deleteField(${p.id})" title="Delete"><i class="fas fa-trash"></i></button>
+                                <button class="btn-export" onclick="exportField(${p.id})" title="Export"><i class="fas fa-file-export"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+        }
+
+        // =====================================================
+        // UPDATE STATS
+        // =====================================================
+        function updateStats() {
+            var params = new URLSearchParams();
+            var province = document.getElementById('filterProvince').value;
+            var crop = document.getElementById('filterCrop').value;
+            var production = document.getElementById('filterProduction').value;
+            var search = document.getElementById('searchInput').value;
+            
+            if (province) params.append('province', province);
+            if (crop) params.append('crop', crop);
+            if (production) params.append('production_system', production);
+            if (search) params.append('search', search);
+            
+            fetch('/api/fields/stats/?' + params.toString())
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) return;
+                    
+                    document.getElementById('totalFields').textContent = data.total_fields;
+                    document.getElementById('totalArea').textContent = data.total_area.toFixed(1);
+                    document.getElementById('avgArea').textContent = data.avg_area.toFixed(1);
+                    
+                    var top = data.crop_distribution[0];
+                    if (top) {
+                        document.getElementById('topCrop').textContent = top.crop;
+                        document.getElementById('topCropPercent').textContent = top.percentage + '%';
+                    } else {
+                        document.getElementById('topCrop').textContent = '-';
+                        document.getElementById('topCropPercent').textContent = '0%';
+                    }
+                    
+                    document.getElementById('cropCount').textContent = data.crop_distribution.length;
+                })
+                .catch(console.error);
+        }
+
+        // =====================================================
+        // UPDATE LEGEND
+        // =====================================================
+        function updateLegend() {
+            var crops = {};
+            allFields.forEach(function(f) {
+                var crop = f.properties.crop;
+                var color = f.properties.color || defaultColor;
+                if (!crops[crop]) crops[crop] = { count: 0, color: color };
+                crops[crop].count++;
+            });
+            
+            var html = '';
+            Object.keys(crops).sort().forEach(function(crop) {
+                var info = crops[crop];
+                html += `
+                    <div class="legend-item">
+                        <div class="color-box" style="background:${info.color};"></div>
+                        <span>${crop} (${info.count})</span>
+                    </div>
+                `;
+            });
+            
+            document.getElementById('legendItems').innerHTML = html || '<div class="legend-item">No fields</div>';
+        }
+
+        // =====================================================
+        // FILTERS
+        // =====================================================
+        function applyFilters() { loadFields(); }
+        
+        function clearFilters() {
+            document.getElementById('filterProvince').value = '';
+            document.getElementById('filterCrop').value = '';
+            document.getElementById('filterProduction').value = '';
+            document.getElementById('searchInput').value = '';
+            loadFields();
+        }
+
+        // =====================================================
+        // MAP ACTIONS
+        // =====================================================
+        function zoomToAll() {
+            try {
+                var bounds = fieldLayer.getBounds();
+                if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] });
+            } catch(e) {}
+        }
+        
+        function locateMe() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(pos) {
+                    map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+                    L.circleMarker([pos.coords.latitude, pos.coords.longitude], {
+                        color: '#2c3e50',
+                        fillColor: '#e74c3c',
+                        fillOpacity: 0.8,
+                        radius: 8,
+                        weight: 2
+                    }).addTo(map).bindPopup('You are here').openPopup();
+                }, function() {
+                    alert('Unable to locate you.');
+                });
+            } else {
+                alert('Geolocation not supported.');
+            }
+        }
+        
+        function toggleBasemap() {
+            basemapToggle = !basemapToggle;
+            var url = basemapToggle ? 
+                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' :
+                'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+            map.eachLayer(function(layer) {
+                if (layer instanceof L.TileLayer) {
+                    layer.setUrl(url);
+                }
+            });
+        }
+        
+        function updateOpacity() {
+            var val = document.getElementById('opacitySlider').value / 100;
+            fieldLayer.eachLayer(function(layer) {
+                if (layer.setStyle) {
+                    layer.setStyle({ fillOpacity: val * 0.7, opacity: val * 0.9 });
+                }
+            });
+        }
+
+        // =====================================================
+        // FIELD ACTIONS
+        // =====================================================
+        function viewField(id) {
+            var field = allFields.find(f => f.properties.id === id);
+            if (!field) return;
+            
+            var p = field.properties;
+            var modal = document.getElementById('detailModal');
+            
+            document.getElementById('modalTitle').textContent = p.field_name;
+            document.getElementById('modalBody').innerHTML = `
+                <div class="detail-row"><strong>Field Name:</strong> ${p.field_name}</div>
+                <div class="detail-row"><strong>Crop:</strong> <span style="color:${p.color};">${p.crop}</span></div>
+                <div class="detail-row"><strong>Area:</strong> ${p.area_ha} ha</div>
+                <div class="detail-row"><strong>Production:</strong> ${p.production_system}</div>
+                <div class="detail-row"><strong>Province:</strong> ${p.province || '-'}</div>
+                <div class="detail-row"><strong>District:</strong> ${p.district || '-'}</div>
+                <div class="detail-row"><strong>Created:</strong> ${p.created_at}</div>
+                <div class="modal-actions">
+                    <button onclick="zoomToField(${p.id}); closeModal();" style="background:#2ecc71;"><i class="fas fa-search-plus"></i> Zoom</button>
+                    <button onclick="editField(${p.id}); closeModal();" style="background:#f39c12;"><i class="fas fa-edit"></i> Edit</button>
+                    <button onclick="deleteField(${p.id}); closeModal();" style="background:#e74c3c;"><i class="fas fa-trash"></i> Delete</button>
+                    <button onclick="exportField(${p.id});" style="background:#9b59b6;"><i class="fas fa-file-export"></i> Export</button>
+                </div>
+            `;
+            
+            modal.classList.add('active');
+        }
+        
+        function zoomToField(id) {
+            var field = allFields.find(f => f.properties.id === id);
+            if (!field) return;
+            
+            var coords = field.geometry.coordinates[0];
+            var latlngs = coords.map(function(c) { return [c[1], c[0]]; });
+            var bounds = L.latLngBounds(latlngs);
+            map.fitBounds(bounds, { padding: [50, 50] });
+            
+            // Highlight
+            if (currentHighlight) {
+                currentHighlight.setStyle({ weight: 2, opacity: 0.8, fillOpacity: 0.35 });
+            }
+            fieldLayer.eachLayer(function(layer) {
+                if (layer.feature && layer.feature.properties.id === id) {
+                    layer.setStyle({ weight: 4, opacity: 1, fillOpacity: 0.5 });
+                    currentHighlight = layer;
+                    layer.openPopup();
+                }
+            });
+        }
+        
+        function editField(id) {
+            window.location.href = '{% url "fields_admin:sentinel_truecolour" %}?edit=' + id;
+        }
+        
+        function deleteField(id) {
+            if (!confirm('Delete this field?')) return;
+            
+            fetch('/api/fields/' + id + '/delete/', {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') }
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message || data.error || 'Deleted');
+                loadFields();
+            })
+            .catch(error => {
+                alert('Error deleting field');
+                console.error(error);
+            });
+        }
+        
+        function exportField(id) {
+            var field = allFields.find(f => f.properties.id === id);
+            if (!field) return;
+            downloadGeoJSON({ type: 'FeatureCollection', features: [field] }, field.properties.field_name + '.geojson');
+        }
+        
+        function exportAll() {
+            if (allFields.length === 0) { alert('No fields to export'); return; }
+            downloadGeoJSON({ type: 'FeatureCollection', features: allFields }, 'all_fields.geojson');
+        }
+        
+        function downloadGeoJSON(data, filename) {
+            var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        function closeModal() {
+            document.getElementById('detailModal').classList.remove('active');
+        }
+        
+        document.getElementById('detailModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+
+        // =====================================================
+        // UTILITY
+        // =====================================================
+        function getCookie(name) {
+            var value = null;
+            if (document.cookie && document.cookie !== '') {
+                var cookies = document.cookie.split(';');
+                for (var i = 0; i < cookies.length; i++) {
+                    var cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        value = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return value;
+        }
+
+        // =====================================================
+        // INIT
+        // =====================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+            setTimeout(loadFields, 400);
+            window.addEventListener('resize', function() { if (map) map.invalidateSize(); });
+        });
+    </script>
+
+</body>
+</html>

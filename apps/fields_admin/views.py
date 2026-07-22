@@ -536,8 +536,209 @@ def sentinel_truecolour(request):
 
     return render(
         request,
-        "fields_admin/digitize_sentinel_truecolour.html",
+        "satellite/digitize_sentinel_truecolour.html",
         
         context
     )
 
+
+###########################################################################################
+################################ View digitised field #####################################
+###########################################################################################
+
+from django.shortcuts import render, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from django.contrib.gis.geos import GEOSGeometry
+from .models import Admin1, Admin2, Field
+from django.db.models import Count, Sum, Avg, Q
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+# =====================================================
+# FIELD DASHBOARD VIEW
+# =====================================================
+
+@login_required
+def field_dashboard(request):
+    """Field dashboard with map and table view"""
+    admins1 = Admin1.objects.all().order_by('name')
+    
+    # Get unique crops for filter
+    crops = Field.objects.filter(user=request.user).values_list('crop', flat=True).distinct().order_by('crop')
+    
+    context = {
+        'admins1': admins1,
+        'crops': crops,
+    }
+    
+    return render(request, 'fields_admin/dashboard.html', context)
+
+
+# =====================================================
+# API: FIELD LIST WITH FILTERS
+# =====================================================
+
+@login_required
+def api_field_list(request):
+    """API endpoint to get fields as GeoJSON with filters"""
+    try:
+        # Get filter parameters
+        province = request.GET.get('province')
+        crop = request.GET.get('crop')
+        production_system = request.GET.get('production_system')
+        search = request.GET.get('search')
+        
+        # Base queryset
+        fields = Field.objects.filter(user=request.user).select_related('adm1', 'adm2')
+        
+        # Apply filters
+        if province:
+            fields = fields.filter(adm1_id=province)
+        if crop:
+            fields = fields.filter(crop=crop)
+        if production_system:
+            fields = fields.filter(production_system=production_system)
+        if search:
+            fields = fields.filter(
+                Q(field_name__icontains=search) |
+                Q(crop__icontains=search)
+            )
+        
+        # Convert to GeoJSON
+        geojson = {
+            'type': 'FeatureCollection',
+            'features': []
+        }
+        
+        crop_colors = {
+            'Maize': '#f1c40f',
+            'Groundnuts': '#e67e22',
+            'Soybeans': '#2ecc71',
+            'Cotton': '#ecf0f1',
+            'Tobacco': '#e74c3c',
+            'Sunflower': '#f39c12',
+            'Sorghum': '#d35400',
+            'Millet': '#f1c40f',
+            'Beans': '#27ae60',
+            'Potatoes': '#8e44ad',
+            'Tomatoes': '#e74c3c',
+            'Other': '#95a5a6',
+        }
+        
+        for field in fields:
+            if field.geometry:
+                geom_json = json.loads(field.geometry.geojson)
+                feature = {
+                    'type': 'Feature',
+                    'geometry': geom_json,
+                    'properties': {
+                        'id': field.id,
+                        'field_name': field.field_name,
+                        'crop': field.crop,
+                        'production_system': field.production_system,
+                        'area_ha': field.area_ha,
+                        'province': field.adm1.name if field.adm1 else None,
+                        'district': field.adm2.name if field.adm2 else None,
+                        'created_at': field.created_at.strftime('%Y-%m-%d %H:%M'),
+                        'color': crop_colors.get(field.crop, '#95a5a6'),
+                    }
+                }
+                geojson['features'].append(feature)
+        
+        return JsonResponse(geojson)
+        
+    except Exception as e:
+        logger.error(f"Error in api_field_list: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# =====================================================
+# API: FIELD STATISTICS
+# =====================================================
+
+@login_required
+def api_field_stats(request):
+    """API endpoint to get field statistics"""
+    try:
+        # Get filter parameters
+        province = request.GET.get('province')
+        crop = request.GET.get('crop')
+        production_system = request.GET.get('production_system')
+        search = request.GET.get('search')
+        
+        # Base queryset
+        fields = Field.objects.filter(user=request.user)
+        
+        # Apply filters
+        if province:
+            fields = fields.filter(adm1_id=province)
+        if crop:
+            fields = fields.filter(crop=crop)
+        if production_system:
+            fields = fields.filter(production_system=production_system)
+        if search:
+            fields = fields.filter(
+                Q(field_name__icontains=search) |
+                Q(crop__icontains=search)
+            )
+        
+        # Calculate statistics
+        total_fields = fields.count()
+        total_area = fields.aggregate(Sum('area_ha'))['area_ha__sum'] or 0
+        avg_area = fields.aggregate(Avg('area_ha'))['area_ha__avg'] or 0
+        
+        # Crop distribution
+        crop_stats = fields.values('crop').annotate(
+            count=Count('id'),
+            area=Sum('area_ha')
+        ).order_by('-count')
+        
+        crop_distribution = []
+        for item in crop_stats:
+            crop_distribution.append({
+                'crop': item['crop'],
+                'count': item['count'],
+                'area': round(item['area'] or 0, 2),
+                'percentage': round((item['count'] / total_fields * 100) if total_fields > 0 else 0, 1)
+            })
+        
+        stats = {
+            'total_fields': total_fields,
+            'total_area': round(total_area, 2),
+            'avg_area': round(avg_area, 2),
+            'crop_distribution': crop_distribution,
+        }
+        
+        return JsonResponse(stats)
+        
+    except Exception as e:
+        logger.error(f"Error in api_field_stats: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# =====================================================
+# API: DELETE FIELD
+# =====================================================
+
+@login_required
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def api_delete_field(request, field_id):
+    """API endpoint to delete a field"""
+    try:
+        field = get_object_or_404(Field, id=field_id, user=request.user)
+        field_name = field.field_name
+        field.delete()
+        
+        return JsonResponse({
+            'message': f'Field "{field_name}" deleted successfully'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in api_delete_field: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)

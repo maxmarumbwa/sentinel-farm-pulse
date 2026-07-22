@@ -11,5 +11,11 @@ urlpatterns = [
     path('api/admin2/', views.api_admin2, name='api_admin2'),
     path("sentinel-test/",views.sentinel_truecolour,name="sentinel_truecolour"),
     #path('fields/digitize-sentinel/', views.sentinel_monthly_composite, name='digitize_sentinel'),
+    #################### view digitised farms ###################################
+    path('fields/dashboard/', views.field_dashboard, name='field_dashboard'),
+    path('api/fields/list/', views.api_field_list, name='api_field_list'), 
+    path('api/fields/stats/', views.api_field_stats, name='api_field_stats'),
+    path('api/fields/<int:field_id>/delete/', views.api_delete_field, name='api_delete_field'),  
+    
     
 ]

@@ -668,7 +668,9 @@ function saveField() {
             showStatus('Error: ' + data.error, 'error');
         } else {
             showStatus('✅ Field "' + fieldName + '" created successfully! Area: ' + data.area_ha + ' ha', 'success');
-            clearPolygon();
+            setTimeout(function () {
+                clearPolygon();
+                }, 2000);   // Message stays for 4 seconds
             document.getElementById('field_name').value = '';
             document.getElementById('crop').value = 'Maize';
             document.getElementById('production_system').value = 'Rainfed';

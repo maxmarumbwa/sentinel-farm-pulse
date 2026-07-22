@@ -28,7 +28,12 @@
         }
         .header h1 { font-size: 20px; }
         .header h1 i { margin-right: 10px; }
-        .header-actions a {
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .header-actions a, .header-actions button {
             color: white;
             text-decoration: none;
             padding: 8px 16px;
@@ -36,9 +41,15 @@
             background: rgba(255,255,255,0.15);
             transition: 0.3s;
             font-size: 14px;
+            border: none;
+            cursor: pointer;
         }
-        .header-actions a:hover { background: rgba(255,255,255,0.25); }
-        .header-actions a i { margin-right: 5px; }
+        .header-actions a:hover, .header-actions button:hover { background: rgba(255,255,255,0.25); }
+        .header-actions a i, .header-actions button i { margin-right: 5px; }
+        .btn-export-selected { background: #9b59b6 !important; }
+        .btn-export-selected:hover { background: #8e44ad !important; }
+        .btn-export-all { background: #27ae60 !important; }
+        .btn-export-all:hover { background: #229954 !important; }
         
         /* Stats Panel */
         .stats-panel {
@@ -159,12 +170,14 @@
             top: 0;
             z-index: 10;
         }
+        .table-container th:first-child { width: 30px; }
         .table-container td {
             padding: 8px 10px;
             border-bottom: 1px solid #f0f0f0;
             vertical-align: middle;
         }
         .table-container tr:hover { background: #f8f9fa; }
+        .table-container tr.selected { background: #e8f0fe; }
         .crop-badge {
             padding: 2px 10px;
             border-radius: 12px;
@@ -196,6 +209,13 @@
         .btn-export { background: #9b59b6; color: white; }
         .btn-export:hover { background: #8e44ad; }
         
+        /* Checkbox */
+        .select-all-checkbox, .row-checkbox {
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+        }
+        
         /* Right Panel - Map */
         .right-panel {
             width: 50%;
@@ -207,39 +227,10 @@
             height: 100%;
         }
         
-        /* Map Controls */
-        .map-controls {
-            position: absolute;
-            bottom: 15px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: white;
-            padding: 6px 14px;
-            border-radius: 6px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            z-index: 1000;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-        .map-controls button {
-            padding: 4px 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: white;
-            cursor: pointer;
-            font-size: 13px;
-        }
-        .map-controls button:hover { background: #f0f0f0; }
-        .map-controls input[type="range"] { width: 80px; }
-        .map-controls label { font-size: 12px; color: #666; display: flex; align-items: center; gap: 5px; }
-        
         /* Legend */
         .map-legend {
             position: absolute;
-            bottom: 70px;
+            bottom: 20px;
             right: 10px;
             background: white;
             padding: 10px 12px;
@@ -343,6 +334,28 @@
         }
         .empty-state i { font-size: 48px; margin-bottom: 15px; display: block; }
         
+        /* Selection info */
+        .selection-info {
+            padding: 5px 15px;
+            background: #e8f0fe;
+            font-size: 13px;
+            color: #2c3e50;
+            border-bottom: 1px solid #d0dbe8;
+            display: none;
+        }
+        .selection-info .count { font-weight: bold; }
+        .selection-info .export-btn {
+            background: #9b59b6;
+            color: white;
+            border: none;
+            padding: 3px 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-left: 8px;
+            font-size: 12px;
+        }
+        .selection-info .export-btn:hover { background: #8e44ad; }
+        
         /* Responsive */
         @media (max-width: 900px) {
             .main-container { flex-direction: column; height: auto; }
@@ -352,6 +365,7 @@
         }
         @media (max-width: 600px) {
             .header { flex-direction: column; align-items: stretch; text-align: center; }
+            .header-actions { justify-content: center; }
             .filters-bar { flex-direction: column; align-items: stretch; }
             .filters-bar .search-box input { width: 100%; }
         }
@@ -366,9 +380,12 @@
             <a href="{% url 'fields_admin:sentinel_truecolour' %}">
                 <i class="fas fa-plus-circle"></i> New Field
             </a>
-            <a href="#" onclick="exportAll()">
+            <button class="btn-export-all" onclick="exportAll()">
                 <i class="fas fa-download"></i> Export All
-            </a>
+            </button>
+            <button class="btn-export-selected" onclick="exportSelected()">
+                <i class="fas fa-check-square"></i> Export Selected
+            </button>
         </div>
     </header>
 
@@ -430,10 +447,18 @@
                 <button class="btn-clear" onclick="clearFilters()"><i class="fas fa-times"></i> Clear</button>
             </div>
             
+            <!-- Selection Info -->
+            <div class="selection-info" id="selectionInfo">
+                <span><i class="fas fa-check-circle"></i> <span class="count" id="selectedCount">0</span> field(s) selected</span>
+                <button class="export-btn" onclick="exportSelected()"><i class="fas fa-download"></i> Export Selected</button>
+                <button class="export-btn" style="background:#e74c3c; margin-left:4px;" onclick="clearSelection()"><i class="fas fa-times"></i> Clear</button>
+            </div>
+            
             <div class="table-container">
                 <table>
                     <thead>
                         <tr>
+                            <th><input type="checkbox" class="select-all-checkbox" id="selectAll" onchange="toggleAll()"></th>
                             <th>Field</th>
                             <th>Crop</th>
                             <th>Area</th>
@@ -444,7 +469,7 @@
                         </tr>
                     </thead>
                     <tbody id="tableBody">
-                        <tr><td colspan="7" class="empty-state"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>
+                        <tr><td colspan="8" class="empty-state"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -456,17 +481,6 @@
             <div class="loading-overlay" id="mapLoading">
                 <div class="spinner"></div>
                 <span>Loading fields...</span>
-            </div>
-            
-            <div class="map-controls">
-                <button onclick="zoomToAll()" title="Zoom all"><i class="fas fa-expand"></i></button>
-                <button onclick="locateMe()" title="Locate me"><i class="fas fa-location-dot"></i></button>
-                <button onclick="toggleBasemap()" title="Basemap"><i class="fas fa-layer-group"></i></button>
-                <button onclick="window.print()" title="Print"><i class="fas fa-print"></i></button>
-                <label>
-                    <i class="fas fa-eye"></i>
-                    <input type="range" id="opacitySlider" min="0" max="100" value="80" oninput="updateOpacity()">
-                </label>
             </div>
             
             <div class="map-legend" id="mapLegend">
@@ -492,9 +506,9 @@
         // GLOBALS
         // =====================================================
         var map, fieldLayer;
-        var basemapToggle = false;
         var allFields = [];
         var currentHighlight = null;
+        var selectedIds = new Set();
         
         var cropColors = {
             'Maize': '#f1c40f',
@@ -528,12 +542,13 @@
             fieldLayer = L.geoJSON(null, {
                 style: function(feature) {
                     var color = feature.properties.color || defaultColor;
+                    var isSelected = selectedIds.has(feature.properties.id);
                     return {
                         color: color,
-                        weight: 2,
-                        opacity: 0.8,
+                        weight: isSelected ? 4 : 2,
+                        opacity: isSelected ? 1 : 0.8,
                         fillColor: color,
-                        fillOpacity: 0.35
+                        fillOpacity: isSelected ? 0.6 : 0.35
                     };
                 },
                 onEachFeature: function(feature, layer) {
@@ -588,7 +603,7 @@
             var url = '/api/fields/list/?' + params.toString();
             
             document.getElementById('mapLoading').style.display = 'flex';
-            document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+            document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
             
             fetch(url)
                 .then(response => response.json())
@@ -596,6 +611,9 @@
                     if (data.error) throw new Error(data.error);
                     
                     allFields = data.features || [];
+                    // Clear selection when data reloads
+                    selectedIds.clear();
+                    updateSelectionUI();
                     updateMap(allFields);
                     updateTable(allFields);
                     updateStats();
@@ -605,7 +623,7 @@
                 .catch(error => {
                     console.error('Error:', error);
                     document.getElementById('mapLoading').style.display = 'none';
-                    document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:red;">Error loading fields</td></tr>';
+                    document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:red;">Error loading fields</td></tr>';
                 });
         }
 
@@ -640,12 +658,13 @@
             
             if (features.length === 0) {
                 tbody.innerHTML = `
-                    <tr><td colspan="7" class="empty-state">
+                    <tr><td colspan="8" class="empty-state">
                         <i class="fas fa-map-marked-alt"></i>
                         No fields found
                         <br><small><a href="{% url 'fields_admin:sentinel_truecolour' %}" style="color:#2c3e50;">Create your first field</a></small>
                     </td></tr>
                 `;
+                document.getElementById('selectAll').checked = false;
                 return;
             }
             
@@ -653,8 +672,10 @@
             features.forEach(function(f) {
                 var p = f.properties;
                 var color = p.color || defaultColor;
+                var isChecked = selectedIds.has(p.id) ? 'checked' : '';
                 html += `
-                    <tr>
+                    <tr class="${isChecked ? 'selected' : ''}" data-id="${p.id}">
+                        <td><input type="checkbox" class="row-checkbox" data-id="${p.id}" ${isChecked} onchange="toggleRow(${p.id})"></td>
                         <td><strong>${p.field_name}</strong></td>
                         <td><span class="crop-badge" style="background:${color}20; color:${color};">${p.crop}</span></td>
                         <td>${p.area_ha}</td>
@@ -675,6 +696,89 @@
             });
             
             tbody.innerHTML = html;
+            
+            // Update select all
+            var allChecked = features.every(f => selectedIds.has(f.properties.id));
+            document.getElementById('selectAll').checked = allChecked && features.length > 0;
+            
+            updateSelectionUI();
+        }
+
+        // =====================================================
+        // SELECTION FUNCTIONS
+        // =====================================================
+        function toggleRow(id) {
+            if (selectedIds.has(id)) {
+                selectedIds.delete(id);
+            } else {
+                selectedIds.add(id);
+            }
+            // Update table row style
+            var row = document.querySelector(`tr[data-id="${id}"]`);
+            if (row) {
+                row.classList.toggle('selected');
+            }
+            updateSelectionUI();
+            updateMapHighlight();
+        }
+        
+        function toggleAll() {
+            var checked = document.getElementById('selectAll').checked;
+            var checkboxes = document.querySelectorAll('.row-checkbox');
+            checkboxes.forEach(function(cb) {
+                var id = parseInt(cb.dataset.id);
+                if (checked) {
+                    selectedIds.add(id);
+                    cb.checked = true;
+                    var row = document.querySelector(`tr[data-id="${id}"]`);
+                    if (row) row.classList.add('selected');
+                } else {
+                    selectedIds.delete(id);
+                    cb.checked = false;
+                    var row = document.querySelector(`tr[data-id="${id}"]`);
+                    if (row) row.classList.remove('selected');
+                }
+            });
+            updateSelectionUI();
+            updateMapHighlight();
+        }
+        
+        function clearSelection() {
+            selectedIds.clear();
+            document.querySelectorAll('.row-checkbox').forEach(function(cb) {
+                cb.checked = false;
+                var row = document.querySelector(`tr[data-id="${cb.dataset.id}"]`);
+                if (row) row.classList.remove('selected');
+            });
+            document.getElementById('selectAll').checked = false;
+            updateSelectionUI();
+            updateMapHighlight();
+        }
+        
+        function updateSelectionUI() {
+            var count = selectedIds.size;
+            var info = document.getElementById('selectionInfo');
+            if (count > 0) {
+                info.style.display = 'block';
+                document.getElementById('selectedCount').textContent = count;
+            } else {
+                info.style.display = 'none';
+            }
+        }
+        
+        function updateMapHighlight() {
+            fieldLayer.eachLayer(function(layer) {
+                if (layer.feature) {
+                    var id = layer.feature.properties.id;
+                    var isSelected = selectedIds.has(id);
+                    var color = layer.feature.properties.color || defaultColor;
+                    layer.setStyle({
+                        weight: isSelected ? 4 : 2,
+                        opacity: isSelected ? 1 : 0.8,
+                        fillOpacity: isSelected ? 0.6 : 0.35
+                    });
+                }
+            });
         }
 
         // =====================================================
@@ -744,13 +848,17 @@
         // =====================================================
         // FILTERS
         // =====================================================
-        function applyFilters() { loadFields(); }
+        function applyFilters() { 
+            selectedIds.clear();
+            loadFields(); 
+        }
         
         function clearFilters() {
             document.getElementById('filterProvince').value = '';
             document.getElementById('filterCrop').value = '';
             document.getElementById('filterProduction').value = '';
             document.getElementById('searchInput').value = '';
+            selectedIds.clear();
             loadFields();
         }
 
@@ -762,46 +870,6 @@
                 var bounds = fieldLayer.getBounds();
                 if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] });
             } catch(e) {}
-        }
-        
-        function locateMe() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(function(pos) {
-                    map.setView([pos.coords.latitude, pos.coords.longitude], 15);
-                    L.circleMarker([pos.coords.latitude, pos.coords.longitude], {
-                        color: '#2c3e50',
-                        fillColor: '#e74c3c',
-                        fillOpacity: 0.8,
-                        radius: 8,
-                        weight: 2
-                    }).addTo(map).bindPopup('You are here').openPopup();
-                }, function() {
-                    alert('Unable to locate you.');
-                });
-            } else {
-                alert('Geolocation not supported.');
-            }
-        }
-        
-        function toggleBasemap() {
-            basemapToggle = !basemapToggle;
-            var url = basemapToggle ? 
-                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' :
-                'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-            map.eachLayer(function(layer) {
-                if (layer instanceof L.TileLayer) {
-                    layer.setUrl(url);
-                }
-            });
-        }
-        
-        function updateOpacity() {
-            var val = document.getElementById('opacitySlider').value / 100;
-            fieldLayer.eachLayer(function(layer) {
-                if (layer.setStyle) {
-                    layer.setStyle({ fillOpacity: val * 0.7, opacity: val * 0.9 });
-                }
-            });
         }
 
         // =====================================================
@@ -870,6 +938,7 @@
             .then(response => response.json())
             .then(data => {
                 alert(data.message || data.error || 'Deleted');
+                selectedIds.delete(id);
                 loadFields();
             })
             .catch(error => {
@@ -887,6 +956,18 @@
         function exportAll() {
             if (allFields.length === 0) { alert('No fields to export'); return; }
             downloadGeoJSON({ type: 'FeatureCollection', features: allFields }, 'all_fields.geojson');
+        }
+        
+        function exportSelected() {
+            var selected = allFields.filter(f => selectedIds.has(f.properties.id));
+            if (selected.length === 0) {
+                alert('Please select at least one field to export.');
+                return;
+            }
+            var filename = selected.length === 1 ? 
+                selected[0].properties.field_name + '.geojson' : 
+                'selected_fields.geojson';
+            downloadGeoJSON({ type: 'FeatureCollection', features: selected }, filename);
         }
         
         function downloadGeoJSON(data, filename) {

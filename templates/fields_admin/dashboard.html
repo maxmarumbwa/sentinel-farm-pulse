@@ -50,6 +50,8 @@
         .btn-export-selected:hover { background: #8e44ad !important; }
         .btn-export-all { background: #27ae60 !important; }
         .btn-export-all:hover { background: #229954 !important; }
+        .btn-import { background: #f39c12 !important; }
+        .btn-import:hover { background: #e67e22 !important; }
         
         /* Stats Panel */
         .stats-panel {
@@ -275,9 +277,9 @@
             background: white;
             padding: 25px;
             border-radius: 10px;
-            max-width: 500px;
+            max-width: 650px;
             width: 90%;
-            max-height: 80vh;
+            max-height: 90vh;
             overflow-y: auto;
             box-shadow: 0 10px 40px rgba(0,0,0,0.3);
         }
@@ -300,6 +302,137 @@
             font-size: 13px;
             color: white;
         }
+        
+        /* Import Modal */
+        .import-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            margin: 15px 0;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .import-area:hover { border-color: #2c3e50; background: #f8f9fa; }
+        .import-area.dragover { border-color: #2c3e50; background: #e8f0fe; }
+        .import-area i { font-size: 48px; color: #999; margin-bottom: 10px; display: block; }
+        .import-area p { color: #666; margin: 0; }
+        .import-area .file-name { color: #2c3e50; font-weight: bold; }
+        .import-preview {
+            max-height: 200px;
+            overflow: auto;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 12px;
+            display: none;
+        }
+        .import-preview table { width: 100%; border-collapse: collapse; }
+        .import-preview th, .import-preview td {
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        .import-preview th { background: #e8f0fe; }
+        .import-progress {
+            display: none;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #ecf0f1;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-bar .fill {
+            height: 100%;
+            background: #27ae60;
+            transition: width 0.3s;
+            width: 0%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 11px;
+        }
+        .field-mapping {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: 10px 0;
+        }
+        .field-mapping label { font-weight: 600; font-size: 13px; }
+        .field-mapping select {
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .import-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        .import-actions button {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-import-confirm { background: #27ae60; color: white; }
+        .btn-import-confirm:hover { background: #229954; }
+        .btn-import-cancel { background: #e74c3c; color: white; }
+        .btn-import-cancel:hover { background: #c0392b; }
+        .btn-import-sample { background: #3498db; color: white; }
+        .btn-import-sample:hover { background: #2980b9; }
+        
+        /* Duplicate Results */
+        .duplicate-results {
+            display: none;
+            margin: 10px 0;
+            padding: 12px 15px;
+            border-radius: 4px;
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+        }
+        .duplicate-results .summary { font-weight: bold; }
+        .duplicate-results .new-badge {
+            margin-left: 10px;
+            color: #155724;
+            background: #d4edda;
+            padding: 2px 10px;
+            border-radius: 12px;
+        }
+        .duplicate-results .dup-list {
+            max-height: 150px;
+            overflow: auto;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        .duplicate-results .dup-list .dup-item {
+            padding: 2px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .duplicate-results .dup-actions {
+            margin-top: 8px;
+        }
+        .duplicate-results .dup-actions button {
+            padding: 5px 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            color: white;
+        }
+        .btn-import-new { background: #e67e22; }
+        .btn-import-new:hover { background: #d35400; }
+        .btn-import-skip { background: #27ae60; }
+        .btn-import-skip:hover { background: #229954; }
+        .btn-import-cancel-sm { background: #95a5a6; }
+        .btn-import-cancel-sm:hover { background: #7f8c8d; }
         
         .loading-overlay {
             position: absolute;
@@ -362,6 +495,7 @@
             .left-panel { width: 100%; max-height: 400px; }
             .right-panel { width: 100%; height: 400px; }
             .stats-panel { grid-template-columns: repeat(2, 1fr); }
+            .field-mapping { grid-template-columns: 1fr; }
         }
         @media (max-width: 600px) {
             .header { flex-direction: column; align-items: stretch; text-align: center; }
@@ -380,6 +514,9 @@
             <a href="{% url 'fields_admin:sentinel_truecolour' %}">
                 <i class="fas fa-plus-circle"></i> New Field
             </a>
+            <button class="btn-import" onclick="openImportModal()">
+                <i class="fas fa-upload"></i> Import
+            </button>
             <button class="btn-export-all" onclick="exportAll()">
                 <i class="fas fa-download"></i> Export All
             </button>
@@ -490,12 +627,117 @@
         </div>
     </div>
 
-    <!-- Modal -->
+    <!-- Detail Modal -->
     <div class="modal" id="detailModal">
         <div class="modal-content">
             <span class="modal-close" onclick="closeModal()">&times;</span>
             <h2 id="modalTitle">Field Details</h2>
             <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <!-- Import Modal -->
+    <div class="modal" id="importModal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeImportModal()">&times;</span>
+            <h2><i class="fas fa-upload"></i> Import Fields from GeoJSON</h2>
+            <p style="color:#666; font-size:14px; margin-bottom:15px;">
+                Upload a GeoJSON file with field polygons. The system will check for geometry overlap (≥50%).
+            </p>
+            
+            <!-- File Upload Area -->
+            <div class="import-area" id="dropArea" onclick="document.getElementById('fileInput').click()">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <p>Drag & drop your GeoJSON file here, or click to browse</p>
+                <p style="font-size:12px; color:#999; margin-top:5px;">Supports .geojson, .json files</p>
+                <p class="file-name" id="fileName" style="display:none;"></p>
+            </div>
+            <input type="file" id="fileInput" accept=".geojson,.json" style="display:none;" onchange="handleFile(event)">
+            
+            <!-- Duplicate Results -->
+            <div class="duplicate-results" id="duplicateResults">
+                <div class="summary" id="duplicateSummary"></div>
+                <div class="dup-list" id="duplicateList"></div>
+                <div class="dup-actions" id="duplicateActions">
+                    <button class="btn-import-new" onclick="importFields(true)">
+                        <i class="fas fa-exclamation-triangle"></i> Import New Only
+                    </button>
+                    <button class="btn-import-skip" onclick="importFields(false)">
+                        <i class="fas fa-check"></i> Import All (Skip Overlaps)
+                    </button>
+                    <button class="btn-import-cancel-sm" onclick="document.getElementById('duplicateResults').style.display='none'">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Preview -->
+            <div class="import-preview" id="importPreview">
+                <h4 style="margin:0 0 8px 0; font-size:14px;">Preview (first 5 features)</h4>
+                <div id="previewContent"></div>
+            </div>
+            
+            <!-- Field Mapping -->
+            <div id="mappingSection" style="display:none;">
+                <h4 style="margin:10px 0 8px 0; font-size:14px;">Map Fields</h4>
+                <p style="font-size:12px; color:#666; margin-bottom:8px;">
+                    Match the properties from your GeoJSON to the database fields.
+                </p>
+                <div class="field-mapping">
+                    <label>Field Name *</label>
+                    <select id="mapFieldName"></select>
+                    
+                    <label>Crop</label>
+                    <select id="mapCrop">
+                        <option value="">— Auto-detect —</option>
+                        {% for c in crops %}
+                        <option value="{{ c }}">{{ c }}</option>
+                        {% endfor %}
+                    </select>
+                    
+                    <label>Production System</label>
+                    <select id="mapProduction">
+                        <option value="">— Auto-detect —</option>
+                        <option value="Rainfed">Rainfed</option>
+                        <option value="Irrigated">Irrigated</option>
+                    </select>
+                    
+                    <label>Province</label>
+                    <select id="mapProvince">
+                        <option value="">— Auto-detect —</option>
+                        {% for p in admins1 %}
+                        <option value="{{ p.id }}">{{ p.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="import-actions">
+                    <button class="btn-import-sample" onclick="loadSampleData()">
+                        <i class="fas fa-file-import"></i> Load Sample Data
+                    </button>
+                    <button class="btn-import-confirm" onclick="checkDuplicates()" id="checkDuplicatesBtn">
+                        <i class="fas fa-search"></i> Check for Overlaps
+                    </button>
+                    <button class="btn-import-cancel" onclick="closeImportModal()">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+                
+                <div class="import-progress" id="importProgress">
+                    <div class="progress-bar">
+                        <div class="fill" id="progressFill">0%</div>
+                    </div>
+                    <p style="font-size:13px; margin-top:5px;" id="progressText">Importing...</p>
+                </div>
+            </div>
+            
+            <!-- Sample Data Button (in upload area) -->
+            <div style="text-align:center; margin-top:10px;">
+                <button class="btn-import-sample" onclick="loadSampleData()" style="background:#3498db; color:white; border:none; padding:6px 16px; border-radius:4px; cursor:pointer;">
+                    <i class="fas fa-file-import"></i> Load Sample Data
+                </button>
+                <span style="font-size:12px; color:#999; margin-left:8px;">(creates sample GeoJSON with 5 fields)</span>
+            </div>
         </div>
     </div>
 
@@ -509,6 +751,8 @@
         var allFields = [];
         var currentHighlight = null;
         var selectedIds = new Set();
+        var importData = null;
+        var duplicateInfo = null;
         
         var cropColors = {
             'Maize': '#f1c40f',
@@ -532,13 +776,11 @@
         function initMap() {
             map = L.map('map').setView([-19.0, 29.5], 6);
             
-            // Base layer
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap',
                 maxZoom: 19
             }).addTo(map);
             
-            // Field layer
             fieldLayer = L.geoJSON(null, {
                 style: function(feature) {
                     var color = feature.properties.color || defaultColor;
@@ -611,7 +853,6 @@
                     if (data.error) throw new Error(data.error);
                     
                     allFields = data.features || [];
-                    // Clear selection when data reloads
                     selectedIds.clear();
                     updateSelectionUI();
                     updateMap(allFields);
@@ -628,34 +869,23 @@
         }
 
         // =====================================================
-        // UPDATE MAP
+        // UPDATE FUNCTIONS
         // =====================================================
         function updateMap(features) {
             fieldLayer.clearLayers();
-            
-            if (features.length === 0) {
-                return;
-            }
-            
+            if (features.length === 0) return;
             var geojson = { type: 'FeatureCollection', features: features };
             fieldLayer.addData(geojson);
-            
             if (features.length > 0) {
                 try {
                     var bounds = fieldLayer.getBounds();
-                    if (bounds.isValid()) {
-                        map.fitBounds(bounds, { padding: [40, 40] });
-                    }
+                    if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] });
                 } catch(e) {}
             }
         }
 
-        // =====================================================
-        // UPDATE TABLE
-        // =====================================================
         function updateTable(features) {
             var tbody = document.getElementById('tableBody');
-            
             if (features.length === 0) {
                 tbody.innerHTML = `
                     <tr><td colspan="8" class="empty-state">
@@ -667,7 +897,6 @@
                 document.getElementById('selectAll').checked = false;
                 return;
             }
-            
             var html = '';
             features.forEach(function(f) {
                 var p = f.properties;
@@ -694,50 +923,79 @@
                     </tr>
                 `;
             });
-            
             tbody.innerHTML = html;
-            
-            // Update select all
             var allChecked = features.every(f => selectedIds.has(f.properties.id));
             document.getElementById('selectAll').checked = allChecked && features.length > 0;
-            
             updateSelectionUI();
+        }
+
+        function updateStats() {
+            var params = new URLSearchParams();
+            var province = document.getElementById('filterProvince').value;
+            var crop = document.getElementById('filterCrop').value;
+            var production = document.getElementById('filterProduction').value;
+            var search = document.getElementById('searchInput').value;
+            if (province) params.append('province', province);
+            if (crop) params.append('crop', crop);
+            if (production) params.append('production_system', production);
+            if (search) params.append('search', search);
+            
+            fetch('/api/fields/stats/?' + params.toString())
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) return;
+                    document.getElementById('totalFields').textContent = data.total_fields;
+                    document.getElementById('totalArea').textContent = data.total_area.toFixed(1);
+                    document.getElementById('avgArea').textContent = data.avg_area.toFixed(1);
+                    var top = data.crop_distribution[0];
+                    if (top) {
+                        document.getElementById('topCrop').textContent = top.crop;
+                        document.getElementById('topCropPercent').textContent = top.percentage + '%';
+                    } else {
+                        document.getElementById('topCrop').textContent = '-';
+                        document.getElementById('topCropPercent').textContent = '0%';
+                    }
+                    document.getElementById('cropCount').textContent = data.crop_distribution.length;
+                })
+                .catch(console.error);
+        }
+
+        function updateLegend() {
+            var crops = {};
+            allFields.forEach(function(f) {
+                var crop = f.properties.crop;
+                var color = f.properties.color || defaultColor;
+                if (!crops[crop]) crops[crop] = { count: 0, color: color };
+                crops[crop].count++;
+            });
+            var html = '';
+            Object.keys(crops).sort().forEach(function(crop) {
+                var info = crops[crop];
+                html += `<div class="legend-item"><div class="color-box" style="background:${info.color};"></div><span>${crop} (${info.count})</span></div>`;
+            });
+            document.getElementById('legendItems').innerHTML = html || '<div class="legend-item">No fields</div>';
         }
 
         // =====================================================
         // SELECTION FUNCTIONS
         // =====================================================
         function toggleRow(id) {
-            if (selectedIds.has(id)) {
-                selectedIds.delete(id);
-            } else {
-                selectedIds.add(id);
-            }
-            // Update table row style
+            if (selectedIds.has(id)) { selectedIds.delete(id); } 
+            else { selectedIds.add(id); }
             var row = document.querySelector(`tr[data-id="${id}"]`);
-            if (row) {
-                row.classList.toggle('selected');
-            }
+            if (row) row.classList.toggle('selected');
             updateSelectionUI();
             updateMapHighlight();
         }
         
         function toggleAll() {
             var checked = document.getElementById('selectAll').checked;
-            var checkboxes = document.querySelectorAll('.row-checkbox');
-            checkboxes.forEach(function(cb) {
+            document.querySelectorAll('.row-checkbox').forEach(function(cb) {
                 var id = parseInt(cb.dataset.id);
-                if (checked) {
-                    selectedIds.add(id);
-                    cb.checked = true;
-                    var row = document.querySelector(`tr[data-id="${id}"]`);
-                    if (row) row.classList.add('selected');
-                } else {
-                    selectedIds.delete(id);
-                    cb.checked = false;
-                    var row = document.querySelector(`tr[data-id="${id}"]`);
-                    if (row) row.classList.remove('selected');
-                }
+                if (checked) { selectedIds.add(id); cb.checked = true; } 
+                else { selectedIds.delete(id); cb.checked = false; }
+                var row = document.querySelector(`tr[data-id="${id}"]`);
+                if (row) row.classList.toggle('selected', checked);
             });
             updateSelectionUI();
             updateMapHighlight();
@@ -758,12 +1016,8 @@
         function updateSelectionUI() {
             var count = selectedIds.size;
             var info = document.getElementById('selectionInfo');
-            if (count > 0) {
-                info.style.display = 'block';
-                document.getElementById('selectedCount').textContent = count;
-            } else {
-                info.style.display = 'none';
-            }
+            if (count > 0) { info.style.display = 'block'; document.getElementById('selectedCount').textContent = count; } 
+            else { info.style.display = 'none'; }
         }
         
         function updateMapHighlight() {
@@ -782,77 +1036,9 @@
         }
 
         // =====================================================
-        // UPDATE STATS
-        // =====================================================
-        function updateStats() {
-            var params = new URLSearchParams();
-            var province = document.getElementById('filterProvince').value;
-            var crop = document.getElementById('filterCrop').value;
-            var production = document.getElementById('filterProduction').value;
-            var search = document.getElementById('searchInput').value;
-            
-            if (province) params.append('province', province);
-            if (crop) params.append('crop', crop);
-            if (production) params.append('production_system', production);
-            if (search) params.append('search', search);
-            
-            fetch('/api/fields/stats/?' + params.toString())
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) return;
-                    
-                    document.getElementById('totalFields').textContent = data.total_fields;
-                    document.getElementById('totalArea').textContent = data.total_area.toFixed(1);
-                    document.getElementById('avgArea').textContent = data.avg_area.toFixed(1);
-                    
-                    var top = data.crop_distribution[0];
-                    if (top) {
-                        document.getElementById('topCrop').textContent = top.crop;
-                        document.getElementById('topCropPercent').textContent = top.percentage + '%';
-                    } else {
-                        document.getElementById('topCrop').textContent = '-';
-                        document.getElementById('topCropPercent').textContent = '0%';
-                    }
-                    
-                    document.getElementById('cropCount').textContent = data.crop_distribution.length;
-                })
-                .catch(console.error);
-        }
-
-        // =====================================================
-        // UPDATE LEGEND
-        // =====================================================
-        function updateLegend() {
-            var crops = {};
-            allFields.forEach(function(f) {
-                var crop = f.properties.crop;
-                var color = f.properties.color || defaultColor;
-                if (!crops[crop]) crops[crop] = { count: 0, color: color };
-                crops[crop].count++;
-            });
-            
-            var html = '';
-            Object.keys(crops).sort().forEach(function(crop) {
-                var info = crops[crop];
-                html += `
-                    <div class="legend-item">
-                        <div class="color-box" style="background:${info.color};"></div>
-                        <span>${crop} (${info.count})</span>
-                    </div>
-                `;
-            });
-            
-            document.getElementById('legendItems').innerHTML = html || '<div class="legend-item">No fields</div>';
-        }
-
-        // =====================================================
         // FILTERS
         // =====================================================
-        function applyFilters() { 
-            selectedIds.clear();
-            loadFields(); 
-        }
-        
+        function applyFilters() { selectedIds.clear(); loadFields(); }
         function clearFilters() {
             document.getElementById('filterProvince').value = '';
             document.getElementById('filterCrop').value = '';
@@ -863,25 +1049,12 @@
         }
 
         // =====================================================
-        // MAP ACTIONS
-        // =====================================================
-        function zoomToAll() {
-            try {
-                var bounds = fieldLayer.getBounds();
-                if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] });
-            } catch(e) {}
-        }
-
-        // =====================================================
         // FIELD ACTIONS
         // =====================================================
         function viewField(id) {
             var field = allFields.find(f => f.properties.id === id);
             if (!field) return;
-            
             var p = field.properties;
-            var modal = document.getElementById('detailModal');
-            
             document.getElementById('modalTitle').textContent = p.field_name;
             document.getElementById('modalBody').innerHTML = `
                 <div class="detail-row"><strong>Field Name:</strong> ${p.field_name}</div>
@@ -898,23 +1071,16 @@
                     <button onclick="exportField(${p.id});" style="background:#9b59b6;"><i class="fas fa-file-export"></i> Export</button>
                 </div>
             `;
-            
-            modal.classList.add('active');
+            document.getElementById('detailModal').classList.add('active');
         }
         
         function zoomToField(id) {
             var field = allFields.find(f => f.properties.id === id);
             if (!field) return;
-            
             var coords = field.geometry.coordinates[0];
             var latlngs = coords.map(function(c) { return [c[1], c[0]]; });
-            var bounds = L.latLngBounds(latlngs);
-            map.fitBounds(bounds, { padding: [50, 50] });
-            
-            // Highlight
-            if (currentHighlight) {
-                currentHighlight.setStyle({ weight: 2, opacity: 0.8, fillOpacity: 0.35 });
-            }
+            map.fitBounds(L.latLngBounds(latlngs), { padding: [50, 50] });
+            if (currentHighlight) currentHighlight.setStyle({ weight: 2, opacity: 0.8, fillOpacity: 0.35 });
             fieldLayer.eachLayer(function(layer) {
                 if (layer.feature && layer.feature.properties.id === id) {
                     layer.setStyle({ weight: 4, opacity: 1, fillOpacity: 0.5 });
@@ -924,13 +1090,10 @@
             });
         }
         
-        function editField(id) {
-            window.location.href = '{% url "fields_admin:sentinel_truecolour" %}?edit=' + id;
-        }
+        function editField(id) { window.location.href = '{% url "fields_admin:sentinel_truecolour" %}?edit=' + id; }
         
         function deleteField(id) {
             if (!confirm('Delete this field?')) return;
-            
             fetch('/api/fields/' + id + '/delete/', {
                 method: 'DELETE',
                 headers: { 'X-CSRFToken': getCookie('csrftoken') }
@@ -941,10 +1104,7 @@
                 selectedIds.delete(id);
                 loadFields();
             })
-            .catch(error => {
-                alert('Error deleting field');
-                console.error(error);
-            });
+            .catch(error => { alert('Error deleting field'); console.error(error); });
         }
         
         function exportField(id) {
@@ -960,13 +1120,8 @@
         
         function exportSelected() {
             var selected = allFields.filter(f => selectedIds.has(f.properties.id));
-            if (selected.length === 0) {
-                alert('Please select at least one field to export.');
-                return;
-            }
-            var filename = selected.length === 1 ? 
-                selected[0].properties.field_name + '.geojson' : 
-                'selected_fields.geojson';
+            if (selected.length === 0) { alert('Please select at least one field to export.'); return; }
+            var filename = selected.length === 1 ? selected[0].properties.field_name + '.geojson' : 'selected_fields.geojson';
             downloadGeoJSON({ type: 'FeatureCollection', features: selected }, filename);
         }
         
@@ -974,20 +1129,595 @@
             var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             var url = URL.createObjectURL(blob);
             var a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }
         
-        function closeModal() {
-            document.getElementById('detailModal').classList.remove('active');
+        function closeModal() { document.getElementById('detailModal').classList.remove('active'); }
+        document.getElementById('detailModal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+
+        // =====================================================
+        // IMPORT FUNCTIONS
+        // =====================================================
+        function openImportModal() {
+            document.getElementById('importModal').classList.add('active');
+            // Reset
+            document.getElementById('fileInput').value = '';
+            document.getElementById('fileName').style.display = 'none';
+            document.getElementById('fileName').textContent = '';
+            document.getElementById('importPreview').style.display = 'none';
+            document.getElementById('mappingSection').style.display = 'none';
+            document.getElementById('importProgress').style.display = 'none';
+            document.getElementById('duplicateResults').style.display = 'none';
+            importData = null;
+            duplicateInfo = null;
         }
         
-        document.getElementById('detailModal').addEventListener('click', function(e) {
-            if (e.target === this) closeModal();
+        function closeImportModal() {
+            document.getElementById('importModal').classList.remove('active');
+        }
+        
+        // Drag and drop
+        var dropArea = document.getElementById('dropArea');
+        dropArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.classList.add('dragover');
+        });
+        dropArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            this.classList.remove('dragover');
+        });
+        dropArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('dragover');
+            var files = e.dataTransfer.files;
+            if (files.length > 0) {
+                document.getElementById('fileInput').files = files;
+                handleFile(e);
+            }
+        });
+        
+        function handleFile(event) {
+            var file = event.target.files[0] || event.dataTransfer?.files[0];
+            if (!file) return;
+            
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    var data = JSON.parse(e.target.result);
+                    if (!data.type || data.type !== 'FeatureCollection') {
+                        alert('Invalid GeoJSON: Must be a FeatureCollection');
+                        return;
+                    }
+                    if (!data.features || data.features.length === 0) {
+                        alert('No features found in the GeoJSON file');
+                        return;
+                    }
+                    
+                    importData = data;
+                    document.getElementById('fileName').textContent = '📄 ' + file.name + ' (' + data.features.length + ' features)';
+                    document.getElementById('fileName').style.display = 'block';
+                    
+                    // Show preview
+                    showPreview(data);
+                    
+                    // Setup mapping
+                    setupMapping(data);
+                    document.getElementById('mappingSection').style.display = 'block';
+                    document.getElementById('duplicateResults').style.display = 'none';
+                    duplicateInfo = null;
+                    
+                } catch(err) {
+                    alert('Error parsing file: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        function showPreview(data) {
+            var preview = document.getElementById('importPreview');
+            preview.style.display = 'block';
+            
+            var features = data.features.slice(0, 5);
+            var allProps = [];
+            features.forEach(function(f) {
+                if (f.properties) {
+                    var props = {};
+                    Object.keys(f.properties).forEach(function(k) {
+                        props[k] = f.properties[k];
+                    });
+                    allProps.push(props);
+                }
+            });
+            
+            if (allProps.length === 0) {
+                document.getElementById('previewContent').innerHTML = '<p style="color:#999;">No properties found in features</p>';
+                return;
+            }
+            
+            var keys = Object.keys(allProps[0]);
+            var html = '<table><thead><tr>';
+            html += '<th>#</th>';
+            keys.forEach(function(k) { html += '<th>' + k + '</th>'; });
+            html += '</tr></thead><tbody>';
+            allProps.forEach(function(props, idx) {
+                html += '<tr><td>' + (idx+1) + '</td>';
+                keys.forEach(function(k) {
+                    var val = props[k] || '';
+                    if (typeof val === 'string' && val.length > 30) val = val.substring(0, 30) + '...';
+                    html += '<td>' + val + '</td>';
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            document.getElementById('previewContent').innerHTML = html;
+        }
+        
+        function setupMapping(data) {
+            var features = data.features;
+            var propKeys = [];
+            if (features.length > 0 && features[0].properties) {
+                propKeys = Object.keys(features[0].properties);
+            }
+            
+            // Populate mapping selects
+            var selects = ['mapFieldName', 'mapCrop', 'mapProduction', 'mapProvince'];
+            selects.forEach(function(id) {
+                var select = document.getElementById(id);
+                select.innerHTML = '<option value="">— Auto-detect —</option>';
+                
+                if (id === 'mapProvince') {
+                    propKeys.forEach(function(key) {
+                        var opt = document.createElement('option');
+                        opt.value = key;
+                        opt.textContent = key + ' (property)';
+                        select.appendChild(opt);
+                    });
+                } else {
+                    propKeys.forEach(function(key) {
+                        var opt = document.createElement('option');
+                        opt.value = key;
+                        opt.textContent = key;
+                        select.appendChild(opt);
+                    });
+                }
+            });
+            
+            // Auto-detect common field names
+            var fieldNameOptions = ['name', 'field', 'field_name', 'fieldname', 'label', 'id', 'title'];
+            var cropOptions = ['crop', 'crop_type', 'type', 'landuse', 'land_use'];
+            var productionOptions = ['production', 'production_system', 'system', 'irrigation'];
+            var provinceOptions = ['province', 'admin1', 'state', 'region', 'adm1'];
+            
+            function findMatch(options, keys) {
+                for (var i = 0; i < options.length; i++) {
+                    var lower = options[i].toLowerCase();
+                    for (var j = 0; j < keys.length; j++) {
+                        if (keys[j].toLowerCase().includes(lower) || lower.includes(keys[j].toLowerCase())) {
+                            return keys[j];
+                        }
+                    }
+                }
+                return '';
+            }
+            
+            var keys = propKeys.map(function(k) { return k.toLowerCase(); });
+            
+            var nameMatch = findMatch(fieldNameOptions, propKeys);
+            if (nameMatch) document.getElementById('mapFieldName').value = nameMatch;
+            
+            var cropMatch = findMatch(cropOptions, propKeys);
+            if (cropMatch) document.getElementById('mapCrop').value = cropMatch;
+            
+            var prodMatch = findMatch(productionOptions, propKeys);
+            if (prodMatch) document.getElementById('mapProduction').value = prodMatch;
+            
+            var provMatch = findMatch(provinceOptions, propKeys);
+            if (provMatch) document.getElementById('mapProvince').value = provMatch;
+        }
+        
+        function loadSampleData() {
+            // Generate sample GeoJSON with 5 fields
+            var sample = {
+                type: 'FeatureCollection',
+                features: [
+                    {
+                        type: 'Feature',
+                        properties: {
+                            name: 'Sample Field 1',
+                            crop: 'Maize',
+                            production: 'Rainfed',
+                            province: 'Harare',
+                            district: 'Harare Rural'
+                        },
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: [[
+                                [31.0, -17.8],
+                                [31.1, -17.8],
+                                [31.1, -17.9],
+                                [31.0, -17.9],
+                                [31.0, -17.8]
+                            ]]
+                        }
+                    },
+                    {
+                        type: 'Feature',
+                        properties: {
+                            name: 'Sample Field 2',
+                            crop: 'Soybeans',
+                            production: 'Rainfed',
+                            province: 'Mashonaland Central',
+                            district: 'Mazowe'
+                        },
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: [[
+                                [31.2, -17.6],
+                                [31.3, -17.6],
+                                [31.3, -17.7],
+                                [31.2, -17.7],
+                                [31.2, -17.6]
+                            ]]
+                        }
+                    },
+                    {
+                        type: 'Feature',
+                        properties: {
+                            name: 'Sample Field 3',
+                            crop: 'Tobacco',
+                            production: 'Rainfed',
+                            province: 'Mashonaland East',
+                            district: 'Marondera'
+                        },
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: [[
+                                [31.4, -17.4],
+                                [31.5, -17.4],
+                                [31.5, -17.5],
+                                [31.4, -17.5],
+                                [31.4, -17.4]
+                            ]]
+                        }
+                    },
+                    {
+                        type: 'Feature',
+                        properties: {
+                            name: 'Sample Field 4',
+                            crop: 'Cotton',
+                            production: 'Irrigated',
+                            province: 'Midlands',
+                            district: 'Gokwe'
+                        },
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: [[
+                                [29.8, -18.0],
+                                [29.9, -18.0],
+                                [29.9, -18.1],
+                                [29.8, -18.1],
+                                [29.8, -18.0]
+                            ]]
+                        }
+                    },
+                    {
+                        type: 'Feature',
+                        properties: {
+                            name: 'Sample Field 5',
+                            crop: 'Groundnuts',
+                            production: 'Rainfed',
+                            province: 'Manicaland',
+                            district: 'Mutare'
+                        },
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: [[
+                                [32.6, -18.9],
+                                [32.7, -18.9],
+                                [32.7, -19.0],
+                                [32.6, -19.0],
+                                [32.6, -18.9]
+                            ]]
+                        }
+                    }
+                ]
+            };
+            
+            importData = sample;
+            document.getElementById('fileName').textContent = '📄 Sample Data (5 features)';
+            document.getElementById('fileName').style.display = 'block';
+            showPreview(sample);
+            setupMapping(sample);
+            document.getElementById('mappingSection').style.display = 'block';
+            document.getElementById('duplicateResults').style.display = 'none';
+            duplicateInfo = null;
+            document.getElementById('importModal').scrollTop = 0;
+        }
+        
+        // =====================================================
+        // CHECK DUPLICATES - GEOMETRY OVERLAP BASED
+        // =====================================================
+        function checkDuplicates() {
+            if (!importData || !importData.features || importData.features.length === 0) {
+                alert('No data to check. Please load a GeoJSON file first.');
+                return;
+            }
+            
+            // Get field name mapping
+            var fieldNameMap = document.getElementById('mapFieldName').value;
+            if (!fieldNameMap) {
+                alert('Please map a property for "Field Name"');
+                return;
+            }
+            
+            // Prepare data for duplicate check (keep full geometry)
+            var features = importData.features.map(function(f) {
+                var props = f.properties;
+                var fieldName = props[fieldNameMap] || 'Unnamed Field';
+                return {
+                    type: f.type,
+                    properties: {
+                        name: fieldName,
+                    },
+                    geometry: f.geometry
+                };
+            });
+            
+            var payload = {
+                features: features
+            };
+            
+            // Show loading
+            document.getElementById('checkDuplicatesBtn').disabled = true;
+            document.getElementById('checkDuplicatesBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking overlaps...';
+            
+            fetch('/api/fields/check-duplicates/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('checkDuplicatesBtn').disabled = false;
+                document.getElementById('checkDuplicatesBtn').innerHTML = '<i class="fas fa-search"></i> Check for Overlaps';
+                
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                
+                duplicateInfo = data;
+                
+                // Show duplicate results
+                var resultsDiv = document.getElementById('duplicateResults');
+                resultsDiv.style.display = 'block';
+                
+                var summary = document.getElementById('duplicateSummary');
+                var list = document.getElementById('duplicateList');
+                
+                if (data.duplicate_count > 0) {
+                    summary.innerHTML = `
+                        <strong>⚠️ ${data.duplicate_count} overlapping field(s) found (≥50% overlap)</strong>
+                        <span class="new-badge">${data.new_count} new field(s) to import</span>
+                    `;
+                    
+                    var dupList = '';
+                    data.duplicates.forEach(function(d) {
+                        dupList += `<div class="dup-item">• ${d.field_name} — ${d.reason}</div>`;
+                    });
+                    list.innerHTML = dupList;
+                } else {
+                    summary.innerHTML = `
+                        <strong>✅ No overlapping fields found</strong>
+                        <span class="new-badge">${data.new_count} field(s) ready to import</span>
+                    `;
+                    list.innerHTML = '';
+                }
+                
+                resultsDiv.scrollIntoView({ behavior: 'smooth' });
+            })
+            .catch(error => {
+                console.error('Error checking duplicates:', error);
+                alert('Error checking duplicates: ' + error.message);
+                document.getElementById('checkDuplicatesBtn').disabled = false;
+                document.getElementById('checkDuplicatesBtn').innerHTML = '<i class="fas fa-search"></i> Check for Overlaps';
+            });
+        }
+        
+        // =====================================================
+        // IMPORT FIELDS
+        // =====================================================
+        function importFields(skipDuplicates) {
+            if (!importData || !importData.features || importData.features.length === 0) {
+                alert('No data to import. Please load a GeoJSON file first.');
+                return;
+            }
+            
+            var fieldNameMap = document.getElementById('mapFieldName').value;
+            var cropMap = document.getElementById('mapCrop').value;
+            var productionMap = document.getElementById('mapProduction').value;
+            var provinceMap = document.getElementById('mapProvince').value;
+            
+            if (!fieldNameMap) {
+                alert('Please map a property for "Field Name"');
+                return;
+            }
+            
+            // Determine which features to import
+            var featuresToImport = importData.features;
+            
+            if (skipDuplicates && duplicateInfo) {
+                // Use the new features from duplicate check
+                featuresToImport = duplicateInfo.new_features;
+                if (featuresToImport.length === 0) {
+                    alert('No new fields to import. All fields overlap with existing fields (≥50%).');
+                    return;
+                }
+                if (!confirm('Import ' + featuresToImport.length + ' new field(s)? (Skipping ' + duplicateInfo.duplicate_count + ' overlapping fields)')) {
+                    return;
+                }
+            } else {
+                if (!confirm('Import ' + featuresToImport.length + ' field(s)?')) {
+                    return;
+                }
+            }
+            
+            var progressDiv = document.getElementById('importProgress');
+            progressDiv.style.display = 'block';
+            var progressFill = document.getElementById('progressFill');
+            var progressText = document.getElementById('progressText');
+            
+            var total = featuresToImport.length;
+            var success = 0;
+            var failed = 0;
+            var errors = [];
+            
+            var csrftoken = getCookie('csrftoken');
+            
+            function processFeature(index) {
+                if (index >= total) {
+                    progressFill.style.width = '100%';
+                    progressFill.textContent = '100%';
+                    var msg = '✅ Import complete! ' + success + ' imported';
+                    if (failed > 0) msg += ', ' + failed + ' failed';
+                    progressText.textContent = msg;
+                    
+                    setTimeout(function() {
+                        closeImportModal();
+                        loadFields();
+                        if (errors.length > 0) {
+                            alert('Import completed with ' + errors.length + ' errors:\n\n' + errors.join('\n'));
+                        } else {
+                            alert('✅ Successfully imported ' + success + ' fields!');
+                        }
+                    }, 1000);
+                    return;
+                }
+                
+                var feature = featuresToImport[index];
+                var props = feature.properties;
+                var geom = feature.geometry;
+                
+                if (!geom || !geom.coordinates) {
+                    failed++;
+                    errors.push('Feature ' + (index+1) + ': No geometry found');
+                    processFeature(index + 1);
+                    return;
+                }
+                
+                // Build field data
+                var fieldName = props[fieldNameMap] || 'Imported Field ' + (index+1);
+                var fieldData = {
+                    field_name: fieldName,
+                    geometry: geom
+                };
+                
+                // Crop
+                if (cropMap) {
+                    var cropVal = props[cropMap] || 'Maize';
+                    var validCrops = ['Maize', 'Groundnuts', 'Soybeans', 'Cotton', 'Tobacco', 'Sunflower', 'Sorghum', 'Millet', 'Beans', 'Potatoes', 'Tomatoes', 'Other'];
+                    if (validCrops.indexOf(cropVal) === -1) {
+                        cropVal = 'Maize';
+                    }
+                    fieldData.crop = cropVal;
+                } else {
+                    var possibleCrops = ['Maize', 'Groundnuts', 'Soybeans', 'Cotton', 'Tobacco', 'Sunflower', 'Sorghum', 'Millet', 'Beans', 'Potatoes', 'Tomatoes'];
+                    var found = false;
+                    for (var i = 0; i < possibleCrops.length; i++) {
+                        if (props[possibleCrops[i]]) {
+                            fieldData.crop = possibleCrops[i];
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) fieldData.crop = 'Maize';
+                }
+                
+                // Production
+                if (productionMap) {
+                    var prod = props[productionMap] || 'Rainfed';
+                    if (prod.toLowerCase().includes('irrigat') || prod.toLowerCase().includes('irrigated')) {
+                        fieldData.production_system = 'Irrigated';
+                    } else {
+                        fieldData.production_system = 'Rainfed';
+                    }
+                } else {
+                    fieldData.production_system = 'Rainfed';
+                }
+                
+                // Province
+                if (provinceMap) {
+                    fieldData.adm1_name = props[provinceMap] || '';
+                } else {
+                    var provinceKeys = ['province', 'admin1', 'state', 'region', 'adm1'];
+                    for (var j = 0; j < provinceKeys.length; j++) {
+                        if (props[provinceKeys[j]]) {
+                            fieldData.adm1_name = props[provinceKeys[j]];
+                            break;
+                        }
+                    }
+                }
+                
+                // Send to server
+                var url = '/api/fields/';
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrftoken
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(fieldData)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Server error');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        failed++;
+                        errors.push('Feature ' + (index+1) + ' (' + fieldName + '): ' + data.error);
+                    } else {
+                        success++;
+                    }
+                    
+                    var pct = Math.round(((index+1) / total) * 100);
+                    progressFill.style.width = pct + '%';
+                    progressFill.textContent = pct + '%';
+                    progressText.textContent = 'Importing ' + (index+1) + ' of ' + total + '... (' + success + ' successful)';
+                    
+                    processFeature(index + 1);
+                })
+                .catch(error => {
+                    failed++;
+                    errors.push('Feature ' + (index+1) + ' (' + fieldName + '): ' + error.message);
+                    
+                    var pct = Math.round(((index+1) / total) * 100);
+                    progressFill.style.width = pct + '%';
+                    progressFill.textContent = pct + '%';
+                    progressText.textContent = 'Importing ' + (index+1) + ' of ' + total + '... (' + success + ' successful)';
+                    
+                    processFeature(index + 1);
+                });
+            }
+            
+            // Start processing
+            processFeature(0);
+        }
+        
+        // Close import modal on background click
+        document.getElementById('importModal').addEventListener('click', function(e) {
+            if (e.target === this) closeImportModal();
         });
 
         // =====================================================

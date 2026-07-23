@@ -15,7 +15,8 @@ urlpatterns = [
     path('fields/dashboard/', views.field_dashboard, name='field_dashboard'),
     path('api/fields/list/', views.api_field_list, name='api_field_list'), 
     path('api/fields/stats/', views.api_field_stats, name='api_field_stats'),
-    path('api/fields/<int:field_id>/delete/', views.api_delete_field, name='api_delete_field'),  
+    path('api/fields/<int:field_id>/delete/', views.api_delete_field, name='api_delete_field'), 
+    path('api/fields/check-duplicates/', views.api_check_duplicates, name='api_check_duplicates'), 
     
     
 ]

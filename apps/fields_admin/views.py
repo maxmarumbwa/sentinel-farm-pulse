@@ -742,3 +742,98 @@ def api_delete_field(request, field_id):
     except Exception as e:
         logger.error(f"Error in api_delete_field: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+    
+# =====================================================
+# API: CHECK DUPLICATE FIELDS when imporing from shapefile or geojson
+# =====================================================
+
+@login_required
+def api_check_duplicates(request):
+    """Check if fields already exist in the database using geometry overlap (50% threshold)"""
+    try:
+        data = json.loads(request.body)
+        features = data.get('features', [])
+        
+        # Get existing fields for the user
+        existing_fields = Field.objects.filter(user=request.user)
+        
+        duplicates = []
+        new_features = []
+        
+        for feature in features:
+            geom = feature.get('geometry')
+            if not geom or not geom.get('coordinates'):
+                continue
+            
+            # Create GEOSGeometry from the feature
+            try:
+                geojson = {
+                    'type': 'Polygon',
+                    'coordinates': geom['coordinates']
+                }
+                new_geom = GEOSGeometry(json.dumps(geojson), srid=4326)
+                
+                # Check for overlap with existing fields
+                is_duplicate = False
+                duplicate_info = None
+                
+                for existing in existing_fields:
+                    if not existing.geometry:
+                        continue
+                    
+                    try:
+                        # Calculate intersection area
+                        intersection = new_geom.intersection(existing.geometry)
+                        if intersection and intersection.area > 0:
+                            # Calculate overlap percentage
+                            overlap_area = intersection.area
+                            new_area = new_geom.area
+                            existing_area = existing.geometry.area
+                            
+                            # Use smaller area for percentage calculation
+                            min_area = min(new_area, existing_area)
+                            if min_area > 0:
+                                overlap_percentage = (overlap_area / min_area) * 100
+                                
+                                # If overlap is >= 50%, consider it a duplicate
+                                if overlap_percentage >= 50:
+                                    is_duplicate = True
+                                    duplicate_info = {
+                                        'field_name': existing.field_name,
+                                        'overlap_percentage': round(overlap_percentage, 1),
+                                        'existing_id': existing.id
+                                    }
+                                    break
+                    except Exception as e:
+                        logger.warning(f"Error calculating overlap: {str(e)}")
+                        continue
+                
+                if is_duplicate:
+                    duplicates.append({
+                        'field_name': feature.get('properties', {}).get('name', 'Unknown'),
+                        'reason': f'Overlaps with "{duplicate_info["field_name"]}" ({duplicate_info["overlap_percentage"]}%)'
+                    })
+                else:
+                    new_features.append(feature)
+                    
+            except Exception as e:
+                logger.error(f"Error processing geometry: {str(e)}")
+                # If geometry is invalid, skip it
+                duplicates.append({
+                    'field_name': feature.get('properties', {}).get('name', 'Unknown'),
+                    'reason': 'Invalid geometry'
+                })
+                continue
+        
+        return JsonResponse({
+            'total': len(features),
+            'duplicates': duplicates,
+            'duplicate_count': len(duplicates),
+            'new_count': len(new_features),
+            'new_features': new_features
+        })
+        
+    except Exception as e:
+        logger.error(f"Error checking duplicates: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+    

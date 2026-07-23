@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NDVI 30-Day Dashboard</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .card h2 { margin-top: 0; color: #2c3e50; }
+        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        .btn-primary { background: #2c3e50; color: white; }
+        .btn-primary:hover { background: #1a252f; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #229954; }
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; align-items: center; }
+        .controls label { display: flex; align-items: center; gap: 5px; font-size: 14px; }
+        .controls input { padding: 5px 10px; border: 1px solid #ddd; border-radius: 4px; width: 60px; }
+        .result { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 15px; max-height: 600px; overflow: auto; }
+        
+        /* Table Styles */
+        .table-container { overflow-x: auto; margin-top: 15px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { 
+            background: #2c3e50; 
+            color: white; 
+            padding: 8px 10px; 
+            text-align: left;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        td { padding: 6px 10px; border-bottom: 1px solid #e0e0e0; }
+        tr:hover { background: #f0f0f0; }
+        
+        .ndvi-high { color: #27ae60; font-weight: bold; }
+        .ndvi-medium { color: #f39c12; font-weight: bold; }
+        .ndvi-low { color: #e74c3c; font-weight: bold; }
+        .ndvi-na { color: #95a5a6; }
+        
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            display: inline-block;
+        }
+        .status-healthy { background: #d4edda; color: #155724; }
+        .status-moderate { background: #fff3cd; color: #856404; }
+        .status-stressed { background: #f8d7da; color: #721c24; }
+        .status-na { background: #e2e3e5; color: #6c757d; }
+        
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .summary-card {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 3px solid #2c3e50;
+            text-align: center;
+        }
+        .summary-card .number { font-size: 20px; font-weight: bold; color: #2c3e50; }
+        .summary-card .label { font-size: 11px; color: #7f8c8d; }
+        .summary-card.min { border-left-color: #e74c3c; }
+        .summary-card.max { border-left-color: #27ae60; }
+        .summary-card.avg { border-left-color: #3498db; }
+        .summary-card.count { border-left-color: #9b59b6; }
+        
+        .loading { text-align: center; padding: 20px; color: #7f8c8d; }
+        .spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2c3e50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .error { color: #e74c3c; padding: 10px; background: #fdf2f2; border-radius: 5px; }
+        .success { color: #27ae60; padding: 10px; background: #f0fdf4; border-radius: 5px; }
+        
+        .location-info { 
+            background: #e8f0fe; 
+            padding: 10px 15px; 
+            border-radius: 5px; 
+            margin-bottom: 10px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .location-info span { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌿 NDVI 30-Day Dashboard</h1>
+        
+        <div class="card">
+            <h2>📍 NDVI Time Series</h2>
+            <p>Shows NDVI values for the last 30 days. N/A = Cloudy/No data</p>
+            
+            <div class="controls">
+                <label>Latitude: <input type="text" id="lat" value="-17.49072"></label>
+                <label>Longitude: <input type="text" id="lng" value="30.97355"></label>
+                <label>Days: <input type="number" id="days" value="30" min="1" max="365"></label>
+                <button class="btn btn-primary" onclick="getNdvi()">🔍 Get NDVI</button>
+                <button class="btn btn-success" onclick="getNdviDefault()">📍 Default Location</button>
+            </div>
+            
+            <div id="result" class="result" style="display:none;"></div>
+        </div>
+    </div>
+    
+    <script>
+        function getCookie(name) {
+            let value = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        value = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return value;
+        }
+        
+        function getStatus(ndvi) {
+            if (ndvi === null || ndvi === undefined || isNaN(ndvi)) {
+                return { text: 'N/A', class: 'status-na' };
+            }
+            if (ndvi >= 0.4) return { text: 'Healthy', class: 'status-healthy' };
+            if (ndvi >= 0.2) return { text: 'Moderate', class: 'status-moderate' };
+            return { text: 'Stressed', class: 'status-stressed' };
+        }
+        
+        function getNdviClass(ndvi) {
+            if (ndvi === null || ndvi === undefined || isNaN(ndvi)) return 'ndvi-na';
+            if (ndvi >= 0.4) return 'ndvi-high';
+            if (ndvi >= 0.2) return 'ndvi-medium';
+            return 'ndvi-low';
+        }
+        
+        function formatDate(dateStr) {
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+        }
+        
+        function getDayOfYear(dateStr) {
+            const d = new Date(dateStr);
+            const start = new Date(d.getFullYear(), 0, 0);
+            const diff = d - start;
+            const oneDay = 1000 * 60 * 60 * 24;
+            return Math.floor(diff / oneDay);
+        }
+        
+        // Generate all dates in range
+        function generateDateRange(startDate, endDate) {
+            const dates = [];
+            let current = new Date(startDate);
+            const end = new Date(endDate);
+            while (current <= end) {
+                const dateStr = current.toISOString().split('T')[0];
+                dates.push(dateStr);
+                current.setDate(current.getDate() + 1);
+            }
+            return dates;
+        }
+        
+        // Get NDVI
+        async function getNdvi() {
+            const lat = document.getElementById('lat').value;
+            const lng = document.getElementById('lng').value;
+            const days = parseInt(document.getElementById('days').value);
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading NDVI data for ${lat}, ${lng}...</p>
+                </div>
+            `;
+            
+            try {
+                const url = `/api/ndvi/point/?lat=${lat}&lng=${lng}&days=${days}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderResults(data, resultDiv);
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+        
+        // Default location
+        async function getNdviDefault() {
+            document.getElementById('lat').value = '-17.49072';
+            document.getElementById('lng').value = '30.97355';
+            document.getElementById('days').value = '30';
+            await getNdvi();
+        }
+        
+        function renderResults(data, resultDiv) {
+            // Build a complete 30-day calendar
+            const today = new Date();
+            const startDate = new Date(today);
+            startDate.setDate(today.getDate() - 30);
+            
+            const allDates = generateDateRange(startDate, today);
+            
+            // Create a map of dates to NDVI values from API
+            const ndviMap = {};
+            (data.all_data || data.recent_ndvi || []).forEach(item => {
+                ndviMap[item.date] = item.ndvi;
+            });
+            
+            // Calculate stats from valid data
+            const validData = Object.values(ndviMap).filter(v => v !== null && v !== undefined && !isNaN(v));
+            const count = allDates.length;
+            const validCount = validData.length;
+            const nullCount = count - validCount;
+            
+            let html = `
+                <div class="location-info">
+                    <div><span>📍 Location:</span> ${data.location.lat}, ${data.location.lng}</div>
+                    <div><span>📅 Range:</span> ${data.date_range.start} to ${data.date_range.end}</div>
+                    <div><span>📊 Valid Days:</span> ${validCount} / ${count}</div>
+                </div>
+                
+                <div class="summary-stats">
+                    <div class="summary-card min">
+                        <div class="number">${validCount > 0 ? Math.min(...validData).toFixed(4) : 'N/A'}</div>
+                        <div class="label">Min NDVI</div>
+                    </div>
+                    <div class="summary-card max">
+                        <div class="number">${validCount > 0 ? Math.max(...validData).toFixed(4) : 'N/A'}</div>
+                        <div class="label">Max NDVI</div>
+                    </div>
+                    <div class="summary-card avg">
+                        <div class="number">${validCount > 0 ? (validData.reduce((a,b) => a+b, 0) / validCount).toFixed(4) : 'N/A'}</div>
+                        <div class="label">Average NDVI</div>
+                    </div>
+                    <div class="summary-card count">
+                        <div class="number">${validCount}</div>
+                        <div class="label">Valid Days (${nullCount} N/A)</div>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Date</th>
+                                <th>Day of Year</th>
+                                <th>NDVI</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            // Show all dates (newest first)
+            const sortedDates = [...allDates].reverse();
+            
+            sortedDates.forEach((date, index) => {
+                const ndvi = ndviMap[date] !== undefined ? ndviMap[date] : null;
+                const displayNdvi = (ndvi !== null && ndvi !== undefined && !isNaN(ndvi)) ? ndvi.toFixed(4) : 'N/A';
+                const ndviClass = getNdviClass(ndvi);
+                const status = getStatus(ndvi);
+                const dayOfYear = getDayOfYear(date);
+                const formattedDate = formatDate(date);
+                
+                // Highlight today
+                const isToday = date === new Date().toISOString().split('T')[0];
+                const todayStyle = isToday ? 'background: #e8f0fe;' : '';
+                
+                html += `
+                    <tr style="${todayStyle}">
+                        <td>${index + 1}${isToday ? ' 📍' : ''}</td>
+                        <td><strong>${date}</strong></td>
+                        <td>${dayOfYear}</td>
+                        <td class="${ndviClass}">${displayNdvi}</td>
+                        <td><span class="status-badge ${status.class}">${status.text}</span></td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div style="margin-top: 10px; padding: 8px; background: #f8f9fa; border-radius: 5px; font-size: 12px;">
+                    <strong>Legend:</strong>
+                    <span class="ndvi-high">● Healthy (≥0.4)</span> | 
+                    <span class="ndvi-medium">● Moderate (0.2-0.4)</span> | 
+                    <span class="ndvi-low">● Stressed (&lt;0.2)</span> | 
+                    <span class="ndvi-na">● N/A (Cloudy/No data)</span>
+                    &nbsp;&nbsp;|&nbsp;&nbsp; 📍 = Today
+                </div>
+                
+                <hr>
+                <h4>📄 Full JSON Response</h4>
+                <pre style="max-height:150px; overflow:auto; background:#f8f9fa; padding:10px; border-radius:5px; font-size:11px;">${JSON.stringify(data, null, 2)}</pre>
+            `;
+            
+            resultDiv.innerHTML = html;
+        }
+        
+        // Load default on page load
+        window.onload = function() {
+            getNdviDefault();
+        };
+    </script>
+</body>
+</html>

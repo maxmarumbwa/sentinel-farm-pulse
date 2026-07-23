@@ -536,7 +536,7 @@ def sentinel_truecolour(request):
 
     return render(
         request,
-        "satellite/digitize_sentinel_truecolour.html",
+        "fields_admin/digitize_sentinel_truecolour.html",
         
         context
     )
@@ -837,3 +837,375 @@ def api_check_duplicates(request):
         logger.error(f"Error checking duplicates: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
     
+    
+    
+##################################################################################################
+
+######################################### Crop monitoring - SENTINEL NDVI #######################################
+
+##################################################################################################
+
+# =====================================================
+# SIMPLE NDVI CALCULATOR - Point/Area Based
+# =====================================================
+
+import ee
+import datetime
+import json
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from django.contrib.auth.decorators import login_required
+
+
+def get_ndvi_at_point(lat, lng, start_date=None, end_date=None, cloud_cover=20):
+    """
+    Get NDVI at a specific point (lat/lng) using Sentinel-2.
+    Returns the NDVI value and image date.
+    """
+    # Set default dates (last 30 days)
+    if not start_date or not end_date:
+        end_date = datetime.date.today()
+        start_date = end_date - datetime.timedelta(days=30)
+    
+    # Create point geometry
+    point = ee.Geometry.Point([lng, lat])
+    
+    # Get Sentinel-2 collection
+    collection = (
+        ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+        .filterBounds(point)
+        .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_cover))
+        .sort('system:time_start', False)  # Most recent first
+        .limit(10)  # Get last 10 images for averaging
+    )
+    
+    # Calculate NDVI for each image
+    def add_ndvi(img):
+        ndvi = img.normalizedDifference(['B8', 'B4']).rename('ndvi')
+        return img.addBands(ndvi)
+    
+    collection = collection.map(add_ndvi)
+    
+    # Extract NDVI at point for each image
+    def extract_ndvi(img):
+        date = ee.Date(img.get('system:time_start')).format('YYYY-MM-dd')
+        ndvi = img.select('ndvi').reduceRegion(
+            reducer=ee.Reducer.mean(),
+            geometry=point,
+            scale=10,
+            maxPixels=1e9
+        )
+        return ee.Feature(None, {
+            'date': date,
+            'ndvi': ndvi.get('ndvi')
+        })
+    
+    features = collection.map(extract_ndvi)
+    
+    try:
+        # Get the data
+        feature_list = features.getInfo()
+        
+        results = []
+        for feature in feature_list.get('features', []):
+            props = feature.get('properties', {})
+            date = props.get('date')
+            ndvi = props.get('ndvi')
+            
+            if date and ndvi is not None:
+                results.append({
+                    'date': date,
+                    'ndvi': round(float(ndvi), 4)
+                })
+        
+        return results
+        
+    except Exception as e:
+        raise Exception(f"Failed to extract NDVI: {str(e)}")
+
+
+def get_ndvi_for_geometry(geometry, start_date=None, end_date=None, cloud_cover=20):
+    """
+    Get NDVI statistics for a geometry (polygon).
+    Returns mean, min, max, std, and tile URL.
+    """
+    # Set default dates (last 30 days)
+    if not start_date or not end_date:
+        end_date = datetime.date.today()
+        start_date = end_date - datetime.timedelta(days=30)
+    
+    # Create EE geometry
+    if isinstance(geometry, dict):
+        coords = geometry.get('coordinates', [])
+        ee_geometry = ee.Geometry.Polygon(coords)
+    else:
+        ee_geometry = geometry
+    
+    # Get Sentinel-2 collection
+    collection = (
+        ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+        .filterBounds(ee_geometry)
+        .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_cover))
+    )
+    
+    # Calculate NDVI
+    def add_ndvi(img):
+        ndvi = img.normalizedDifference(['B8', 'B4']).rename('ndvi')
+        return img.addBands(ndvi)
+    
+    collection = collection.map(add_ndvi)
+    
+    # Create median composite
+    composite = collection.median()
+    ndvi = composite.select('ndvi')
+    
+    # Get statistics
+    stats = ndvi.reduceRegion(
+        reducer=ee.Reducer.mean().combine(
+            ee.Reducer.min(), '', True
+        ).combine(
+            ee.Reducer.max(), '', True
+        ).combine(
+            ee.Reducer.stdDev(), '', True
+        ).combine(
+            ee.Reducer.count(), '', True
+        ),
+        geometry=ee_geometry,
+        scale=10,
+        maxPixels=1e9
+    )
+    
+    # Get tile URL
+    vis_params = {
+        'min': -0.5,
+        'max': 0.8,
+        'palette': ['ff0000', 'ffff00', '00ff00']
+    }
+    ndvi_clipped = ndvi.clip(ee_geometry)
+    map_id = ndvi_clipped.getMapId(vis_params)
+    tile_url = map_id['tile_fetcher'].url_format
+    
+    # Get stats values
+    try:
+        stats_dict = stats.getInfo()
+        ndvi_stats = {
+            'mean': round(float(stats_dict.get('ndvi_mean', 0)), 4) if stats_dict.get('ndvi_mean') is not None else None,
+            'min': round(float(stats_dict.get('ndvi_min', 0)), 4) if stats_dict.get('ndvi_min') is not None else None,
+            'max': round(float(stats_dict.get('ndvi_max', 0)), 4) if stats_dict.get('ndvi_max') is not None else None,
+            'std': round(float(stats_dict.get('ndvi_std', 0)), 4) if stats_dict.get('ndvi_std') is not None else None,
+            'count': int(stats_dict.get('ndvi_count', 0)) if stats_dict.get('ndvi_count') is not None else 0
+        }
+    except:
+        ndvi_stats = {
+            'mean': None,
+            'min': None,
+            'max': None,
+            'std': None,
+            'count': 0
+        }
+    
+    return {
+        'stats': ndvi_stats,
+        'tile_url': tile_url
+    }
+
+
+# =====================================================
+# API: GET NDVI AT A POINT (FASTEST)
+# =====================================================
+
+#@login_required
+def api_ndvi_point(request):
+    """
+    Get NDVI at a specific point (lat/lng).
+    This is the fastest endpoint.
+    
+    Query parameters:
+    - lat: Latitude (required)
+    - lng: Longitude (required)
+    - days: Number of days to look back (default: 30)
+    - cloud_cover: Maximum cloud cover (default: 20)
+    
+    Example: /api/ndvi/point/?lat=-17.49072&lng=30.97355&days=30
+    """
+    try:
+        # Get parameters
+        lat = request.GET.get('lat')
+        lng = request.GET.get('lng')
+        days = int(request.GET.get('days', 30))
+        cloud_cover = int(request.GET.get('cloud_cover', 20))
+        
+        if not lat or not lng:
+            return JsonResponse({
+                'error': 'lat and lng are required'
+            }, status=400)
+        
+        lat = float(lat)
+        lng = float(lng)
+        
+        # Set date range
+        end_date = datetime.date.today()
+        start_date = end_date - datetime.timedelta(days=days)
+        
+        # Get NDVI
+        results = get_ndvi_at_point(lat, lng, start_date, end_date, cloud_cover)
+        
+        # Calculate average NDVI
+        ndvi_values = [r['ndvi'] for r in results if r['ndvi'] is not None]
+        avg_ndvi = round(sum(ndvi_values) / len(ndvi_values), 4) if ndvi_values else None
+        
+        return JsonResponse({
+            'success': True,
+            'location': {
+                'lat': lat,
+                'lng': lng
+            },
+            'date_range': {
+                'start': start_date.strftime('%Y-%m-%d'),
+                'end': end_date.strftime('%Y-%m-%d')
+            },
+            'cloud_cover': cloud_cover,
+            'data_points': len(results),
+            'average_ndvi': avg_ndvi,
+            'recent_ndvi': results[:10],  # Last 10 values
+            'metadata': {
+                'collection': 'COPERNICUS/S2_SR_HARMONIZED',
+                'processed_at': datetime.datetime.now().isoformat()
+            }
+        }, status=200)
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# =====================================================
+# API: GET NDVI AT DEFAULT LOCATION
+# =====================================================
+
+#@login_required
+def api_ndvi_default(request):
+    """
+    Get NDVI at the default location (-17.49072, 30.97355).
+        
+    Query parameters:
+    - days: Number of days to look back (default: 30)
+    - cloud_cover: Maximum cloud cover (default: 20)
+    
+    Example: /api/ndvi/default/?days=30
+    """
+    try:
+        # Default coordinates
+        lat = -17.49072
+        lng = 30.97355
+        days = int(request.GET.get('days', 30))
+        cloud_cover = int(request.GET.get('cloud_cover', 20))
+        
+        # Set date range
+        end_date = datetime.date.today()
+        start_date = end_date - datetime.timedelta(days=days)
+        
+        # Get NDVI
+        results = get_ndvi_at_point(lat, lng, start_date, end_date, cloud_cover)
+        
+        # Calculate average NDVI
+        ndvi_values = [r['ndvi'] for r in results if r['ndvi'] is not None]
+        avg_ndvi = round(sum(ndvi_values) / len(ndvi_values), 4) if ndvi_values else None
+        
+        # Get current NDVI (most recent)
+        current_ndvi = results[0]['ndvi'] if results else None
+        
+        return JsonResponse({
+            'success': True,
+            'location': {
+                'lat': lat,
+                'lng': lng,
+                'name': 'Default Location'
+            },
+            'date_range': {
+                'start': start_date.strftime('%Y-%m-%d'),
+                'end': end_date.strftime('%Y-%m-%d')
+            },
+            'cloud_cover': cloud_cover,
+            'data_points': len(results),
+            'current_ndvi': current_ndvi,
+            'average_ndvi': avg_ndvi,
+            'recent_ndvi': results[:10],
+            'all_data': results,
+            'metadata': {
+                'collection': 'COPERNICUS/S2_SR_HARMONIZED',
+                'processed_at': datetime.datetime.now().isoformat()
+            }
+        }, status=200)
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# =====================================================
+# API: GET NDVI FOR A POLYGON (AREA)
+# =====================================================
+
+#@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_ndvi_area(request):
+    """
+    Get NDVI for an area (polygon).
+    
+    Expected POST data:
+    {
+        "geometry": {GeoJSON Polygon},
+        "days": 30,  # optional
+        "cloud_cover": 20  # optional
+    }
+    """
+    try:
+        data = json.loads(request.body)
+        geometry = data.get('geometry')
+        days = int(data.get('days', 30))
+        cloud_cover = int(data.get('cloud_cover', 20))
+        
+        if not geometry:
+            return JsonResponse({'error': 'Geometry is required'}, status=400)
+        
+        if geometry.get('type') != 'Polygon':
+            return JsonResponse({'error': 'Geometry must be a Polygon'}, status=400)
+        
+        # Set date range
+        end_date = datetime.date.today()
+        start_date = end_date - datetime.timedelta(days=days)
+        
+        # Get NDVI for geometry
+        result = get_ndvi_for_geometry(geometry, start_date, end_date, cloud_cover)
+        
+        # Calculate area
+        coords = geometry.get('coordinates', [])
+        ee_geometry = ee.Geometry.Polygon(coords)
+        area = ee_geometry.area().getInfo()
+        area_ha = round(area / 10000, 2)
+        
+        return JsonResponse({
+            'success': True,
+            'area_ha': area_ha,
+            'date_range': {
+                'start': start_date.strftime('%Y-%m-%d'),
+                'end': end_date.strftime('%Y-%m-%d')
+            },
+            'cloud_cover': cloud_cover,
+            'ndvi_stats': result['stats'],
+            'tile_url': result['tile_url'],
+            'metadata': {
+                'collection': 'COPERNICUS/S2_SR_HARMONIZED',
+                'processed_at': datetime.datetime.now().isoformat()
+            }
+        }, status=200)
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+    
+def test_ndvi_view(request):
+    """Test view for NDVI API"""
+    return render(request, 'fields_admin/test_ndvi.html', {})

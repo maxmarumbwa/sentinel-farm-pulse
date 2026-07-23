@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NDVI API Examples</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .card { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .card h2 { margin-top: 0; color: #2c3e50; }
+        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        .btn-primary { background: #2c3e50; color: white; }
+        .btn-primary:hover { background: #1a252f; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #229954; }
+        .result { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 15px; overflow: auto; max-height: 300px; }
+        pre { margin: 0; white-space: pre-wrap; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .stat { display: inline-block; margin-right: 20px; }
+        .stat .label { font-size: 12px; color: #7f8c8d; }
+        .stat .value { font-size: 20px; font-weight: bold; color: #2c3e50; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌿 NDVI API Examples</h1>
+        
+        <!-- Point API Example -->
+        <div class="card">
+            <h2>📍 Point NDVI (GET)</h2>
+            <p>Get NDVI at specific coordinates</p>
+            <div>
+                <label>Latitude: <input type="text" id="lat" value="-17.49072"></label>
+                <label>Longitude: <input type="text" id="lng" value="30.97355"></label>
+                <label>Days: <input type="number" id="pointDays" value="30"></label>
+                <button class="btn btn-primary" onclick="getPointNdvi()">Get NDVI</button>
+            </div>
+            <div id="pointResult" class="result" style="display:none;"></div>
+        </div>
+        
+        <!-- Area API Example -->
+        <div class="card">
+            <h2>📐 Area NDVI (POST)</h2>
+            <p>Get NDVI statistics for a polygon area</p>
+            <div>
+                <label>Days: <input type="number" id="areaDays" value="30"></label>
+                <button class="btn btn-success" onclick="getAreaNdvi()">Get Area NDVI</button>
+            </div>
+            <div id="areaResult" class="result" style="display:none;"></div>
+        </div>
+    </div>
+    
+    <script>
+        function getCookie(name) {
+            let value = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        value = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return value;
+        }
+        
+        // Point NDVI
+        async function getPointNdvi() {
+            const lat = document.getElementById('lat').value;
+            const lng = document.getElementById('lng').value;
+            const days = document.getElementById('pointDays').value;
+            
+            const resultDiv = document.getElementById('pointResult');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = 'Loading...';
+            
+            try {
+                const url = `/api/ndvi/point/?lat=${lat}&lng=${lng}&days=${days}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <h3>✅ Results</h3>
+                        <div class="grid">
+                            <div>
+                                <div class="stat">
+                                    <div class="label">Current NDVI</div>
+                                    <div class="value">${data.current_ndvi || 'No data'}</div>
+                                </div>
+                                <div class="stat">
+                                    <div class="label">Average NDVI</div>
+                                    <div class="value">${data.average_ndvi || 'No data'}</div>
+                                </div>
+                                <div class="stat">
+                                    <div class="label">Data Points</div>
+                                    <div class="value">${data.data_points}</div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="stat">
+                                    <div class="label">Location</div>
+                                    <div class="value">${data.location.lat}, ${data.location.lng}</div>
+                                </div>
+                                <div class="stat">
+                                    <div class="label">Date Range</div>
+                                    <div class="value">${data.date_range.start} to ${data.date_range.end}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <h4>Recent NDVI Values</h4>
+                        <table style="width:100%; border-collapse: collapse;">
+                            <tr>
+                                <th style="text-align:left; padding:5px;">Date</th>
+                                <th style="text-align:left; padding:5px;">NDVI</th>
+                            </tr>
+                            ${data.recent_ndvi.map(item => `
+                                <tr>
+                                    <td style="padding:5px;">${item.date}</td>
+                                    <td style="padding:5px; font-weight:bold;">${item.ndvi}</td>
+                                </tr>
+                            `).join('')}
+                        </table>
+                        <pre style="margin-top:10px; font-size:12px;">${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `❌ Error: ${data.error}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `❌ Error: ${error.message}`;
+            }
+        }
+        
+        // Area NDVI
+        async function getAreaNdvi() {
+            const days = document.getElementById('areaDays').value;
+            
+            const resultDiv = document.getElementById('areaResult');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = 'Loading...';
+            
+            // Example polygon (Zimbabwe area)
+            const geometry = {
+                "type": "Polygon",
+                "coordinates": [[
+                    [30.9, -17.7],
+                    [31.1, -17.7],
+                    [31.1, -17.9],
+                    [30.9, -17.9],
+                    [30.9, -17.7]
+                ]]
+            };
+            
+            try {
+                const response = await fetch('/api/ndvi/area/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                        geometry: geometry,
+                        days: days,
+                        cloud_cover: 20
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <h3>✅ Results</h3>
+                        <div class="grid">
+                            <div>
+                                <div class="stat">
+                                    <div class="label">Area</div>
+                                    <div class="value">${data.area_ha} ha</div>
+                                </div>
+                                <div class="stat">
+                                    <div class="label">Mean NDVI</div>
+                                    <div class="value">${data.ndvi_stats.mean || 'No data'}</div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="stat">
+                                    <div class="label">Min NDVI</div>
+                                    <div class="value">${data.ndvi_stats.min || 'No data'}</div>
+                                </div>
+                                <div class="stat">
+                                    <div class="label">Max NDVI</div>
+                                    <div class="value">${data.ndvi_stats.max || 'No data'}</div>
+                                </div>
+                                <div class="stat">
+                                    <div class="label">Pixel Count</div>
+                                    <div class="value">${data.ndvi_stats.count || 0}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <h4>Tile URL (for map display)</h4>
+                        <p style="font-size:12px; word-break:break-all;">${data.tile_url}</p>
+                        <pre style="margin-top:10px; font-size:12px;">${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `❌ Error: ${data.error}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `❌ Error: ${error.message}`;
+            }
+        }
+        
+        // Load default on page load
+        window.onload = function() {
+            getPointNdvi();
+        };
+    </script>
+</body>
+</html>

@@ -406,6 +406,13 @@
             padding: 2px 10px;
             border-radius: 12px;
         }
+        .duplicate-results .no-new-badge {
+            margin-left: 10px;
+            color: #721c24;
+            background: #f8d7da;
+            padding: 2px 10px;
+            border-radius: 12px;
+        }
         .duplicate-results .dup-list {
             max-height: 150px;
             overflow: auto;
@@ -427,10 +434,8 @@
             font-size: 13px;
             color: white;
         }
-        .btn-import-new { background: #e67e22; }
-        .btn-import-new:hover { background: #d35400; }
-        .btn-import-skip { background: #27ae60; }
-        .btn-import-skip:hover { background: #229954; }
+        .btn-import-new { background: #27ae60; }
+        .btn-import-new:hover { background: #229954; }
         .btn-import-cancel-sm { background: #95a5a6; }
         .btn-import-cancel-sm:hover { background: #7f8c8d; }
         
@@ -659,11 +664,8 @@
                 <div class="summary" id="duplicateSummary"></div>
                 <div class="dup-list" id="duplicateList"></div>
                 <div class="dup-actions" id="duplicateActions">
-                    <button class="btn-import-new" onclick="importFields(true)">
-                        <i class="fas fa-exclamation-triangle"></i> Import New Only
-                    </button>
-                    <button class="btn-import-skip" onclick="importFields(false)">
-                        <i class="fas fa-check"></i> Import All (Skip Overlaps)
+                    <button class="btn-import-new" onclick="importFields()" id="importNewBtn">
+                        <i class="fas fa-check"></i> Import New Fields
                     </button>
                     <button class="btn-import-cancel-sm" onclick="document.getElementById('duplicateResults').style.display='none'">
                         <i class="fas fa-times"></i> Close
@@ -1152,6 +1154,7 @@
             document.getElementById('duplicateResults').style.display = 'none';
             importData = null;
             duplicateInfo = null;
+            document.getElementById('importNewBtn').style.display = 'inline-block';
         }
         
         function closeImportModal() {
@@ -1207,6 +1210,7 @@
                     document.getElementById('mappingSection').style.display = 'block';
                     document.getElementById('duplicateResults').style.display = 'none';
                     duplicateInfo = null;
+                    document.getElementById('importNewBtn').style.display = 'inline-block';
                     
                 } catch(err) {
                     alert('Error parsing file: ' + err.message);
@@ -1433,6 +1437,7 @@
             document.getElementById('mappingSection').style.display = 'block';
             document.getElementById('duplicateResults').style.display = 'none';
             duplicateInfo = null;
+            document.getElementById('importNewBtn').style.display = 'inline-block';
             document.getElementById('importModal').scrollTop = 0;
         }
         
@@ -1500,12 +1505,23 @@
                 
                 var summary = document.getElementById('duplicateSummary');
                 var list = document.getElementById('duplicateList');
+                var importBtn = document.getElementById('importNewBtn');
                 
                 if (data.duplicate_count > 0) {
-                    summary.innerHTML = `
-                        <strong>⚠️ ${data.duplicate_count} overlapping field(s) found (≥50% overlap)</strong>
-                        <span class="new-badge">${data.new_count} new field(s) to import</span>
-                    `;
+                    if (data.new_count > 0) {
+                        summary.innerHTML = `
+                            <strong>⚠️ ${data.duplicate_count} overlapping field(s) found (≥50% overlap)</strong>
+                            <span class="new-badge">${data.new_count} new field(s) to import</span>
+                        `;
+                        importBtn.style.display = 'inline-block';
+                        importBtn.innerHTML = `<i class="fas fa-check"></i> Import ${data.new_count} New Field${data.new_count > 1 ? 's' : ''}`;
+                    } else {
+                        summary.innerHTML = `
+                            <strong>⚠️ All ${data.duplicate_count} field(s) overlap with existing fields (≥50%)</strong>
+                            <span class="no-new-badge">No new fields to import</span>
+                        `;
+                        importBtn.style.display = 'none';
+                    }
                     
                     var dupList = '';
                     data.duplicates.forEach(function(d) {
@@ -1518,6 +1534,8 @@
                         <span class="new-badge">${data.new_count} field(s) ready to import</span>
                     `;
                     list.innerHTML = '';
+                    importBtn.style.display = 'inline-block';
+                    importBtn.innerHTML = `<i class="fas fa-check"></i> Import ${data.new_count} Field${data.new_count > 1 ? 's' : ''}`;
                 }
                 
                 resultsDiv.scrollIntoView({ behavior: 'smooth' });
@@ -1531,12 +1549,31 @@
         }
         
         // =====================================================
-        // IMPORT FIELDS
+        // IMPORT FIELDS - ONLY NEW (NON-OVERLAPPING) FIELDS
         // =====================================================
-        function importFields(skipDuplicates) {
+        function importFields() {
             if (!importData || !importData.features || importData.features.length === 0) {
                 alert('No data to import. Please load a GeoJSON file first.');
                 return;
+            }
+            
+            // If duplicate check was done, use only new features
+            var featuresToImport;
+            if (duplicateInfo) {
+                featuresToImport = duplicateInfo.new_features;
+                if (featuresToImport.length === 0) {
+                    alert('No new fields to import. All fields overlap with existing fields (≥50%).');
+                    return;
+                }
+                if (!confirm('Import ' + featuresToImport.length + ' new field(s)? (Skipping ' + duplicateInfo.duplicate_count + ' overlapping fields)')) {
+                    return;
+                }
+            } else {
+                // No duplicate check done, warn user
+                if (!confirm('No duplicate check performed. Import all ' + importData.features.length + ' field(s)?')) {
+                    return;
+                }
+                featuresToImport = importData.features;
             }
             
             var fieldNameMap = document.getElementById('mapFieldName').value;
@@ -1547,25 +1584,6 @@
             if (!fieldNameMap) {
                 alert('Please map a property for "Field Name"');
                 return;
-            }
-            
-            // Determine which features to import
-            var featuresToImport = importData.features;
-            
-            if (skipDuplicates && duplicateInfo) {
-                // Use the new features from duplicate check
-                featuresToImport = duplicateInfo.new_features;
-                if (featuresToImport.length === 0) {
-                    alert('No new fields to import. All fields overlap with existing fields (≥50%).');
-                    return;
-                }
-                if (!confirm('Import ' + featuresToImport.length + ' new field(s)? (Skipping ' + duplicateInfo.duplicate_count + ' overlapping fields)')) {
-                    return;
-                }
-            } else {
-                if (!confirm('Import ' + featuresToImport.length + ' field(s)?')) {
-                    return;
-                }
             }
             
             var progressDiv = document.getElementById('importProgress');

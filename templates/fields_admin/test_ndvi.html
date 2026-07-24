@@ -1,30 +1,33 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>NDVI 30-Day Dashboard</title>
+    <title>NDVI Multi-Point Monitoring Dashboard</title>
     <style>
         body { font-family: Arial; padding: 20px; background: #f5f5f5; }
-        .container { max-width: 1200px; margin: 0 auto; }
+        .container { max-width: 1400px; margin: 0 auto; }
         .card { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .card h2 { margin-top: 0; color: #2c3e50; }
-        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        .btn { padding: 8px 16px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; }
         .btn-primary { background: #2c3e50; color: white; }
         .btn-primary:hover { background: #1a252f; }
         .btn-success { background: #27ae60; color: white; }
         .btn-success:hover { background: #229954; }
-        .btn-info { background: #3498db; color: white; }
-        .btn-info:hover { background: #2980b9; }
         .btn-danger { background: #e74c3c; color: white; }
         .btn-danger:hover { background: #c0392b; }
         .btn-warning { background: #f39c12; color: white; }
         .btn-warning:hover { background: #e67e22; }
+        .btn-info { background: #3498db; color: white; }
+        .btn-info:hover { background: #2980b9; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
         
         .controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; align-items: center; }
         .controls label { display: flex; align-items: center; gap: 5px; font-size: 14px; }
-        .controls input { padding: 5px 10px; border: 1px solid #ddd; border-radius: 4px; width: 60px; }
-        .controls textarea { padding: 5px 10px; border: 1px solid #ddd; border-radius: 4px; width: 100%; font-family: monospace; font-size: 12px; }
+        .controls input { padding: 5px 10px; border: 1px solid #ddd; border-radius: 4px; }
+        .controls input[type="text"] { width: 150px; }
+        .controls input[type="number"] { width: 80px; }
+        .controls input[type="date"] { padding: 5px; border: 1px solid #ddd; border-radius: 4px; }
         
-        .result { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 15px; max-height: 600px; overflow: auto; }
+        .result { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 15px; max-height: 800px; overflow: auto; }
         
         /* Table Styles */
         .table-container { overflow-x: auto; margin-top: 15px; }
@@ -77,7 +80,7 @@
         .summary-card.max { border-left-color: #27ae60; }
         .summary-card.avg { border-left-color: #3498db; }
         .summary-card.count { border-left-color: #9b59b6; }
-        .summary-card.area { border-left-color: #1abc9c; }
+        .summary-card.points { border-left-color: #1abc9c; }
         
         .loading { text-align: center; padding: 20px; color: #7f8c8d; }
         .spinner {
@@ -105,119 +108,536 @@
         }
         .location-info span { font-weight: bold; }
         
-        .geojson-area {
-            border: 2px dashed #ccc;
-            border-radius: 8px;
+        .points-panel {
+            background: #f8f9fa;
             padding: 15px;
+            border-radius: 5px;
             margin: 10px 0;
-            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            max-height: 200px;
+            overflow-y: auto;
         }
-        .geojson-area .file-input-wrapper {
+        .points-panel h3 { margin-top: 0; color: #2c3e50; font-size: 16px; }
+        .point-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 10px;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 13px;
+        }
+        .point-item:hover { background: #f0f0f0; }
+        .point-item .coords { font-family: monospace; color: #2c3e50; }
+        .point-item .name { font-weight: bold; color: #2c3e50; }
+        .point-item .actions { display: flex; gap: 4px; }
+        
+        .no-points { color: #95a5a6; padding: 10px; text-align: center; }
+        
+        .point-form { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; align-items: center; }
+        .point-form input { padding: 5px 10px; border: 1px solid #ddd; border-radius: 4px; }
+        .point-form input[type="text"] { width: 150px; }
+        .point-form input[type="number"] { width: 80px; }
+        
+        .date-range-inputs {
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
             align-items: center;
         }
-        .geojson-area textarea {
-            width: 100%;
-            height: 100px;
-            font-family: monospace;
-            font-size: 12px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            margin-top: 10px;
-            resize: vertical;
-        }
-        .geojson-area .hint {
-            font-size: 12px;
-            color: #7f8c8d;
-            margin-top: 5px;
-        }
-        .file-input-wrapper input[type="file"] {
-            padding: 5px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: white;
-        }
+        .date-range-inputs input[type="date"] { padding: 5px; border: 1px solid #ddd; border-radius: 4px; }
         
-        .mode-toggle {
-            display: flex;
-            gap: 10px;
-            margin: 10px 0;
+        .point-header {
+            writing-mode: vertical-lr;
+            text-orientation: mixed;
+            white-space: nowrap;
+            padding: 5px !important;
+            min-width: 80px;
+            text-align: center;
+            font-weight: bold;
         }
-        .mode-toggle .btn {
-            flex: 1;
-        }
-        .mode-toggle .btn.active {
-            border: 2px solid #2c3e50;
-        }
+        .point-header .point-name { font-size: 11px; }
+        .point-header .point-coords { font-size: 9px; color: #95a5a6; font-weight: normal; }
+        
+        .date-col { font-weight: bold; min-width: 100px; }
+        .doy-col { color: #95a5a6; font-size: 11px; }
+        .ndvi-cell { text-align: center; padding: 4px 6px !important; font-size: 12px; }
+        .avg-row { background: #f8f9fa; font-weight: bold; }
+        .avg-row td { border-top: 2px solid #2c3e50; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🌿 NDVI 30-Day Dashboard</h1>
+        <h1>🌿 NDVI Multi-Point Monitoring Dashboard</h1>
         
         <div class="card">
-            <h2>📍 NDVI Time Series</h2>
-            <p>Get NDVI values for a point or polygon area. N/A = Cloudy/No data</p>
+            <h2>📍 Monitoring Points</h2>
+            <p>Add points to monitor. All points will be shown in a single time series table.</p>
             
-            <!-- Mode Toggle -->
-            <div class="mode-toggle">
-                <button class="btn btn-primary active" id="pointModeBtn" onclick="setMode('point')">📍 Point Mode</button>
-                <button class="btn btn-info" id="areaModeBtn" onclick="setMode('area')">📐 Area Mode (GeoJSON)</button>
+            <div class="point-form">
+                <input type="text" id="pointName" placeholder="Point name" style="width:200px;">
+                <input type="number" id="pointLat" placeholder="Latitude" step="any" value="-17.49072" style="width:120px;">
+                <input type="number" id="pointLng" placeholder="Longitude" step="any" value="30.97355" style="width:120px;">
+                <button class="btn btn-success" onclick="addPoint()">➕ Add</button>
+                <button class="btn btn-warning" onclick="savePoints()">💾 Save</button>
+                <button class="btn btn-primary" onclick="loadPoints()">🔄 Load</button>
+                <button class="btn btn-danger" onclick="clearAllPoints()">🗑️ Clear</button>
             </div>
             
-            <!-- Point Mode Controls -->
-            <div id="pointControls">
-                <div class="controls">
-                    <label>Latitude: <input type="text" id="lat" value="-17.49072"></label>
-                    <label>Longitude: <input type="text" id="lng" value="30.97355"></label>
-                    <label>Days: <input type="number" id="days" value="30" min="1" max="365"></label>
-                    <button class="btn btn-primary" onclick="getNdvi()">🔍 Get NDVI</button>
-                    <button class="btn btn-success" onclick="getNdviDefault()">📍 Default Location</button>
+            <div class="points-panel">
+                <h3>Points (<span id="pointCount">0</span>)</h3>
+                <div id="pointsList">
+                    <div class="no-points">No points saved.</div>
                 </div>
             </div>
             
-            <!-- Area Mode Controls -->
-            <div id="areaControls" style="display:none;">
-                <div class="geojson-area">
-                    <div class="file-input-wrapper">
-                        <button class="btn btn-warning" onclick="loadSampleGeoJSON()">📋 Load Sample Polygon</button>
-                        <label style="display:flex; align-items:center; gap:5px;">
-                            <span>Or upload:</span>
-                            <input type="file" id="geojsonFile" accept=".geojson,.json" onchange="handleGeoJSONFile(event)">
-                        </label>
-                        <button class="btn btn-danger" onclick="clearGeoJSON()">✖ Clear</button>
-                    </div>
-                    <textarea id="geojsonInput" placeholder="Paste GeoJSON here..."></textarea>
-                    <div class="hint">Paste a GeoJSON Polygon or upload a .geojson file. Click "Get Area NDVI" to process.</div>
-                    <div class="controls" style="margin-top:10px;">
-                        <label>Days: <input type="number" id="areaDays" value="30" min="1" max="365"></label>
-                        <button class="btn btn-primary" onclick="getAreaNdvi()">🔍 Get Area NDVI</button>
-                    </div>
+            <div class="controls" style="margin-top:10px;">
+                <div class="date-range-inputs">
+                    <label>Start: <input type="date" id="startDate"></label>
+                    <label>End: <input type="date" id="endDate"></label>
                 </div>
+                <button class="btn btn-info" onclick="generateAllTimeSeries()">📊 Generate Time Series</button>
             </div>
-            
-            <div id="result" class="result" style="display:none;"></div>
+        </div>
+        
+        <div id="resultCard" class="card" style="display:none;">
+            <h2>📊 Multi-Point NDVI Time Series</h2>
+            <div id="result" class="result"></div>
         </div>
     </div>
     
     <script>
-        let currentMode = 'point';
-        let currentGeoJSON = null;
+        let monitoringPoints = [];
+        let allPointData = {};
+        let isGenerating = false;
         
-        function setMode(mode) {
-            currentMode = mode;
-            document.getElementById('pointControls').style.display = mode === 'point' ? 'block' : 'none';
-            document.getElementById('areaControls').style.display = mode === 'area' ? 'block' : 'none';
+        // =============================================
+        // POINTS MANAGEMENT
+        // =============================================
+        
+        function addPoint() {
+            const name = document.getElementById('pointName').value.trim();
+            const lat = parseFloat(document.getElementById('pointLat').value);
+            const lng = parseFloat(document.getElementById('pointLng').value);
             
-            document.getElementById('pointModeBtn').classList.toggle('active', mode === 'point');
-            document.getElementById('areaModeBtn').classList.toggle('active', mode === 'area');
+            if (!name) { alert('Please enter a point name'); return; }
+            if (isNaN(lat) || isNaN(lng)) { alert('Please enter valid coordinates'); return; }
+            if (monitoringPoints.some(p => p.name === name)) { alert('Point already exists'); return; }
             
-            // Clear results when switching modes
-            document.getElementById('result').style.display = 'none';
+            monitoringPoints.push({ name, lat, lng, created: new Date().toISOString() });
+            document.getElementById('pointName').value = '';
+            renderPointsList();
+            showStatus(`✅ Added: ${name}`, 'success');
         }
+        
+        function removePoint(index) {
+            if (confirm(`Remove "${monitoringPoints[index].name}"?`)) {
+                monitoringPoints.splice(index, 1);
+                renderPointsList();
+                showStatus('✅ Removed', 'success');
+            }
+        }
+        
+        function clearAllPoints() {
+            if (monitoringPoints.length === 0) return;
+            if (confirm('Remove all points?')) {
+                monitoringPoints = [];
+                renderPointsList();
+                document.getElementById('resultCard').style.display = 'none';
+                showStatus('✅ All cleared', 'success');
+            }
+        }
+        
+        function renderPointsList() {
+            const container = document.getElementById('pointsList');
+            document.getElementById('pointCount').textContent = monitoringPoints.length;
+            
+            if (monitoringPoints.length === 0) {
+                container.innerHTML = '<div class="no-points">No points saved.</div>';
+                return;
+            }
+            
+            let html = '';
+            monitoringPoints.forEach((point, index) => {
+                html += `
+                    <div class="point-item">
+                        <div>
+                            <span class="name">${point.name}</span>
+                            <span class="coords">(${point.lat}, ${point.lng})</span>
+                        </div>
+                        <div class="actions">
+                            <button class="btn btn-danger btn-sm" onclick="removePoint(${index})">✖</button>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+        
+        // =============================================
+        // SAVE/LOAD POINTS
+        // =============================================
+        
+        async function savePoints() {
+            if (monitoringPoints.length === 0) { alert('No points to save'); return; }
+            
+            try {
+                const response = await fetch('/api/points/save/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                    body: JSON.stringify({ points: monitoringPoints })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showStatus(`✅ Saved ${monitoringPoints.length} points`, 'success');
+                } else {
+                    showStatus('❌ Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                const json = JSON.stringify(monitoringPoints, null, 2);
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'coords.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showStatus('📥 Downloaded coords.json', 'success');
+            }
+        }
+        
+        async function loadPoints() {
+            try {
+                const response = await fetch('/api/points/load/');
+                const data = await response.json();
+                
+                if (data.success && data.points && data.points.length > 0) {
+                    monitoringPoints = data.points;
+                    renderPointsList();
+                    showStatus(`✅ Loaded ${monitoringPoints.length} points`, 'success');
+                } else {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.json';
+                    input.onchange = function(e) {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = function(event) {
+                            try {
+                                const data = JSON.parse(event.target.result);
+                                if (Array.isArray(data)) {
+                                    monitoringPoints = data;
+                                    renderPointsList();
+                                    showStatus(`✅ Loaded ${monitoringPoints.length} points`, 'success');
+                                } else {
+                                    showStatus('❌ Invalid file format', 'error');
+                                }
+                            } catch (err) {
+                                showStatus('❌ Error: ' + err.message, 'error');
+                            }
+                        };
+                        reader.readAsText(file);
+                    };
+                    input.click();
+                }
+            } catch (error) {
+                showStatus('❌ Error: ' + error.message, 'error');
+            }
+        }
+        
+        // =============================================
+        // GENERATE TIME SERIES - USING DATE RANGE API
+        // =============================================
+        
+        async function generateAllTimeSeries() {
+            if (monitoringPoints.length === 0) {
+                alert('Please add at least one monitoring point.');
+                return;
+            }
+            
+            if (isGenerating) return;
+            isGenerating = true;
+            
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('Please select both start and end dates.');
+                isGenerating = false;
+                return;
+            }
+            
+            const resultCard = document.getElementById('resultCard');
+            const resultDiv = document.getElementById('result');
+            resultCard.style.display = 'block';
+            
+            resultDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Generating time series for ${monitoringPoints.length} points...</p>
+                    <p style="font-size:13px; color:#95a5a6;">Date range: ${startDate} to ${endDate}</p>
+                    <p style="font-size:13px; color:#95a5a6;">Fetching NDVI data for each point...</p>
+                </div>
+            `;
+            
+            allPointData = {};
+            let completed = 0;
+            let errors = [];
+            
+            const promises = monitoringPoints.map(async (point) => {
+                try {
+                    // Use the new date-range API
+                    const url = `/api/ndvi/point-range/?lat=${point.lat}&lng=${point.lng}&start_date=${startDate}&end_date=${endDate}`;
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        const ndviMap = {};
+                        data.all_data.forEach(item => {
+                            ndviMap[item.date] = item.ndvi;
+                        });
+                        
+                        const validValues = Object.values(ndviMap).filter(v => v !== null && !isNaN(v));
+                        
+                        allPointData[point.name] = {
+                            point: point,
+                            ndviMap: ndviMap,
+                            stats: {
+                                min: validValues.length > 0 ? Math.min(...validValues) : null,
+                                max: validValues.length > 0 ? Math.max(...validValues) : null,
+                                avg: validValues.length > 0 ? validValues.reduce((a,b) => a+b, 0) / validValues.length : null,
+                                count: validValues.length
+                            }
+                        };
+                    } else {
+                        errors.push(`${point.name}: ${data.error}`);
+                    }
+                } catch (error) {
+                    errors.push(`${point.name}: ${error.message}`);
+                }
+                
+                completed++;
+                if (completed % Math.ceil(monitoringPoints.length / 4) === 0 || completed === monitoringPoints.length) {
+                    resultDiv.innerHTML = `
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p>Progress: ${completed}/${monitoringPoints.length} points processed</p>
+                            <p style="font-size:13px; color:#95a5a6;">Date range: ${startDate} to ${endDate}</p>
+                        </div>
+                    `;
+                }
+            });
+            
+            await Promise.all(promises);
+            isGenerating = false;
+            
+            if (Object.keys(allPointData).length === 0) {
+                resultDiv.innerHTML = `
+                    <div class="error">❌ No data retrieved. Check points and try again.</div>
+                    ${errors.length > 0 ? `<div class="error" style="margin-top:10px;">${errors.join('<br>')}</div>` : ''}
+                `;
+                return;
+            }
+            
+            renderMultiPointTable(resultDiv, startDate, endDate, errors);
+        }
+        
+        // =============================================
+        // RENDER TABLE
+        // =============================================
+        
+        function renderMultiPointTable(resultDiv, startDate, endDate, errors) {
+            // Generate all dates in range
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const allDates = [];
+            let current = new Date(start);
+            while (current <= end) {
+                allDates.push(current.toISOString().split('T')[0]);
+                current.setDate(current.getDate() + 1);
+            }
+            
+            const sortedDates = [...allDates].reverse();
+            const pointNames = Object.keys(allPointData);
+            
+            let html = `
+                <div class="location-info">
+                    <div><span>📍 Points:</span> ${pointNames.length}</div>
+                    <div><span>📅 Range:</span> ${startDate} to ${endDate}</div>
+                    <div><span>📊 Total Days:</span> ${sortedDates.length}</div>
+                    ${errors.length > 0 ? `<div style="color:#e74c3c;"><span>⚠️ Errors:</span> ${errors.length}</div>` : ''}
+                </div>
+                
+                <div class="summary-stats">
+                    ${pointNames.map(name => {
+                        const stats = allPointData[name].stats;
+                        const avgDisplay = stats.count > 0 && stats.avg !== null ? stats.avg.toFixed(4) : 'N/A';
+                        return `
+                            <div class="summary-card">
+                                <div class="number">${avgDisplay}</div>
+                                <div class="label">${name}</div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>DOY</th>
+                                ${pointNames.map(name => `
+                                    <th class="point-header">
+                                        <div class="point-name">${name}</div>
+                                        <div class="point-coords">${allPointData[name].point.lat}, ${allPointData[name].point.lng}</div>
+                                    </th>
+                                `).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            sortedDates.forEach((date) => {
+                const isToday = date === new Date().toISOString().split('T')[0];
+                const dayOfYear = getDayOfYear(date);
+                const todayStyle = isToday ? 'background: #e8f0fe;' : '';
+                
+                html += `<tr style="${todayStyle}">
+                    <td class="date-col"><strong>${date}</strong></td>
+                    <td class="doy-col">${dayOfYear}</td>
+                `;
+                
+                pointNames.forEach(name => {
+                    const ndvi = allPointData[name].ndviMap[date] !== undefined ? allPointData[name].ndviMap[date] : null;
+                    const displayNdvi = (ndvi !== null && ndvi !== undefined && !isNaN(ndvi)) ? ndvi.toFixed(4) : 'N/A';
+                    const ndviClass = getNdviClass(ndvi);
+                    html += `<td class="ndvi-cell ${ndviClass}">${displayNdvi}</td>`;
+                });
+                
+                html += `</tr>`;
+            });
+            
+            // Summary rows
+            html += `
+                <tr class="avg-row">
+                    <td><strong>AVG</strong></td>
+                    <td>-</td>
+                    ${pointNames.map(name => {
+                        const stats = allPointData[name].stats;
+                        const avgDisplay = stats.count > 0 && stats.avg !== null ? stats.avg.toFixed(4) : 'N/A';
+                        const ndviClass = getNdviClass(stats.avg);
+                        return `<td class="ndvi-cell ${ndviClass}">${avgDisplay}</td>`;
+                    }).join('')}
+                </tr>
+                <tr class="avg-row" style="background:#fdf2f2;">
+                    <td><strong>MIN</strong></td>
+                    <td>-</td>
+                    ${pointNames.map(name => {
+                        const stats = allPointData[name].stats;
+                        const minDisplay = stats.count > 0 && stats.min !== null ? stats.min.toFixed(4) : 'N/A';
+                        const ndviClass = getNdviClass(stats.min);
+                        return `<td class="ndvi-cell ${ndviClass}">${minDisplay}</td>`;
+                    }).join('')}
+                </tr>
+                <tr class="avg-row" style="background:#f0fdf4;">
+                    <td><strong>MAX</strong></td>
+                    <td>-</td>
+                    ${pointNames.map(name => {
+                        const stats = allPointData[name].stats;
+                        const maxDisplay = stats.count > 0 && stats.max !== null ? stats.max.toFixed(4) : 'N/A';
+                        const ndviClass = getNdviClass(stats.max);
+                        return `<td class="ndvi-cell ${ndviClass}">${maxDisplay}</td>`;
+                    }).join('')}
+                </tr>
+            `;
+            
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div style="margin-top: 10px; padding: 8px; background: #f8f9fa; border-radius: 5px; font-size: 12px;">
+                    <strong>Legend:</strong>
+                    <span class="ndvi-high">● Healthy (≥0.4)</span> | 
+                    <span class="ndvi-medium">● Moderate (0.2-0.4)</span> | 
+                    <span class="ndvi-low">● Stressed (&lt;0.2)</span> | 
+                    <span class="ndvi-na">● N/A (No data)</span>
+                    &nbsp;&nbsp;|&nbsp;&nbsp; 📍 = Today
+                </div>
+                
+                ${errors.length > 0 ? `
+                    <div style="margin-top:10px; padding:10px; background:#fdf2f2; border-radius:5px; border-left:4px solid #e74c3c;">
+                        <strong>⚠️ Errors:</strong><br>${errors.join('<br>')}
+                    </div>
+                ` : ''}
+                
+                <hr>
+                <h4>📄 Export</h4>
+                <button class="btn btn-primary" onclick="exportCSV()">📊 CSV</button>
+                <button class="btn btn-success" onclick="exportJSON()">📋 JSON</button>
+                <pre style="max-height:150px; overflow:auto; background:#f8f9fa; padding:10px; border-radius:5px; font-size:11px; margin-top:10px;">${JSON.stringify(allPointData, null, 2)}</pre>
+            `;
+            
+            resultDiv.innerHTML = html;
+        }
+        
+        // =============================================
+        // EXPORT FUNCTIONS
+        // =============================================
+        
+        function exportCSV() {
+            const pointNames = Object.keys(allPointData);
+            if (pointNames.length === 0) return;
+            
+            const allDates = new Set();
+            pointNames.forEach(name => {
+                Object.keys(allPointData[name].ndviMap).forEach(date => allDates.add(date));
+            });
+            const sortedDates = [...allDates].sort();
+            
+            let csv = 'Date,DOY,' + pointNames.join(',') + '\n';
+            sortedDates.forEach(date => {
+                const doy = getDayOfYear(date);
+                let row = `${date},${doy}`;
+                pointNames.forEach(name => {
+                    const ndvi = allPointData[name].ndviMap[date];
+                    row += `,${(ndvi !== null && ndvi !== undefined && !isNaN(ndvi)) ? ndvi.toFixed(4) : 'NULL'}`;
+                });
+                csv += row + '\n';
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ndvi_timeseries.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showStatus('📥 Downloaded CSV', 'success');
+        }
+        
+        function exportJSON() {
+            const json = JSON.stringify(allPointData, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ndvi_timeseries.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showStatus('📥 Downloaded JSON', 'success');
+        }
+        
+        // =============================================
+        // UTILITY FUNCTIONS
+        // =============================================
         
         function getCookie(name) {
             let value = null;
@@ -234,29 +654,11 @@
             return value;
         }
         
-        function getStatus(ndvi) {
-            if (ndvi === null || ndvi === undefined || isNaN(ndvi)) {
-                return { text: 'N/A', class: 'status-na' };
-            }
-            if (ndvi >= 0.4) return { text: 'Healthy', class: 'status-healthy' };
-            if (ndvi >= 0.2) return { text: 'Moderate', class: 'status-moderate' };
-            return { text: 'Stressed', class: 'status-stressed' };
-        }
-        
         function getNdviClass(ndvi) {
             if (ndvi === null || ndvi === undefined || isNaN(ndvi)) return 'ndvi-na';
             if (ndvi >= 0.4) return 'ndvi-high';
             if (ndvi >= 0.2) return 'ndvi-medium';
             return 'ndvi-low';
-        }
-        
-        function formatDate(dateStr) {
-            const d = new Date(dateStr);
-            return d.toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'short', 
-                day: 'numeric' 
-            });
         }
         
         function getDayOfYear(dateStr) {
@@ -267,352 +669,37 @@
             return Math.floor(diff / oneDay);
         }
         
-        function generateDateRange(startDate, endDate) {
-            const dates = [];
-            let current = new Date(startDate);
-            const end = new Date(endDate);
-            while (current <= end) {
-                const dateStr = current.toISOString().split('T')[0];
-                dates.push(dateStr);
-                current.setDate(current.getDate() + 1);
-            }
-            return dates;
-        }
-        
-        // Load sample GeoJSON
-        function loadSampleGeoJSON() {
-            const sample = {
-                "type": "FeatureCollection",
-                "features": [{
-                    "type": "Feature",
-                    "properties": {},
-                    "geometry": {
-                        "type": "Polygon",
-                        "coordinates": [[
-                            [30.9, -17.7],
-                            [31.1, -17.7],
-                            [31.1, -17.9],
-                            [30.9, -17.9],
-                            [30.9, -17.7]
-                        ]]
-                    }
-                }]
-            };
-            
-            document.getElementById('geojsonInput').value = JSON.stringify(sample, null, 2);
-            currentGeoJSON = sample;
-            showStatus('Sample polygon loaded!', 'success');
-        }
-        
-        // Handle file upload
-        function handleGeoJSONFile(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    document.getElementById('geojsonInput').value = JSON.stringify(data, null, 2);
-                    currentGeoJSON = data;
-                    showStatus('✅ GeoJSON loaded successfully!', 'success');
-                } catch (err) {
-                    showStatus('❌ Error parsing GeoJSON: ' + err.message, 'error');
-                }
-            };
-            reader.readAsText(file);
-        }
-        
-        // Clear GeoJSON
-        function clearGeoJSON() {
-            document.getElementById('geojsonInput').value = '';
-            currentGeoJSON = null;
-            showStatus('GeoJSON cleared', 'success');
-        }
-        
         function showStatus(message, type) {
             const resultDiv = document.getElementById('result');
-            resultDiv.style.display = 'block';
             resultDiv.innerHTML = `<div class="${type}">${message}</div>`;
             setTimeout(() => {
-                if (resultDiv.innerHTML.includes(message)) {
-                    resultDiv.style.display = 'none';
+                if (resultDiv.innerHTML === `<div class="${type}">${message}</div>`) {
+                    resultDiv.innerHTML = '';
                 }
-            }, 3000);
+            }, 4000);
         }
         
         // =============================================
-        // POINT NDVI
+        // INIT
         // =============================================
-        async function getNdvi() {
-            const lat = document.getElementById('lat').value;
-            const lng = document.getElementById('lng').value;
-            const days = parseInt(document.getElementById('days').value);
-            
-            const resultDiv = document.getElementById('result');
-            resultDiv.style.display = 'block';
-            resultDiv.innerHTML = `
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <p>Loading NDVI data for ${lat}, ${lng}...</p>
-                </div>
-            `;
-            
-            try {
-                const url = `/api/ndvi/point/?lat=${lat}&lng=${lng}&days=${days}`;
-                const response = await fetch(url);
-                const data = await response.json();
-                
-                if (data.success) {
-                    renderResults(data, resultDiv, 'point');
-                } else {
-                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
-                }
-            } catch (error) {
-                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
-            }
-        }
         
-        function getNdviDefault() {
-            document.getElementById('lat').value = '-17.49072';
-            document.getElementById('lng').value = '30.97355';
-            document.getElementById('days').value = '30';
-            getNdvi();
-        }
-        
-        // =============================================
-        // AREA NDVI
-        // =============================================
-        async function getAreaNdvi() {
-            const days = parseInt(document.getElementById('areaDays').value);
-            const resultDiv = document.getElementById('result');
-            
-            // Get GeoJSON from textarea
-            let geojsonData = document.getElementById('geojsonInput').value.trim();
-            if (!geojsonData) {
-                resultDiv.style.display = 'block';
-                resultDiv.innerHTML = `<div class="error">❌ Please enter or upload a GeoJSON polygon first.</div>`;
-                return;
-            }
-            
-            try {
-                const parsed = JSON.parse(geojsonData);
-                let geometry = null;
-                
-                // Extract geometry from FeatureCollection or Feature
-                if (parsed.type === 'FeatureCollection' && parsed.features && parsed.features.length > 0) {
-                    geometry = parsed.features[0].geometry;
-                } else if (parsed.type === 'Feature' && parsed.geometry) {
-                    geometry = parsed.geometry;
-                } else if (parsed.type === 'Polygon') {
-                    geometry = parsed;
-                } else {
-                    resultDiv.style.display = 'block';
-                    resultDiv.innerHTML = `<div class="error">❌ Invalid GeoJSON. Must contain a Polygon.</div>`;
-                    return;
-                }
-                
-                if (!geometry || geometry.type !== 'Polygon') {
-                    resultDiv.style.display = 'block';
-                    resultDiv.innerHTML = `<div class="error">❌ Geometry must be a Polygon.</div>`;
-                    return;
-                }
-                
-                currentGeoJSON = geometry;
-                
-                resultDiv.style.display = 'block';
-                resultDiv.innerHTML = `
-                    <div class="loading">
-                        <div class="spinner"></div>
-                        <p>Loading area NDVI data...</p>
-                    </div>
-                `;
-                
-                const response = await fetch('/api/ndvi/area/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': getCookie('csrftoken')
-                    },
-                    body: JSON.stringify({
-                        geometry: geometry,
-                        days: days,
-                        cloud_cover: 20
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    renderAreaResults(data, resultDiv);
-                } else {
-                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
-                }
-            } catch (error) {
-                resultDiv.style.display = 'block';
-                resultDiv.innerHTML = `<div class="error">❌ Error parsing GeoJSON: ${error.message}</div>`;
-            }
-        }
-        
-        // =============================================
-        // RENDER RESULTS
-        // =============================================
-        function renderResults(data, resultDiv, type) {
+        function setDefaultDates() {
             const today = new Date();
-            const startDate = new Date(today);
-            startDate.setDate(today.getDate() - 30);
-            
-            const allDates = generateDateRange(startDate, today);
-            const ndviMap = {};
-            (data.all_data || data.recent_ndvi || []).forEach(item => {
-                ndviMap[item.date] = item.ndvi;
-            });
-            
-            const validData = Object.values(ndviMap).filter(v => v !== null && v !== undefined && !isNaN(v));
-            const count = allDates.length;
-            const validCount = validData.length;
-            const nullCount = count - validCount;
-            
-            let html = `
-                <div class="location-info">
-                    <div><span>📍 Location:</span> ${data.location.lat}, ${data.location.lng}</div>
-                    <div><span>📅 Range:</span> ${data.date_range.start} to ${data.date_range.end}</div>
-                    <div><span>📊 Valid Days:</span> ${validCount} / ${count}</div>
-                </div>
-                
-                <div class="summary-stats">
-                    <div class="summary-card min">
-                        <div class="number">${validCount > 0 ? Math.min(...validData).toFixed(4) : 'N/A'}</div>
-                        <div class="label">Min NDVI</div>
-                    </div>
-                    <div class="summary-card max">
-                        <div class="number">${validCount > 0 ? Math.max(...validData).toFixed(4) : 'N/A'}</div>
-                        <div class="label">Max NDVI</div>
-                    </div>
-                    <div class="summary-card avg">
-                        <div class="number">${validCount > 0 ? (validData.reduce((a,b) => a+b, 0) / validCount).toFixed(4) : 'N/A'}</div>
-                        <div class="label">Average NDVI</div>
-                    </div>
-                    <div class="summary-card count">
-                        <div class="number">${validCount}</div>
-                        <div class="label">Valid Days (${nullCount} N/A)</div>
-                    </div>
-                </div>
-                
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Date</th>
-                                <th>Day of Year</th>
-                                <th>NDVI</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-            
-            const sortedDates = [...allDates].reverse();
-            
-            sortedDates.forEach((date, index) => {
-                const ndvi = ndviMap[date] !== undefined ? ndviMap[date] : null;
-                const displayNdvi = (ndvi !== null && ndvi !== undefined && !isNaN(ndvi)) ? ndvi.toFixed(4) : 'N/A';
-                const ndviClass = getNdviClass(ndvi);
-                const status = getStatus(ndvi);
-                const dayOfYear = getDayOfYear(date);
-                const isToday = date === new Date().toISOString().split('T')[0];
-                const todayStyle = isToday ? 'background: #e8f0fe;' : '';
-                
-                html += `
-                    <tr style="${todayStyle}">
-                        <td>${index + 1}${isToday ? ' 📍' : ''}</td>
-                        <td><strong>${date}</strong></td>
-                        <td>${dayOfYear}</td>
-                        <td class="${ndviClass}">${displayNdvi}</td>
-                        <td><span class="status-badge ${status.class}">${status.text}</span></td>
-                    </tr>
-                `;
-            });
-            
-            html += `
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div style="margin-top: 10px; padding: 8px; background: #f8f9fa; border-radius: 5px; font-size: 12px;">
-                    <strong>Legend:</strong>
-                    <span class="ndvi-high">● Healthy (≥0.4)</span> | 
-                    <span class="ndvi-medium">● Moderate (0.2-0.4)</span> | 
-                    <span class="ndvi-low">● Stressed (&lt;0.2)</span> | 
-                    <span class="ndvi-na">● N/A (Cloudy/No data)</span>
-                    &nbsp;&nbsp;|&nbsp;&nbsp; 📍 = Today
-                </div>
-                
-                <hr>
-                <h4>📄 Full JSON Response</h4>
-                <pre style="max-height:150px; overflow:auto; background:#f8f9fa; padding:10px; border-radius:5px; font-size:11px;">${JSON.stringify(data, null, 2)}</pre>
-            `;
-            
-            resultDiv.innerHTML = html;
+            const thirtyDaysAgo = new Date(today);
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+            document.getElementById('endDate').value = today.toISOString().split('T')[0];
         }
         
-        function renderAreaResults(data, resultDiv) {
-            let html = `
-                <h3>✅ Area NDVI Results</h3>
-                
-                <div class="location-info">
-                    <div><span>📐 Area:</span> ${data.area_ha} ha</div>
-                    <div><span>📅 Range:</span> ${data.date_range.start} to ${data.date_range.end}</div>
-                    <div><span>☁️ Cloud Cover:</span> ${data.cloud_cover}%</div>
-                </div>
-                
-                <div class="summary-stats">
-                    <div class="summary-card min">
-                        <div class="number">${data.ndvi_stats.min !== null && data.ndvi_stats.min !== undefined ? data.ndvi_stats.min : 'N/A'}</div>
-                        <div class="label">Min NDVI</div>
-                    </div>
-                    <div class="summary-card max">
-                        <div class="number">${data.ndvi_stats.max !== null && data.ndvi_stats.max !== undefined ? data.ndvi_stats.max : 'N/A'}</div>
-                        <div class="label">Max NDVI</div>
-                    </div>
-                    <div class="summary-card avg">
-                        <div class="number">${data.ndvi_stats.mean !== null && data.ndvi_stats.mean !== undefined ? data.ndvi_stats.mean : 'N/A'}</div>
-                        <div class="label">Mean NDVI</div>
-                    </div>
-                    <div class="summary-card count">
-                        <div class="number">${data.ndvi_stats.count || 0}</div>
-                        <div class="label">Pixel Count</div>
-                    </div>
-                    <div class="summary-card area">
-                        <div class="number">${data.area_ha}</div>
-                        <div class="label">Area (ha)</div>
-                    </div>
-                </div>
-                
-                <div style="margin-top:10px; padding:10px; background:#f0f8ff; border-radius:5px;">
-                    <strong>📊 Statistics:</strong><br>
-                    Mean: ${data.ndvi_stats.mean || 'N/A'} | 
-                    Min: ${data.ndvi_stats.min || 'N/A'} | 
-                    Max: ${data.ndvi_stats.max || 'N/A'} | 
-                    Std Dev: ${data.ndvi_stats.std || 'N/A'}
-                </div>
-                
-                <hr>
-                <h4>🗺️ Tile URL (for map display)</h4>
-                <p style="font-size:12px; word-break:break-all; background:#f8f9fa; padding:10px; border-radius:5px;">${data.tile_url}</p>
-                
-                <hr>
-                <h4>📄 Full JSON Response</h4>
-                <pre style="max-height:150px; overflow:auto; background:#f8f9fa; padding:10px; border-radius:5px; font-size:11px;">${JSON.stringify(data, null, 2)}</pre>
-            `;
-            
-            resultDiv.innerHTML = html;
-        }
-        
-        // Load default on page load
         window.onload = function() {
-            getNdviDefault();
+            setDefaultDates();
+            monitoringPoints = [
+                { name: 'Point A', lat: -17.49072, lng: 30.97355, created: new Date().toISOString() },
+                { name: 'Point B', lat: -17.50000, lng: 30.98000, created: new Date().toISOString() },
+                { name: 'Point C', lat: -17.48000, lng: 30.96000, created: new Date().toISOString() }
+            ];
+            renderPointsList();
+            setTimeout(generateAllTimeSeries, 500);
         };
     </script>
 </body>

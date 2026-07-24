@@ -836,6 +836,282 @@ def api_check_duplicates(request):
     except Exception as e:
         logger.error(f"Error checking duplicates: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+    
+##################################################################################################
+
+######################################### Rainfall monitoring - chirps #######################################
+
+##################################################################################################
+
+# =====================================================
+# RAINFALL DATA - CHIRPS
+# =====================================================
+
+import ee
+import datetime
+import json
+import logging
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+
+logger = logging.getLogger(__name__)
+
+# Zimbabwe Province Representative Points
+ZIMBABWE_PROVINCES = {
+    'Harare': {'lat': -17.8252, 'lng': 31.0335},
+    'Bulawayo': {'lat': -20.1486, 'lng': 28.5880},
+    'Manicaland': {'lat': -18.9216, 'lng': 32.1746},
+    'Mashonaland Central': {'lat': -16.7633, 'lng': 31.0702},
+    'Mashonaland East': {'lat': -17.5192, 'lng': 31.8667},
+    'Mashonaland West': {'lat': -17.3000, 'lng': 30.4000},
+    'Masvingo': {'lat': -20.0667, 'lng': 30.8333},
+    'Matabeleland North': {'lat': -18.9833, 'lng': 27.0000},
+    'Matabeleland South': {'lat': -21.0000, 'lng': 29.0000},
+    'Midlands': {'lat': -19.0000, 'lng': 30.0000},
+}
+
+
+def get_rainfall_at_point(lat, lng, start_date, end_date):
+    """
+    Get rainfall (CHIRPS) at a specific point for a date range.
+    Returns daily rainfall values.
+    """
+    try:
+        point = ee.Geometry.Point([lng, lat])
+        
+        # Get CHIRPS daily rainfall
+        collection = (
+            ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
+            .filterBounds(point)
+            .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+            .select('precipitation')
+        )
+        
+        # Extract rainfall at point
+        def extract_rainfall(img):
+            date = ee.Date(img.get('system:time_start')).format('YYYY-MM-dd')
+            rainfall = img.reduceRegion(
+                reducer=ee.Reducer.mean(),
+                geometry=point,
+                scale=1000,
+                maxPixels=1e9
+            )
+            return ee.Feature(None, {
+                'date': date,
+                'rainfall': rainfall.get('precipitation')
+            })
+        
+        features = collection.map(extract_rainfall)
+        feature_list = features.getInfo()
+        
+        results = []
+        for feature in feature_list.get('features', []):
+            props = feature.get('properties', {})
+            date = props.get('date')
+            rainfall = props.get('rainfall')
+            
+            if date and rainfall is not None:
+                results.append({
+                    'date': date,
+                    'rainfall': round(float(rainfall), 2)
+                })
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error in get_rainfall_at_point: {str(e)}")
+        raise Exception(f"Failed to extract rainfall: {str(e)}")
+
+
+# =====================================================
+# API: GET RAINFALL FOR ALL PROVINCES 
+# =====================================================
+
+def api_rainfall_all_provinces(request):
+    """
+    Get rainfall data for all Zimbabwe provinces.
+        
+    Query parameters:
+    - start_date: Start date (YYYY-MM-DD) (required)
+    - end_date: End date (YYYY-MM-DD) (required)
+    """
+    try:
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        
+        if not start_date_str or not end_date_str:
+            return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+        
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        results = {}
+        
+        for province, coords in ZIMBABWE_PROVINCES.items():
+            try:
+                rainfall_data = get_rainfall_at_point(
+                    coords['lat'], 
+                    coords['lng'], 
+                    start_date, 
+                    end_date
+                )
+                
+                # Calculate stats
+                rain_values = [r['rainfall'] for r in rainfall_data if r['rainfall'] is not None]
+                total_rain = sum(rain_values) if rain_values else 0
+                avg_rain = total_rain / len(rain_values) if rain_values else 0
+                max_rain = max(rain_values) if rain_values else 0
+                min_rain = min(rain_values) if rain_values else 0
+                rainy_days = len([r for r in rain_values if r > 1])  # >1mm considered rainy
+                
+                results[province] = {
+                    'coords': coords,
+                    'data': rainfall_data,
+                    'stats': {
+                        'total': round(total_rain, 2),
+                        'avg': round(avg_rain, 2),
+                        'max': round(max_rain, 2),
+                        'min': round(min_rain, 2),
+                        'rainy_days': rainy_days,
+                        'total_days': len(rainfall_data)
+                    }
+                }
+            except Exception as e:
+                logger.error(f"Error processing {province}: {str(e)}")
+                results[province] = {
+                    'coords': coords,
+                    'error': str(e),
+                    'data': [],
+                    'stats': {
+                        'total': 0,
+                        'avg': 0,
+                        'max': 0,
+                        'min': 0,
+                        'rainy_days': 0,
+                        'total_days': 0
+                    }
+                }
+        
+        return JsonResponse({
+            'success': True,
+            'provinces': results,
+            'date_range': {
+                'start': start_date_str,
+                'end': end_date_str
+            },
+            'metadata': {
+                'collection': 'UCSB-CHG/CHIRPS/DAILY',
+                'processed_at': datetime.datetime.now().isoformat()
+            }
+        }, status=200)
+        
+    except Exception as e:
+        logger.error(f"Error in api_rainfall_all_provinces: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# =====================================================
+# API: GET RAINFALL FOR A SINGLE POINT (NO LOGIN)
+# =====================================================
+
+def api_rainfall_single_point(request):
+    """
+    Get rainfall for a single point.
+  
+    
+    Query parameters:
+    - lat: Latitude (required)
+    - lng: Longitude (required)
+    - start_date: Start date (YYYY-MM-DD) (required)
+    - end_date: End date (YYYY-MM-DD) (required)
+    """
+    try:
+        lat = float(request.GET.get('lat'))
+        lng = float(request.GET.get('lng'))
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        
+        if not start_date_str or not end_date_str:
+            return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+        
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        rainfall_data = get_rainfall_at_point(lat, lng, start_date, end_date)
+        
+        # Calculate stats
+        rain_values = [r['rainfall'] for r in rainfall_data if r['rainfall'] is not None]
+        total_rain = sum(rain_values) if rain_values else 0
+        avg_rain = total_rain / len(rain_values) if rain_values else 0
+        max_rain = max(rain_values) if rain_values else 0
+        min_rain = min(rain_values) if rain_values else 0
+        
+        return JsonResponse({
+            'success': True,
+            'location': {'lat': lat, 'lng': lng},
+            'data': rainfall_data,
+            'stats': {
+                'total': round(total_rain, 2),
+                'avg': round(avg_rain, 2),
+                'max': round(max_rain, 2),
+                'min': round(min_rain, 2),
+                'total_days': len(rainfall_data),
+                'data_points': len(rain_values)
+            },
+            'date_range': {
+                'start': start_date_str,
+                'end': end_date_str
+            },
+            'metadata': {
+                'collection': 'UCSB-CHG/CHIRPS/DAILY',
+                'processed_at': datetime.datetime.now().isoformat()
+            }
+        }, status=200)
+        
+    except Exception as e:
+        logger.error(f"Error in api_rainfall_single_point: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+
+
+
+def test_ndvi_view(request):
+    """Test view for NDVI API"""
+    return render(request, 'fields_admin/test_ndvi.html', {})
+
+def test_rainfall_view(request):
+    """Test view for Rainfall API"""
+    return render(request, 'fields_admin/test_rainfall.html', {})
+
+
+
+
+
+
+#
+##
+#
+#
+#
+#
+#
+#
+##
+#
+#
+#
+#
+##
+##
+#
+#
+#
+#
+#
     
     
     
@@ -1016,6 +1292,126 @@ def get_ndvi_for_geometry(geometry, start_date=None, end_date=None, cloud_cover=
 # =====================================================
 # API: GET NDVI AT A POINT (FASTEST)
 # =====================================================
+
+# date range flexible start -end
+@login_required
+def api_ndvi_point_date_range(request):
+    """
+    Get NDVI at a specific point with custom date range.
+    
+    Query parameters:
+    - lat: Latitude (required)
+    - lng: Longitude (required)
+    - start_date: Start date (YYYY-MM-DD) (required)
+    - end_date: End date (YYYY-MM-DD) (required)
+    - cloud_cover: Maximum cloud cover (default: 20)
+    """
+    try:
+        lat = request.GET.get('lat')
+        lng = request.GET.get('lng')
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        cloud_cover = int(request.GET.get('cloud_cover', 20))
+        
+        if not lat or not lng:
+            return JsonResponse({'error': 'lat and lng are required'}, status=400)
+        
+        if not start_date_str or not end_date_str:
+            return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+        
+        lat = float(lat)
+        lng = float(lng)
+        
+        # Parse dates
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        # Create point geometry
+        point = ee.Geometry.Point([lng, lat])
+        
+        # Get Sentinel-2 collection with date range
+        collection = (
+            ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+            .filterBounds(point)
+            .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+            .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_cover))
+            .sort('system:time_start', False)  # Most recent first
+        )
+        
+        # Calculate NDVI for each image
+        def add_ndvi(img):
+            ndvi = img.normalizedDifference(['B8', 'B4']).rename('ndvi')
+            return img.addBands(ndvi)
+        
+        collection = collection.map(add_ndvi)
+        
+        # Extract NDVI at point for each image
+        def extract_ndvi(img):
+            date = ee.Date(img.get('system:time_start')).format('YYYY-MM-DD')
+            ndvi = img.select('ndvi').reduceRegion(
+                reducer=ee.Reducer.mean(),
+                geometry=point,
+                scale=10,
+                maxPixels=1e9
+            )
+            cloud = img.get('CLOUDY_PIXEL_PERCENTAGE')
+            return ee.Feature(None, {
+                'date': date,
+                'ndvi': ndvi.get('ndvi'),
+                'cloud_cover': cloud
+            })
+        
+        features = collection.map(extract_ndvi)
+        
+        try:
+            feature_list = features.getInfo()
+            results = []
+            for feature in feature_list.get('features', []):
+                props = feature.get('properties', {})
+                date = props.get('date')
+                ndvi = props.get('ndvi')
+                cloud = props.get('cloud_cover')
+                
+                if date and ndvi is not None:
+                    results.append({
+                        'date': date,
+                        'ndvi': round(float(ndvi), 4),
+                        'cloud_cover': round(float(cloud), 1) if cloud is not None else None
+                    })
+        except Exception as e:
+            raise Exception(f"Failed to extract NDVI: {str(e)}")
+        
+        # Calculate average NDVI
+        ndvi_values = [r['ndvi'] for r in results if r['ndvi'] is not None]
+        avg_ndvi = round(sum(ndvi_values) / len(ndvi_values), 4) if ndvi_values else None
+        
+        return JsonResponse({
+            'success': True,
+            'location': {
+                'lat': lat,
+                'lng': lng
+            },
+            'date_range': {
+                'start': start_date.strftime('%Y-%m-%d'),
+                'end': end_date.strftime('%Y-%m-%d')
+            },
+            'cloud_cover': cloud_cover,
+            'data_points': len(results),
+            'average_ndvi': avg_ndvi,
+            'all_data': results,
+            'metadata': {
+                'collection': 'COPERNICUS/S2_SR_HARMONIZED',
+                'processed_at': datetime.datetime.now().isoformat()
+            }
+        }, status=200)
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+
+
+# fixed dates 30 days from today
 
 #@login_required
 def api_ndvi_point(request):
@@ -1206,6 +1602,65 @@ def api_ndvi_area(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
     
-def test_ndvi_view(request):
-    """Test view for NDVI API"""
-    return render(request, 'fields_admin/test_ndvi.html', {})
+
+#######################################################################################
+######################### View to save lat lon coords for ndvi extraction ##############
+#######################################################################################
+import json
+import os
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from django.contrib.auth.decorators import login_required
+
+# Path to save coords.json
+COORDS_FILE = os.path.join(os.path.dirname(__file__), 'coords.json')
+
+@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_save_points(request):
+    """Save monitoring points to coords.json"""
+    try:
+        data = json.loads(request.body)
+        points = data.get('points', [])
+        
+        # Save to file
+        with open(COORDS_FILE, 'w') as f:
+            json.dump(points, f, indent=2)
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Saved {len(points)} points',
+            'count': len(points)
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+def api_load_points(request):
+    """Load monitoring points from coords.json"""
+    try:
+        if os.path.exists(COORDS_FILE):
+            with open(COORDS_FILE, 'r') as f:
+                points = json.load(f)
+            return JsonResponse({
+                'success': True,
+                'points': points,
+                'count': len(points)
+            })
+        else:
+            return JsonResponse({
+                'success': True,
+                'points': [],
+                'count': 0
+            })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Zimbabwe Rainfall Dashboard</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .card { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .card h2 { margin-top: 0; color: #2c3e50; }
+        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        .btn-primary { background: #2c3e50; color: white; }
+        .btn-primary:hover { background: #1a252f; }
+        .btn-info { background: #3498db; color: white; }
+        .btn-info:hover { background: #2980b9; }
+        
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; align-items: center; }
+        .controls label { display: flex; align-items: center; gap: 5px; font-size: 14px; }
+        .controls input[type="date"] { padding: 5px 10px; border: 1px solid #ddd; border-radius: 4px; }
+        
+        .result { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 15px; max-height: 700px; overflow: auto; }
+        
+        /* Table Styles */
+        .table-container { overflow-x: auto; margin-top: 15px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { 
+            background: #2c3e50; 
+            color: white; 
+            padding: 8px 10px; 
+            text-align: left;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        td { padding: 6px 10px; border-bottom: 1px solid #e0e0e0; }
+        tr:hover { background: #f0f0f0; }
+        
+        .rain-high { color: #2c3e50; font-weight: bold; }
+        .rain-medium { color: #3498db; font-weight: bold; }
+        .rain-low { color: #95a5a6; }
+        .rain-na { color: #ddd; }
+        
+        .loading { text-align: center; padding: 20px; color: #7f8c8d; }
+        .spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2c3e50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .error { color: #e74c3c; padding: 10px; background: #fdf2f2; border-radius: 5px; border-left: 4px solid #e74c3c; }
+        .success { color: #27ae60; padding: 10px; background: #f0fdf4; border-radius: 5px; border-left: 4px solid #27ae60; }
+        
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .summary-card {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 3px solid #2c3e50;
+            text-align: center;
+        }
+        .summary-card .number { font-size: 20px; font-weight: bold; color: #2c3e50; }
+        .summary-card .label { font-size: 11px; color: #7f8c8d; }
+        
+        .location-info { 
+            background: #e8f0fe; 
+            padding: 10px 15px; 
+            border-radius: 5px; 
+            margin-bottom: 10px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .location-info span { font-weight: bold; }
+        
+        .rain-cell { text-align: center; padding: 4px 6px !important; font-size: 12px; }
+        .rain-value { font-weight: bold; }
+        
+        .legend {
+            margin-top: 10px;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌧️ Zimbabwe Rainfall Dashboard</h1>
+        
+        <div class="card">
+            <h2>📊 Rainfall Data - CHIRPS Daily</h2>
+            <p>Get rainfall data for all Zimbabwe provinces (latlon)</p>
+            
+            <div class="controls">
+                <label>Start: <input type="date" id="startDate"></label>
+                <label>End: <input type="date" id="endDate"></label>
+                <button class="btn btn-primary" onclick="getRainfall()">🌧️ Get Rainfall Data</button>
+                <button class="btn btn-info" onclick="setLastMonth()">📅 Last Month</button>
+                <button class="btn btn-info" onclick="setYearToDate()">📅 Year to Date</button>
+            </div>
+            
+            <div id="result" class="result" style="display:none;"></div>
+        </div>
+    </div>
+    
+    <script>
+        // Zimbabwe Province coordinates
+        const PROVINCES = {
+            'Harare': {lat: -17.8252, lng: 31.0335},
+            'Bulawayo': {lat: -20.1486, lng: 28.5880},
+            'Manicaland': {lat: -18.9216, lng: 32.1746},
+            'Mashonaland Central': {lat: -16.7633, lng: 31.0702},
+            'Mashonaland East': {lat: -17.5192, lng: 31.8667},
+            'Mashonaland West': {lat: -17.3000, lng: 30.4000},
+            'Masvingo': {lat: -20.0667, lng: 30.8333},
+            'Matabeleland North': {lat: -18.9833, lng: 27.0000},
+            'Matabeleland South': {lat: -21.0000, lng: 29.0000},
+            'Midlands': {lat: -19.0000, lng: 30.0000}
+        };
+        
+        function setLastMonth() {
+            const today = new Date();
+            const lastMonth = new Date(today);
+            lastMonth.setMonth(today.getMonth() - 1);
+            
+            document.getElementById('startDate').value = lastMonth.toISOString().split('T')[0];
+            document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        }
+        
+        function setYearToDate() {
+            const today = new Date();
+            const startOfYear = new Date(today.getFullYear(), 0, 1);
+            
+            document.getElementById('startDate').value = startOfYear.toISOString().split('T')[0];
+            document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        }
+        
+        function getRainfallClass(rainfall) {
+            if (rainfall === null || rainfall === undefined || isNaN(rainfall)) return 'rain-na';
+            if (rainfall > 20) return 'rain-high';
+            if (rainfall > 5) return 'rain-medium';
+            return 'rain-low';
+        }
+        
+        function getRainfallStatus(rainfall) {
+            if (rainfall === null || rainfall === undefined || isNaN(rainfall)) return 'N/A';
+            if (rainfall > 20) return '🌧️ Heavy';
+            if (rainfall > 5) return '🌦️ Moderate';
+            if (rainfall > 0.5) return '🌤️ Light';
+            return '☀️ Dry';
+        }
+        
+        function formatDate(dateStr) {
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+        }
+        
+        async function getRainfall() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('Please select both start and end dates.');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading rainfall data for all provinces...</p>
+                    <p style="font-size:13px; color:#95a5a6;">Date range: ${startDate} to ${endDate}</p>
+                </div>
+            `;
+            
+            try {
+                const url = `/api/rainfall/provinces/?start_date=${startDate}&end_date=${endDate}`;
+                console.log('Fetching:', url);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                console.log('Rainfall data:', data);
+                
+                if (data.success) {
+                    renderResults(data, resultDiv, startDate, endDate);
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <strong>❌ Connection Error</strong>
+                        <p>${error.message}</p>
+                        <p>Please check your internet connection and try again.</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function renderResults(data, resultDiv, startDate, endDate) {
+            const provinces = data.provinces;
+            const provinceNames = Object.keys(provinces);
+            
+            // Get all dates
+            let allDates = [];
+            provinceNames.forEach(name => {
+                if (provinces[name].data) {
+                    provinces[name].data.forEach(item => {
+                        if (!allDates.includes(item.date)) {
+                            allDates.push(item.date);
+                        }
+                    });
+                }
+            });
+            allDates.sort();
+            
+            // Build table
+            let html = `
+                <div class="location-info">
+                    <div><span>📍 Provinces:</span> ${provinceNames.length}</div>
+                    <div><span>📅 Range:</span> ${startDate} to ${endDate}</div>
+                    <div><span>📊 Total Days:</span> ${allDates.length}</div>
+                </div>
+                
+                <div class="summary-stats">
+                    ${provinceNames.map(name => {
+                        const stats = provinces[name].stats;
+                        if (stats) {
+                            return `
+                                <div class="summary-card total">
+                                    <div class="number">${stats.total.toFixed(1)}</div>
+                                    <div class="label">${name} (Total mm)</div>
+                                </div>
+                            `;
+                        }
+                        return '';
+                    }).join('')}
+                </div>
+                
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="min-width:100px;">Date</th>
+                                ${provinceNames.map(name => `
+                                    <th style="text-align:center; font-size:11px; min-width:60px;">
+                                        ${name}
+                                        <br><span style="font-size:9px; color:#95a5a6;">${provinces[name].coords.lat}, ${provinces[name].coords.lng}</span>
+                                    </th>
+                                `).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            // Data rows
+            allDates.forEach(date => {
+                const isToday = date === new Date().toISOString().split('T')[0];
+                const todayStyle = isToday ? 'background: #e8f0fe;' : '';
+                
+                html += `<tr style="${todayStyle}">
+                    <td><strong>${date}</strong><br><span style="font-size:10px; color:#95a5a6;">${formatDate(date)}</span></td>
+                `;
+                
+                provinceNames.forEach(name => {
+                    const province = provinces[name];
+                    let rainfall = null;
+                    if (province.data) {
+                        const found = province.data.find(item => item.date === date);
+                        if (found) {
+                            rainfall = found.rainfall;
+                        }
+                    }
+                    
+                    const displayRain = (rainfall !== null && rainfall !== undefined && !isNaN(rainfall)) ? rainfall.toFixed(1) : 'N/A';
+                    const rainClass = getRainfallClass(rainfall);
+                    const status = getRainfallStatus(rainfall);
+                    
+                    html += `<td class="rain-cell ${rainClass}">
+                        <div class="rain-value">${displayRain}</div>
+                        <div style="font-size:9px; color:#95a5a6;">${status}</div>
+                    </td>`;
+                });
+                
+                html += `</tr>`;
+            });
+            
+            // Stats row - Total
+            html += `
+                <tr style="background:#f0f0f0; font-weight:bold;">
+                    <td><strong>TOTAL</strong></td>
+                    ${provinceNames.map(name => {
+                        const stats = provinces[name].stats;
+                        const total = stats ? stats.total.toFixed(1) : 'N/A';
+                        return `<td style="text-align:center;">${total}</td>`;
+                    }).join('')}
+                </tr>
+            `;
+            
+            // Stats row - Rainy Days
+            html += `
+                <tr style="background:#f8f9fa;">
+                    <td><strong>Rainy Days</strong></td>
+                    ${provinceNames.map(name => {
+                        const stats = provinces[name].stats;
+                        const days = stats ? stats.rainy_days : 'N/A';
+                        return `<td style="text-align:center;">${days}</td>`;
+                    }).join('')}
+                </tr>
+            `;
+            
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="legend">
+                    <strong>Legend:</strong>
+                    <span style="color:#2c3e50; font-weight:bold;">● Heavy (>20mm)</span> | 
+                    <span style="color:#3498db; font-weight:bold;">● Moderate (5-20mm)</span> | 
+                    <span style="color:#95a5a6;">● Light (0.5-5mm)</span> | 
+                    <span style="color:#ddd;">● Dry (&lt;0.5mm)</span> | 
+                    <span style="color:#bbb;">● N/A (No data)</span>
+                </div>
+                
+                <hr>
+                <h4>📄 Full JSON Response</h4>
+                <pre style="max-height:200px; overflow:auto; background:#f8f9fa; padding:10px; border-radius:5px; font-size:11px;">${JSON.stringify(data, null, 2)}</pre>
+            `;
+            
+            resultDiv.innerHTML = html;
+        }
+        
+        // Set default dates
+        function setDefaultDates() {
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today);
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            
+            document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+            document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        }
+        
+        // Load on page load
+        window.onload = function() {
+            setDefaultDates();
+        };
+    </script>
+</body>
+</html>

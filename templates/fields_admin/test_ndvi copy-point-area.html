@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NDVI 30-Day Dashboard</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .card h2 { margin-top: 0; color: #2c3e50; }
+        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        .btn-primary { background: #2c3e50; color: white; }
+        .btn-primary:hover { background: #1a252f; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #229954; }
+        .btn-info { background: #3498db; color: white; }
+        .btn-info:hover { background: #2980b9; }
+        .btn-danger { background: #e74c3c; color: white; }
+        .btn-danger:hover { background: #c0392b; }
+        .btn-warning { background: #f39c12; color: white; }
+        .btn-warning:hover { background: #e67e22; }
+        
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; align-items: center; }
+        .controls label { display: flex; align-items: center; gap: 5px; font-size: 14px; }
+        .controls input { padding: 5px 10px; border: 1px solid #ddd; border-radius: 4px; width: 60px; }
+        .controls textarea { padding: 5px 10px; border: 1px solid #ddd; border-radius: 4px; width: 100%; font-family: monospace; font-size: 12px; }
+        
+        .result { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 15px; max-height: 600px; overflow: auto; }
+        
+        /* Table Styles */
+        .table-container { overflow-x: auto; margin-top: 15px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { 
+            background: #2c3e50; 
+            color: white; 
+            padding: 8px 10px; 
+            text-align: left;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        td { padding: 6px 10px; border-bottom: 1px solid #e0e0e0; }
+        tr:hover { background: #f0f0f0; }
+        
+        .ndvi-high { color: #27ae60; font-weight: bold; }
+        .ndvi-medium { color: #f39c12; font-weight: bold; }
+        .ndvi-low { color: #e74c3c; font-weight: bold; }
+        .ndvi-na { color: #95a5a6; }
+        
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            display: inline-block;
+        }
+        .status-healthy { background: #d4edda; color: #155724; }
+        .status-moderate { background: #fff3cd; color: #856404; }
+        .status-stressed { background: #f8d7da; color: #721c24; }
+        .status-na { background: #e2e3e5; color: #6c757d; }
+        
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .summary-card {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 3px solid #2c3e50;
+            text-align: center;
+        }
+        .summary-card .number { font-size: 20px; font-weight: bold; color: #2c3e50; }
+        .summary-card .label { font-size: 11px; color: #7f8c8d; }
+        .summary-card.min { border-left-color: #e74c3c; }
+        .summary-card.max { border-left-color: #27ae60; }
+        .summary-card.avg { border-left-color: #3498db; }
+        .summary-card.count { border-left-color: #9b59b6; }
+        .summary-card.area { border-left-color: #1abc9c; }
+        
+        .loading { text-align: center; padding: 20px; color: #7f8c8d; }
+        .spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2c3e50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .error { color: #e74c3c; padding: 10px; background: #fdf2f2; border-radius: 5px; }
+        .success { color: #27ae60; padding: 10px; background: #f0fdf4; border-radius: 5px; }
+        
+        .location-info { 
+            background: #e8f0fe; 
+            padding: 10px 15px; 
+            border-radius: 5px; 
+            margin-bottom: 10px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .location-info span { font-weight: bold; }
+        
+        .geojson-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            background: #fafafa;
+        }
+        .geojson-area .file-input-wrapper {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .geojson-area textarea {
+            width: 100%;
+            height: 100px;
+            font-family: monospace;
+            font-size: 12px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-top: 10px;
+            resize: vertical;
+        }
+        .geojson-area .hint {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        .file-input-wrapper input[type="file"] {
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+        }
+        
+        .mode-toggle {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .mode-toggle .btn {
+            flex: 1;
+        }
+        .mode-toggle .btn.active {
+            border: 2px solid #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌿 NDVI 30-Day Dashboard</h1>
+        
+        <div class="card">
+            <h2>📍 NDVI Time Series</h2>
+            <p>Get NDVI values for a point or polygon area. N/A = Cloudy/No data</p>
+            
+            <!-- Mode Toggle -->
+            <div class="mode-toggle">
+                <button class="btn btn-primary active" id="pointModeBtn" onclick="setMode('point')">📍 Point Mode</button>
+                <button class="btn btn-info" id="areaModeBtn" onclick="setMode('area')">📐 Area Mode (GeoJSON)</button>
+            </div>
+            
+            <!-- Point Mode Controls -->
+            <div id="pointControls">
+                <div class="controls">
+                    <label>Latitude: <input type="text" id="lat" value="-17.49072"></label>
+                    <label>Longitude: <input type="text" id="lng" value="30.97355"></label>
+                    <label>Days: <input type="number" id="days" value="30" min="1" max="365"></label>
+                    <button class="btn btn-primary" onclick="getNdvi()">🔍 Get NDVI</button>
+                    <button class="btn btn-success" onclick="getNdviDefault()">📍 Default Location</button>
+                </div>
+            </div>
+            
+            <!-- Area Mode Controls -->
+            <div id="areaControls" style="display:none;">
+                <div class="geojson-area">
+                    <div class="file-input-wrapper">
+                        <button class="btn btn-warning" onclick="loadSampleGeoJSON()">📋 Load Sample Polygon</button>
+                        <label style="display:flex; align-items:center; gap:5px;">
+                            <span>Or upload:</span>
+                            <input type="file" id="geojsonFile" accept=".geojson,.json" onchange="handleGeoJSONFile(event)">
+                        </label>
+                        <button class="btn btn-danger" onclick="clearGeoJSON()">✖ Clear</button>
+                    </div>
+                    <textarea id="geojsonInput" placeholder="Paste GeoJSON here..."></textarea>
+                    <div class="hint">Paste a GeoJSON Polygon or upload a .geojson file. Click "Get Area NDVI" to process.</div>
+                    <div class="controls" style="margin-top:10px;">
+                        <label>Days: <input type="number" id="areaDays" value="30" min="1" max="365"></label>
+                        <button class="btn btn-primary" onclick="getAreaNdvi()">🔍 Get Area NDVI</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="result" class="result" style="display:none;"></div>
+        </div>
+    </div>
+    
+    <script>
+        let currentMode = 'point';
+        let currentGeoJSON = null;
+        
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('pointControls').style.display = mode === 'point' ? 'block' : 'none';
+            document.getElementById('areaControls').style.display = mode === 'area' ? 'block' : 'none';
+            
+            document.getElementById('pointModeBtn').classList.toggle('active', mode === 'point');
+            document.getElementById('areaModeBtn').classList.toggle('active', mode === 'area');
+            
+            // Clear results when switching modes
+            document.getElementById('result').style.display = 'none';
+        }
+        
+        function getCookie(name) {
+            let value = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        value = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return value;
+        }
+        
+        function getStatus(ndvi) {
+            if (ndvi === null || ndvi === undefined || isNaN(ndvi)) {
+                return { text: 'N/A', class: 'status-na' };
+            }
+            if (ndvi >= 0.4) return { text: 'Healthy', class: 'status-healthy' };
+            if (ndvi >= 0.2) return { text: 'Moderate', class: 'status-moderate' };
+            return { text: 'Stressed', class: 'status-stressed' };
+        }
+        
+        function getNdviClass(ndvi) {
+            if (ndvi === null || ndvi === undefined || isNaN(ndvi)) return 'ndvi-na';
+            if (ndvi >= 0.4) return 'ndvi-high';
+            if (ndvi >= 0.2) return 'ndvi-medium';
+            return 'ndvi-low';
+        }
+        
+        function formatDate(dateStr) {
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+        }
+        
+        function getDayOfYear(dateStr) {
+            const d = new Date(dateStr);
+            const start = new Date(d.getFullYear(), 0, 0);
+            const diff = d - start;
+            const oneDay = 1000 * 60 * 60 * 24;
+            return Math.floor(diff / oneDay);
+        }
+        
+        function generateDateRange(startDate, endDate) {
+            const dates = [];
+            let current = new Date(startDate);
+            const end = new Date(endDate);
+            while (current <= end) {
+                const dateStr = current.toISOString().split('T')[0];
+                dates.push(dateStr);
+                current.setDate(current.getDate() + 1);
+            }
+            return dates;
+        }
+        
+        // Load sample GeoJSON
+        function loadSampleGeoJSON() {
+            const sample = {
+                "type": "FeatureCollection",
+                "features": [{
+                    "type": "Feature",
+                    "properties": {},
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[
+                            [30.9, -17.7],
+                            [31.1, -17.7],
+                            [31.1, -17.9],
+                            [30.9, -17.9],
+                            [30.9, -17.7]
+                        ]]
+                    }
+                }]
+            };
+            
+            document.getElementById('geojsonInput').value = JSON.stringify(sample, null, 2);
+            currentGeoJSON = sample;
+            showStatus('Sample polygon loaded!', 'success');
+        }
+        
+        // Handle file upload
+        function handleGeoJSONFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    document.getElementById('geojsonInput').value = JSON.stringify(data, null, 2);
+                    currentGeoJSON = data;
+                    showStatus('✅ GeoJSON loaded successfully!', 'success');
+                } catch (err) {
+                    showStatus('❌ Error parsing GeoJSON: ' + err.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        // Clear GeoJSON
+        function clearGeoJSON() {
+            document.getElementById('geojsonInput').value = '';
+            currentGeoJSON = null;
+            showStatus('GeoJSON cleared', 'success');
+        }
+        
+        function showStatus(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `<div class="${type}">${message}</div>`;
+            setTimeout(() => {
+                if (resultDiv.innerHTML.includes(message)) {
+                    resultDiv.style.display = 'none';
+                }
+            }, 3000);
+        }
+        
+        // =============================================
+        // POINT NDVI
+        // =============================================
+        async function getNdvi() {
+            const lat = document.getElementById('lat').value;
+            const lng = document.getElementById('lng').value;
+            const days = parseInt(document.getElementById('days').value);
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading NDVI data for ${lat}, ${lng}...</p>
+                </div>
+            `;
+            
+            try {
+                const url = `/api/ndvi/point/?lat=${lat}&lng=${lng}&days=${days}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderResults(data, resultDiv, 'point');
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+        
+        function getNdviDefault() {
+            document.getElementById('lat').value = '-17.49072';
+            document.getElementById('lng').value = '30.97355';
+            document.getElementById('days').value = '30';
+            getNdvi();
+        }
+        
+        // =============================================
+        // AREA NDVI
+        // =============================================
+        async function getAreaNdvi() {
+            const days = parseInt(document.getElementById('areaDays').value);
+            const resultDiv = document.getElementById('result');
+            
+            // Get GeoJSON from textarea
+            let geojsonData = document.getElementById('geojsonInput').value.trim();
+            if (!geojsonData) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div class="error">❌ Please enter or upload a GeoJSON polygon first.</div>`;
+                return;
+            }
+            
+            try {
+                const parsed = JSON.parse(geojsonData);
+                let geometry = null;
+                
+                // Extract geometry from FeatureCollection or Feature
+                if (parsed.type === 'FeatureCollection' && parsed.features && parsed.features.length > 0) {
+                    geometry = parsed.features[0].geometry;
+                } else if (parsed.type === 'Feature' && parsed.geometry) {
+                    geometry = parsed.geometry;
+                } else if (parsed.type === 'Polygon') {
+                    geometry = parsed;
+                } else {
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = `<div class="error">❌ Invalid GeoJSON. Must contain a Polygon.</div>`;
+                    return;
+                }
+                
+                if (!geometry || geometry.type !== 'Polygon') {
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = `<div class="error">❌ Geometry must be a Polygon.</div>`;
+                    return;
+                }
+                
+                currentGeoJSON = geometry;
+                
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading area NDVI data...</p>
+                    </div>
+                `;
+                
+                const response = await fetch('/api/ndvi/area/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                        geometry: geometry,
+                        days: days,
+                        cloud_cover: 20
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderAreaResults(data, resultDiv);
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div class="error">❌ Error parsing GeoJSON: ${error.message}</div>`;
+            }
+        }
+        
+        // =============================================
+        // RENDER RESULTS
+        // =============================================
+        function renderResults(data, resultDiv, type) {
+            const today = new Date();
+            const startDate = new Date(today);
+            startDate.setDate(today.getDate() - 30);
+            
+            const allDates = generateDateRange(startDate, today);
+            const ndviMap = {};
+            (data.all_data || data.recent_ndvi || []).forEach(item => {
+                ndviMap[item.date] = item.ndvi;
+            });
+            
+            const validData = Object.values(ndviMap).filter(v => v !== null && v !== undefined && !isNaN(v));
+            const count = allDates.length;
+            const validCount = validData.length;
+            const nullCount = count - validCount;
+            
+            let html = `
+                <div class="location-info">
+                    <div><span>📍 Location:</span> ${data.location.lat}, ${data.location.lng}</div>
+                    <div><span>📅 Range:</span> ${data.date_range.start} to ${data.date_range.end}</div>
+                    <div><span>📊 Valid Days:</span> ${validCount} / ${count}</div>
+                </div>
+                
+                <div class="summary-stats">
+                    <div class="summary-card min">
+                        <div class="number">${validCount > 0 ? Math.min(...validData).toFixed(4) : 'N/A'}</div>
+                        <div class="label">Min NDVI</div>
+                    </div>
+                    <div class="summary-card max">
+                        <div class="number">${validCount > 0 ? Math.max(...validData).toFixed(4) : 'N/A'}</div>
+                        <div class="label">Max NDVI</div>
+                    </div>
+                    <div class="summary-card avg">
+                        <div class="number">${validCount > 0 ? (validData.reduce((a,b) => a+b, 0) / validCount).toFixed(4) : 'N/A'}</div>
+                        <div class="label">Average NDVI</div>
+                    </div>
+                    <div class="summary-card count">
+                        <div class="number">${validCount}</div>
+                        <div class="label">Valid Days (${nullCount} N/A)</div>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Date</th>
+                                <th>Day of Year</th>
+                                <th>NDVI</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            const sortedDates = [...allDates].reverse();
+            
+            sortedDates.forEach((date, index) => {
+                const ndvi = ndviMap[date] !== undefined ? ndviMap[date] : null;
+                const displayNdvi = (ndvi !== null && ndvi !== undefined && !isNaN(ndvi)) ? ndvi.toFixed(4) : 'N/A';
+                const ndviClass = getNdviClass(ndvi);
+                const status = getStatus(ndvi);
+                const dayOfYear = getDayOfYear(date);
+                const isToday = date === new Date().toISOString().split('T')[0];
+                const todayStyle = isToday ? 'background: #e8f0fe;' : '';
+                
+                html += `
+                    <tr style="${todayStyle}">
+                        <td>${index + 1}${isToday ? ' 📍' : ''}</td>
+                        <td><strong>${date}</strong></td>
+                        <td>${dayOfYear}</td>
+                        <td class="${ndviClass}">${displayNdvi}</td>
+                        <td><span class="status-badge ${status.class}">${status.text}</span></td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div style="margin-top: 10px; padding: 8px; background: #f8f9fa; border-radius: 5px; font-size: 12px;">
+                    <strong>Legend:</strong>
+                    <span class="ndvi-high">● Healthy (≥0.4)</span> | 
+                    <span class="ndvi-medium">● Moderate (0.2-0.4)</span> | 
+                    <span class="ndvi-low">● Stressed (&lt;0.2)</span> | 
+                    <span class="ndvi-na">● N/A (Cloudy/No data)</span>
+                    &nbsp;&nbsp;|&nbsp;&nbsp; 📍 = Today
+                </div>
+                
+                <hr>
+                <h4>📄 Full JSON Response</h4>
+                <pre style="max-height:150px; overflow:auto; background:#f8f9fa; padding:10px; border-radius:5px; font-size:11px;">${JSON.stringify(data, null, 2)}</pre>
+            `;
+            
+            resultDiv.innerHTML = html;
+        }
+        
+        function renderAreaResults(data, resultDiv) {
+            let html = `
+                <h3>✅ Area NDVI Results</h3>
+                
+                <div class="location-info">
+                    <div><span>📐 Area:</span> ${data.area_ha} ha</div>
+                    <div><span>📅 Range:</span> ${data.date_range.start} to ${data.date_range.end}</div>
+                    <div><span>☁️ Cloud Cover:</span> ${data.cloud_cover}%</div>
+                </div>
+                
+                <div class="summary-stats">
+                    <div class="summary-card min">
+                        <div class="number">${data.ndvi_stats.min !== null && data.ndvi_stats.min !== undefined ? data.ndvi_stats.min : 'N/A'}</div>
+                        <div class="label">Min NDVI</div>
+                    </div>
+                    <div class="summary-card max">
+                        <div class="number">${data.ndvi_stats.max !== null && data.ndvi_stats.max !== undefined ? data.ndvi_stats.max : 'N/A'}</div>
+                        <div class="label">Max NDVI</div>
+                    </div>
+                    <div class="summary-card avg">
+                        <div class="number">${data.ndvi_stats.mean !== null && data.ndvi_stats.mean !== undefined ? data.ndvi_stats.mean : 'N/A'}</div>
+                        <div class="label">Mean NDVI</div>
+                    </div>
+                    <div class="summary-card count">
+                        <div class="number">${data.ndvi_stats.count || 0}</div>
+                        <div class="label">Pixel Count</div>
+                    </div>
+                    <div class="summary-card area">
+                        <div class="number">${data.area_ha}</div>
+                        <div class="label">Area (ha)</div>
+                    </div>
+                </div>
+                
+                <div style="margin-top:10px; padding:10px; background:#f0f8ff; border-radius:5px;">
+                    <strong>📊 Statistics:</strong><br>
+                    Mean: ${data.ndvi_stats.mean || 'N/A'} | 
+                    Min: ${data.ndvi_stats.min || 'N/A'} | 
+                    Max: ${data.ndvi_stats.max || 'N/A'} | 
+                    Std Dev: ${data.ndvi_stats.std || 'N/A'}
+                </div>
+                
+                <hr>
+                <h4>🗺️ Tile URL (for map display)</h4>
+                <p style="font-size:12px; word-break:break-all; background:#f8f9fa; padding:10px; border-radius:5px;">${data.tile_url}</p>
+                
+                <hr>
+                <h4>📄 Full JSON Response</h4>
+                <pre style="max-height:150px; overflow:auto; background:#f8f9fa; padding:10px; border-radius:5px; font-size:11px;">${JSON.stringify(data, null, 2)}</pre>
+            `;
+            
+            resultDiv.innerHTML = html;
+        }
+        
+        // Load default on page load
+        window.onload = function() {
+            getNdviDefault();
+        };
+    </script>
+</body>
+</html>

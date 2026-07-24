@@ -12,6 +12,8 @@
         .btn-primary:hover { background: #1a252f; }
         .btn-info { background: #3498db; color: white; }
         .btn-info:hover { background: #2980b9; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #229954; }
         
         .controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; align-items: center; }
         .controls label { display: flex; align-items: center; gap: 5px; font-size: 14px; }
@@ -91,6 +93,13 @@
             border-radius: 5px;
             font-size: 12px;
         }
+        
+        .export-bar {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
     </style>
 </head>
 <body>
@@ -128,6 +137,8 @@
             'Midlands': {lat: -19.0000, lng: 30.0000}
         };
         
+        let currentData = null;
+        
         function setLastMonth() {
             const today = new Date();
             const lastMonth = new Date(today);
@@ -160,15 +171,6 @@
             return '☀️ Dry';
         }
         
-        function formatDate(dateStr) {
-            const d = new Date(dateStr);
-            return d.toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'short', 
-                day: 'numeric' 
-            });
-        }
-        
         async function getRainfall() {
             const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
@@ -197,6 +199,7 @@
                 console.log('Rainfall data:', data);
                 
                 if (data.success) {
+                    currentData = data;
                     renderResults(data, resultDiv, startDate, endDate);
                 } else {
                     resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
@@ -253,6 +256,10 @@
                     }).join('')}
                 </div>
                 
+                <div class="export-bar">
+                    <button class="btn btn-success" onclick="exportCSV()">📊 Export CSV</button>
+                </div>
+                
                 <div class="table-container">
                     <table>
                         <thead>
@@ -275,7 +282,7 @@
                 const todayStyle = isToday ? 'background: #e8f0fe;' : '';
                 
                 html += `<tr style="${todayStyle}">
-                    <td><strong>${date}</strong><br><span style="font-size:10px; color:#95a5a6;">${formatDate(date)}</span></td>
+                    <td><strong>${date}</strong></td>
                 `;
                 
                 provinceNames.forEach(name => {
@@ -345,6 +352,73 @@
             `;
             
             resultDiv.innerHTML = html;
+        }
+        
+        // Export CSV
+        function exportCSV() {
+            if (!currentData) {
+                alert('No data to export. Please load rainfall data first.');
+                return;
+            }
+            
+            const provinces = currentData.provinces;
+            const provinceNames = Object.keys(provinces);
+            
+            // Get all dates
+            let allDates = [];
+            provinceNames.forEach(name => {
+                if (provinces[name].data) {
+                    provinces[name].data.forEach(item => {
+                        if (!allDates.includes(item.date)) {
+                            allDates.push(item.date);
+                        }
+                    });
+                }
+            });
+            allDates.sort();
+            
+            // Build CSV
+            let csv = 'Date,' + provinceNames.join(',') + '\n';
+            
+            allDates.forEach(date => {
+                let row = date;
+                provinceNames.forEach(name => {
+                    const province = provinces[name];
+                    let rainfall = null;
+                    if (province.data) {
+                        const found = province.data.find(item => item.date === date);
+                        if (found) {
+                            rainfall = found.rainfall;
+                        }
+                    }
+                    const value = (rainfall !== null && rainfall !== undefined && !isNaN(rainfall)) ? rainfall.toFixed(1) : '';
+                    row += ',' + value;
+                });
+                csv += row + '\n';
+            });
+            
+            // Add summary rows
+            csv += '\nSTATS,\n';
+            csv += 'Total,' + provinceNames.map(name => {
+                const stats = provinces[name].stats;
+                return stats ? stats.total.toFixed(1) : '';
+            }).join(',') + '\n';
+            
+            csv += 'Rainy Days,' + provinceNames.map(name => {
+                const stats = provinces[name].stats;
+                return stats ? stats.rainy_days : '';
+            }).join(',') + '\n';
+            
+            // Download CSV
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `rainfall_${currentData.date_range.start}_to_${currentData.date_range.end}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
         }
         
         // Set default dates

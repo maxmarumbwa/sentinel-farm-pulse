@@ -844,9 +844,10 @@ def api_check_duplicates(request):
 ######################################### Rainfall monitoring - chirps #######################################
 
 ##################################################################################################
+#NEW VIEW getting datadirect from google earth engine and saving to database
 
 # =====================================================
-# RAINFALL DATA - CHIRPS
+# RAINFALL DATA - CHIRPS (No Login Required)
 # =====================================================
 
 import ee
@@ -854,10 +855,12 @@ import datetime
 import json
 import logging
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
+from django.db import IntegrityError
 
 logger = logging.getLogger(__name__)
+
+# Import your model
+from .models import RainfallProvince
 
 # Zimbabwe Province Representative Points
 ZIMBABWE_PROVINCES = {
@@ -875,14 +878,10 @@ ZIMBABWE_PROVINCES = {
 
 
 def get_rainfall_at_point(lat, lng, start_date, end_date):
-    """
-    Get rainfall (CHIRPS) at a specific point for a date range.
-    Returns daily rainfall values.
-    """
+    """Get rainfall (CHIRPS) at a specific point for a date range."""
     try:
         point = ee.Geometry.Point([lng, lat])
         
-        # Get CHIRPS daily rainfall
         collection = (
             ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
             .filterBounds(point)
@@ -890,7 +889,6 @@ def get_rainfall_at_point(lat, lng, start_date, end_date):
             .select('precipitation')
         )
         
-        # Extract rainfall at point
         def extract_rainfall(img):
             date = ee.Date(img.get('system:time_start')).format('YYYY-MM-dd')
             rainfall = img.reduceRegion(
@@ -927,13 +925,14 @@ def get_rainfall_at_point(lat, lng, start_date, end_date):
 
 
 # =====================================================
-# API: GET RAINFALL FOR ALL PROVINCES 
+# API: GET RAINFALL FOR ALL PROVINCES (NO LOGIN)
 # =====================================================
 
 def api_rainfall_all_provinces(request):
     """
     Get rainfall data for all Zimbabwe provinces.
-        
+    No login required - open access.
+    
     Query parameters:
     - start_date: Start date (YYYY-MM-DD) (required)
     - end_date: End date (YYYY-MM-DD) (required)
@@ -959,13 +958,12 @@ def api_rainfall_all_provinces(request):
                     end_date
                 )
                 
-                # Calculate stats
                 rain_values = [r['rainfall'] for r in rainfall_data if r['rainfall'] is not None]
                 total_rain = sum(rain_values) if rain_values else 0
                 avg_rain = total_rain / len(rain_values) if rain_values else 0
                 max_rain = max(rain_values) if rain_values else 0
                 min_rain = min(rain_values) if rain_values else 0
-                rainy_days = len([r for r in rain_values if r > 1])  # >1mm considered rainy
+                rainy_days = len([r for r in rain_values if r > 1])
                 
                 results[province] = {
                     'coords': coords,
@@ -1020,7 +1018,7 @@ def api_rainfall_all_provinces(request):
 def api_rainfall_single_point(request):
     """
     Get rainfall for a single point.
-  
+    No login required - open access.
     
     Query parameters:
     - lat: Latitude (required)
@@ -1042,7 +1040,6 @@ def api_rainfall_single_point(request):
         
         rainfall_data = get_rainfall_at_point(lat, lng, start_date, end_date)
         
-        # Calculate stats
         rain_values = [r['rainfall'] for r in rainfall_data if r['rainfall'] is not None]
         total_rain = sum(rain_values) if rain_values else 0
         avg_rain = total_rain / len(rain_values) if rain_values else 0
@@ -1076,6 +1073,466 @@ def api_rainfall_single_point(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+# =====================================================
+# SAVE RAINFALL DATA TO DATABASE
+# =====================================================
+
+def save_rainfall_to_db(province_name, date_str, rainfall_value, lat=None, lng=None):
+    """
+    Save rainfall data for a province to the database.
+    Returns (success, message)
+    """
+    try:
+        date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+        
+        obj, created = RainfallProvince.objects.update_or_create(
+            province=province_name,
+            date=date,
+            defaults={
+                'rainfall_mm': round(rainfall_value, 2),
+                'source': 'CHIRPS',
+                'lat': lat,
+                'lng': lng
+            }
+        )
+        
+        return True, f"{'Created' if created else 'Updated'} record for {province_name} on {date_str}"
+        
+    except Exception as e:
+        return False, f"Error saving: {str(e)}"
+
+
+# =====================================================
+# API: SAVE RAINFALL DATA TO DATABASE
+# =====================================================
+
+def api_save_rainfall_data(request):
+    """
+    Save rainfall data from Earth Engine to database.
+    
+    Query parameters:
+    - start_date: Start date (YYYY-MM-DD) (required)
+    - end_date: End date (YYYY-MM-DD) (required)
+    - overwrite: (optional) 'true' to overwrite existing data
+    """
+    try:
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        overwrite = request.GET.get('overwrite', 'false').lower() == 'true'
+        
+        if not start_date_str or not end_date_str:
+            return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+        
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        results = {}
+        saved_count = 0
+        errors = []
+        
+        for province_name, coords in ZIMBABWE_PROVINCES.items():
+            try:
+                rainfall_data = get_rainfall_at_point(
+                    coords['lat'],
+                    coords['lng'],
+                    start_date,
+                    end_date
+                )
+                
+                province_results = []
+                for item in rainfall_data:
+                    date_str = item['date']
+                    rainfall_value = item['rainfall']
+                    
+                    if overwrite:
+                        RainfallProvince.objects.filter(
+                            province=province_name,
+                            date=datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+                        ).delete()
+                    
+                    success, msg = save_rainfall_to_db(
+                        province_name, 
+                        date_str, 
+                        rainfall_value,
+                        coords['lat'],
+                        coords['lng']
+                    )
+                    
+                    if success:
+                        saved_count += 1
+                        province_results.append({
+                            'date': date_str,
+                            'rainfall': rainfall_value,
+                            'status': 'saved'
+                        })
+                    else:
+                        errors.append(msg)
+                        
+                results[province_name] = {
+                    'coords': coords,
+                    'data': province_results,
+                    'count': len(province_results)
+                }
+                
+            except Exception as e:
+                errors.append(f"{province_name}: {str(e)}")
+                results[province_name] = {
+                    'coords': coords,
+                    'error': str(e)
+                }
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Data saved successfully. {saved_count} records saved.',
+            'saved_count': saved_count,
+            'errors': errors,
+            'results': results,
+            'metadata': {
+                'collection': 'UCSB-CHG/CHIRPS/DAILY',
+                'processed_at': datetime.datetime.now().isoformat()
+            }
+        }, status=200)
+        
+    except Exception as e:
+        logger.error(f"Error saving rainfall data: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# =====================================================
+# API: GET RAINFALL DATA FROM DATABASE (FAST)
+# =====================================================
+
+def api_rainfall_from_db(request):
+    """
+    Get rainfall data from database (much faster than Earth Engine).
+    
+    Query parameters:
+    - start_date: Start date (YYYY-MM-DD) (required)
+    - end_date: End date (YYYY-MM-DD) (required)
+    - province: (optional) Filter by specific province
+    """
+    try:
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        province_filter = request.GET.get('province')
+        
+        if not start_date_str or not end_date_str:
+            return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+        
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        queryset = RainfallProvince.objects.filter(
+            date__gte=start_date,
+            date__lte=end_date
+        ).order_by('date', 'province')
+        
+        if province_filter:
+            queryset = queryset.filter(province=province_filter)
+        
+        provinces = list(RainfallProvince.objects.filter(
+            date__gte=start_date,
+            date__lte=end_date
+        ).values_list('province', flat=True).distinct())
+        
+        if not provinces:
+            return JsonResponse({
+                'success': True,
+                'message': 'No data found in database. Please save data first.',
+                'provinces': {},
+                'date_range': {
+                    'start': start_date_str,
+                    'end': end_date_str
+                },
+                'metadata': {
+                    'source': 'database',
+                    'records': 0,
+                    'processed_at': datetime.datetime.now().isoformat()
+                }
+            }, status=200)
+        
+        results = {}
+        for province in provinces:
+            province_data = queryset.filter(province=province)
+            first_record = province_data.first()
+            coords = {
+                'lat': first_record.lat if first_record else None,
+                'lng': first_record.lng if first_record else None
+            }
+            
+            formatted_data = []
+            rain_values = []
+            for item in province_data:
+                formatted_data.append({
+                    'date': item.date.strftime('%Y-%m-%d'),
+                    'rainfall': item.rainfall_mm
+                })
+                rain_values.append(item.rainfall_mm)
+            
+            results[province] = {
+                'coords': coords,
+                'data': formatted_data,
+                'stats': {
+                    'total': round(sum(rain_values), 2) if rain_values else 0,
+                    'avg': round(sum(rain_values) / len(rain_values), 2) if rain_values else 0,
+                    'max': max(rain_values) if rain_values else 0,
+                    'min': min(rain_values) if rain_values else 0,
+                    'rainy_days': len([r for r in rain_values if r > 1]),
+                    'total_days': len(formatted_data)
+                }
+            }
+        
+        return JsonResponse({
+            'success': True,
+            'provinces': results,
+            'date_range': {
+                'start': start_date_str,
+                'end': end_date_str
+            },
+            'metadata': {
+                'source': 'database',
+                'records': queryset.count(),
+                'provinces_found': len(provinces),
+                'processed_at': datetime.datetime.now().isoformat()
+            }
+        }, status=200)
+        
+    except Exception as e:
+        logger.error(f"Error getting rainfall from DB: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+#OLD VIEW getting datadirect from google earth engine
+# # =====================================================
+# # RAINFALL DATA - CHIRPS
+# # =====================================================
+
+# import ee
+# import datetime
+# import json
+# import logging
+# from django.http import JsonResponse
+# from django.views.decorators.csrf import csrf_exempt
+# from django.views.decorators.http import require_http_methods
+
+# logger = logging.getLogger(__name__)
+
+# # Zimbabwe Province Representative Points
+# ZIMBABWE_PROVINCES = {
+#     'Harare': {'lat': -17.8252, 'lng': 31.0335},
+#     'Bulawayo': {'lat': -20.1486, 'lng': 28.5880},
+#     'Manicaland': {'lat': -18.9216, 'lng': 32.1746},
+#     'Mashonaland Central': {'lat': -16.7633, 'lng': 31.0702},
+#     'Mashonaland East': {'lat': -17.5192, 'lng': 31.8667},
+#     'Mashonaland West': {'lat': -17.3000, 'lng': 30.4000},
+#     'Masvingo': {'lat': -20.0667, 'lng': 30.8333},
+#     'Matabeleland North': {'lat': -18.9833, 'lng': 27.0000},
+#     'Matabeleland South': {'lat': -21.0000, 'lng': 29.0000},
+#     'Midlands': {'lat': -19.0000, 'lng': 30.0000},
+# }
+
+
+# def get_rainfall_at_point(lat, lng, start_date, end_date):
+#     """
+#     Get rainfall (CHIRPS) at a specific point for a date range.
+#     Returns daily rainfall values.
+#     """
+#     try:
+#         point = ee.Geometry.Point([lng, lat])
+        
+#         # Get CHIRPS daily rainfall
+#         collection = (
+#             ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
+#             .filterBounds(point)
+#             .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+#             .select('precipitation')
+#         )
+        
+#         # Extract rainfall at point
+#         def extract_rainfall(img):
+#             date = ee.Date(img.get('system:time_start')).format('YYYY-MM-dd')
+#             rainfall = img.reduceRegion(
+#                 reducer=ee.Reducer.mean(),
+#                 geometry=point,
+#                 scale=1000,
+#                 maxPixels=1e9
+#             )
+#             return ee.Feature(None, {
+#                 'date': date,
+#                 'rainfall': rainfall.get('precipitation')
+#             })
+        
+#         features = collection.map(extract_rainfall)
+#         feature_list = features.getInfo()
+        
+#         results = []
+#         for feature in feature_list.get('features', []):
+#             props = feature.get('properties', {})
+#             date = props.get('date')
+#             rainfall = props.get('rainfall')
+            
+#             if date and rainfall is not None:
+#                 results.append({
+#                     'date': date,
+#                     'rainfall': round(float(rainfall), 2)
+#                 })
+        
+#         return results
+        
+#     except Exception as e:
+#         logger.error(f"Error in get_rainfall_at_point: {str(e)}")
+#         raise Exception(f"Failed to extract rainfall: {str(e)}")
+
+
+# # =====================================================
+# # API: GET RAINFALL FOR ALL PROVINCES 
+# # =====================================================
+
+# def api_rainfall_all_provinces(request):
+#     """
+#     Get rainfall data for all Zimbabwe provinces.
+        
+#     Query parameters:
+#     - start_date: Start date (YYYY-MM-DD) (required)
+#     - end_date: End date (YYYY-MM-DD) (required)
+#     """
+#     try:
+#         start_date_str = request.GET.get('start_date')
+#         end_date_str = request.GET.get('end_date')
+        
+#         if not start_date_str or not end_date_str:
+#             return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+        
+#         start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+#         end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+#         results = {}
+        
+#         for province, coords in ZIMBABWE_PROVINCES.items():
+#             try:
+#                 rainfall_data = get_rainfall_at_point(
+#                     coords['lat'], 
+#                     coords['lng'], 
+#                     start_date, 
+#                     end_date
+#                 )
+                
+#                 # Calculate stats
+#                 rain_values = [r['rainfall'] for r in rainfall_data if r['rainfall'] is not None]
+#                 total_rain = sum(rain_values) if rain_values else 0
+#                 avg_rain = total_rain / len(rain_values) if rain_values else 0
+#                 max_rain = max(rain_values) if rain_values else 0
+#                 min_rain = min(rain_values) if rain_values else 0
+#                 rainy_days = len([r for r in rain_values if r > 1])  # >1mm considered rainy
+                
+#                 results[province] = {
+#                     'coords': coords,
+#                     'data': rainfall_data,
+#                     'stats': {
+#                         'total': round(total_rain, 2),
+#                         'avg': round(avg_rain, 2),
+#                         'max': round(max_rain, 2),
+#                         'min': round(min_rain, 2),
+#                         'rainy_days': rainy_days,
+#                         'total_days': len(rainfall_data)
+#                     }
+#                 }
+#             except Exception as e:
+#                 logger.error(f"Error processing {province}: {str(e)}")
+#                 results[province] = {
+#                     'coords': coords,
+#                     'error': str(e),
+#                     'data': [],
+#                     'stats': {
+#                         'total': 0,
+#                         'avg': 0,
+#                         'max': 0,
+#                         'min': 0,
+#                         'rainy_days': 0,
+#                         'total_days': 0
+#                     }
+#                 }
+        
+#         return JsonResponse({
+#             'success': True,
+#             'provinces': results,
+#             'date_range': {
+#                 'start': start_date_str,
+#                 'end': end_date_str
+#             },
+#             'metadata': {
+#                 'collection': 'UCSB-CHG/CHIRPS/DAILY',
+#                 'processed_at': datetime.datetime.now().isoformat()
+#             }
+#         }, status=200)
+        
+#     except Exception as e:
+#         logger.error(f"Error in api_rainfall_all_provinces: {str(e)}")
+#         return JsonResponse({'error': str(e)}, status=500)
+
+
+# =====================================================
+# API: GET RAINFALL FOR A SINGLE POINT (NO LOGIN)
+# =====================================================
+
+# def api_rainfall_single_point(request):
+#     """
+#     Get rainfall for a single point.
+  
+    
+#     Query parameters:
+#     - lat: Latitude (required)
+#     - lng: Longitude (required)
+#     - start_date: Start date (YYYY-MM-DD) (required)
+#     - end_date: End date (YYYY-MM-DD) (required)
+#     """
+#     try:
+#         lat = float(request.GET.get('lat'))
+#         lng = float(request.GET.get('lng'))
+#         start_date_str = request.GET.get('start_date')
+#         end_date_str = request.GET.get('end_date')
+        
+#         if not start_date_str or not end_date_str:
+#             return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+        
+#         start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+#         end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+#         rainfall_data = get_rainfall_at_point(lat, lng, start_date, end_date)
+        
+#         # Calculate stats
+#         rain_values = [r['rainfall'] for r in rainfall_data if r['rainfall'] is not None]
+#         total_rain = sum(rain_values) if rain_values else 0
+#         avg_rain = total_rain / len(rain_values) if rain_values else 0
+#         max_rain = max(rain_values) if rain_values else 0
+#         min_rain = min(rain_values) if rain_values else 0
+        
+#         return JsonResponse({
+#             'success': True,
+#             'location': {'lat': lat, 'lng': lng},
+#             'data': rainfall_data,
+#             'stats': {
+#                 'total': round(total_rain, 2),
+#                 'avg': round(avg_rain, 2),
+#                 'max': round(max_rain, 2),
+#                 'min': round(min_rain, 2),
+#                 'total_days': len(rainfall_data),
+#                 'data_points': len(rain_values)
+#             },
+#             'date_range': {
+#                 'start': start_date_str,
+#                 'end': end_date_str
+#             },
+#             'metadata': {
+#                 'collection': 'UCSB-CHG/CHIRPS/DAILY',
+#                 'processed_at': datetime.datetime.now().isoformat()
+#             }
+#         }, status=200)
+        
+#     except Exception as e:
+#         logger.error(f"Error in api_rainfall_single_point: {str(e)}")
+#         return JsonResponse({'error': str(e)}, status=500)
+
+
 
 
 
@@ -1086,7 +1543,9 @@ def test_ndvi_view(request):
 def test_rainfall_view(request):
     """Test view for Rainfall API"""
     return render(request, 'fields_admin/test_rainfall.html', {})
-
+def rainfall_to_db(request):
+    """Test view for Rainfall API"""
+    return render(request, 'fields_admin/save_rain_to_db.html', {})
 
 
 

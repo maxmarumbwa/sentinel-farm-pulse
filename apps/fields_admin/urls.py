@@ -21,9 +21,15 @@ urlpatterns = [
     ############################################## Rainfall API URLs ##############################################
     path('api/rainfall/provinces/', views.api_rainfall_all_provinces, name='api_rainfall_all_provinces'),
     path('api/rainfall/point/', views.api_rainfall_single_point, name='api_rainfall_single_point'),
+        # Rainfall Database URLs
+    path('api/rainfall/save/', views.api_save_rainfall_data, name='api_save_rainfall_data'),
+    path('api/rainfall/db/', views.api_rainfall_from_db, name='api_rainfall_from_db'),
     path('test/rainfall/', views.test_rainfall_view, name='test_rainfall'),  
+    path('save/rainfall/', views.rainfall_to_db, name='rainfall_to_db'),
 
-    
+    # path('api/rainfall/provinces/', views.api_rainfall_all_provinces, name='api_rainfall_all_provinces'),
+    # path('api/rainfall/point/', views.api_rainfall_single_point, name='api_rainfall_single_point'),
+    # path('test/rainfall/', views.test_rainfall_view, name='test_rainfall'), 
     
     
     #################### NDVI calc ###################################

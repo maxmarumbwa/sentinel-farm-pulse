@@ -57,3 +57,21 @@ class FieldAdmin(GISModelAdmin):
         form = super().get_form(request, obj, **kwargs)
         form.base_fields['geometry'].help_text = 'Draw a polygon on the map or paste WKT'
         return form
+    
+#register rainfall model
+from .models import Admin1, Admin2, Field, RainfallProvince
+
+
+@admin.register(RainfallProvince)
+class RainfallProvinceAdmin(admin.ModelAdmin):
+    list_display = ['province', 'date', 'rainfall_mm', 'lat', 'lng', 'source', 'created_at']
+    list_filter = ['province', 'date', 'source']
+    search_fields = ['province']
+    ordering = ['-date', 'province']
+    date_hierarchy = 'date'
+    list_per_page = 50
+    
+    def get_readonly_fields(self, request, obj=None):
+        if obj:  # editing an existing object
+            return ['province', 'date', 'source', 'lat', 'lng', 'created_at']
+        return ['created_at']

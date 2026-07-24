@@ -75,3 +75,30 @@ class Field(models.Model):
 
     def __str__(self):
         return self.field_name
+    
+    
+# Rainfall Data Model for storing rainfall data for provinces
+# =====================================================
+# RAINFALL DATA MODEL
+# =====================================================
+class RainfallProvince(models.Model):
+    """
+    Stores daily rainfall data for Zimbabwe provinces/towns.
+    Independent table - no foreign keys.
+    """
+    province = models.CharField(max_length=100, db_index=True, help_text="Province or town name")
+    date = models.DateField(db_index=True)
+    rainfall_mm = models.FloatField(default=0.0, help_text="Rainfall in millimeters")
+    lat = models.FloatField(null=True, blank=True, help_text="Latitude")
+    lng = models.FloatField(null=True, blank=True, help_text="Longitude")
+    source = models.CharField(max_length=50, default='CHIRPS', help_text="Data source")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name_plural = "Rainfall Data"
+        ordering = ['-date', 'province']
+        unique_together = ['province', 'date']  # Prevent duplicate entries per province/date
+        
+    def __str__(self):
+        return f"{self.province} - {self.date} ({self.rainfall_mm}mm)"

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Rainfall Data Manager</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .card { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .card h2 { margin-top: 0; color: #2c3e50; }
+        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #229954; }
+        .btn-primary { background: #2c3e50; color: white; }
+        .btn-primary:hover { background: #1a252f; }
+        .btn-danger { background: #e74c3c; color: white; }
+        .btn-danger:hover { background: #c0392b; }
+        
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; align-items: center; }
+        .controls label { display: flex; align-items: center; gap: 5px; font-size: 14px; }
+        .controls input[type="date"] { padding: 5px 10px; border: 1px solid #ddd; border-radius: 4px; }
+        
+        .result { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 15px; max-height: 500px; overflow: auto; }
+        .loading { text-align: center; padding: 20px; color: #7f8c8d; }
+        .spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2c3e50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .error { color: #e74c3c; padding: 10px; background: #fdf2f2; border-radius: 5px; border-left: 4px solid #e74c3c; }
+        .success { color: #27ae60; padding: 10px; background: #f0fdf4; border-radius: 5px; border-left: 4px solid #27ae60; }
+        .info { color: #3498db; padding: 10px; background: #e8f0fe; border-radius: 5px; border-left: 4px solid #3498db; }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .stat-box {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            border-left: 3px solid #2c3e50;
+        }
+        .stat-box .number { font-size: 22px; font-weight: bold; color: #2c3e50; }
+        .stat-box .label { font-size: 11px; color: #7f8c8d; }
+        
+        .province-list { max-height: 300px; overflow: auto; }
+        .province-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 10px;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+        }
+        .province-item:hover { background: #f8f9fa; }
+        .province-item .name { font-weight: bold; }
+        .province-item .status { color: #27ae60; }
+        .province-item .error { color: #e74c3c; }
+        
+        .help-text { font-size: 12px; color: #7f8c8d; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💾 Rainfall Data Manager</h1>
+        
+        <div class="card">
+            <h2>📥 Save Rainfall Data to Database</h2>
+            <p>Fetch rainfall data from CHIRPS and save to database for faster access.</p>
+            
+            <div class="controls">
+                <label>Start: <input type="date" id="startDate"></label>
+                <label>End: <input type="date" id="endDate"></label>
+                <label>
+                    <input type="checkbox" id="overwrite"> Overwrite existing
+                </label>
+                <button class="btn btn-success" onclick="saveToDatabase()">💾 Save to Database</button>
+                <button class="btn btn-primary" onclick="viewDatabase()">📊 View Saved Data</button>
+                <button class="btn btn-danger" onclick="clearResult()">✖ Clear</button>
+            </div>
+            
+            <div id="result" class="result" style="display:none;"></div>
+        </div>
+    </div>
+    
+    <script>
+        function setDefaultDates() {
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today);
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+            document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        }
+        
+        function clearResult() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'none';
+            resultDiv.innerHTML = '';
+        }
+        
+        async function saveToDatabase() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const overwrite = document.getElementById('overwrite').checked;
+            
+            if (!startDate || !endDate) {
+                alert('Please select both start and end dates.');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Saving rainfall data to database...</p>
+                    <p style="font-size:13px; color:#95a5a6;">Date range: ${startDate} to ${endDate}</p>
+                    <p style="font-size:12px; color:#95a5a6;">This may take a moment for large date ranges...</p>
+                </div>
+            `;
+            
+            try {
+                const url = `/api/rainfall/save/?start_date=${startDate}&end_date=${endDate}&overwrite=${overwrite}`;
+                console.log('Saving to:', url);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                console.log('Save response:', data);
+                
+                if (data.success) {
+                    let html = `
+                        <div class="success">
+                            ✅ ${data.message}
+                            <br><strong>Records saved:</strong> ${data.saved_count}
+                        </div>
+                        
+                        <div class="stats-grid">
+                            <div class="stat-box">
+                                <div class="number">${data.saved_count}</div>
+                                <div class="label">Records Saved</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="number">${Object.keys(data.results).length}</div>
+                                <div class="label">Provinces Processed</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="number">${data.errors.length}</div>
+                                <div class="label">Errors</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Show province details
+                    html += `<h4>Province Results</h4><div class="province-list">`;
+                    for (const [province, result] of Object.entries(data.results)) {
+                        const status = result.count > 0 ? 
+                            `<span class="status">✅ ${result.count} records</span>` : 
+                            `<span class="error">❌ ${result.error || 'No data'}</span>`;
+                        html += `
+                            <div class="province-item">
+                                <span class="name">${province}</span>
+                                <span>${status}</span>
+                            </div>
+                        `;
+                    }
+                    html += `</div>`;
+                    
+                    if (data.errors.length > 0) {
+                        html += `
+                            <div class="error" style="margin-top:10px;">
+                                <strong>Errors:</strong>
+                                <ul style="margin:5px 0 0 20px;">
+                                    ${data.errors.slice(0, 10).map(e => `<li>${e}</li>`).join('')}
+                                    ${data.errors.length > 10 ? `<li>... and ${data.errors.length - 10} more</li>` : ''}
+                                </ul>
+                            </div>
+                        `;
+                    }
+                    
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <strong>❌ Connection Error</strong>
+                        <p>${error.message}</p>
+                        <p>Please check your internet connection and try again.</p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function viewDatabase() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('Please select both start and end dates.');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading data from database...</p>
+                </div>
+            `;
+            
+            try {
+                const url = `/api/rainfall/db/?start_date=${startDate}&end_date=${endDate}`;
+                console.log('Viewing:', url);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                console.log('DB data:', data);
+                
+                if (data.success) {
+                    const provinceNames = Object.keys(data.provinces);
+                    
+                    if (provinceNames.length === 0) {
+                        resultDiv.innerHTML = `
+                            <div class="info">
+                                ℹ️ No data found in database for this date range.
+                                <br>Click "Save to Database" to fetch and save data first.
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    let html = `
+                        <div class="success">
+                            ✅ Found data for ${provinceNames.length} provinces
+                            <br><strong>Records:</strong> ${data.metadata.records}
+                        </div>
+                        
+                        <div class="stats-grid">
+                            <div class="stat-box">
+                                <div class="number">${provinceNames.length}</div>
+                                <div class="label">Provinces</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="number">${data.metadata.records}</div>
+                                <div class="label">Total Records</div>
+                            </div>
+                        </div>
+                        
+                        <h4>Province Summary</h4>
+                        <div class="province-list">
+                    `;
+                    
+                    for (const [province, result] of Object.entries(data.provinces)) {
+                        const stats = result.stats;
+                        html += `
+                            <div class="province-item">
+                                <span class="name">${province}</span>
+                                <span>${stats.total_days} days | Total: ${stats.total}mm | Rainy: ${stats.rainy_days} days</span>
+                            </div>
+                        `;
+                    }
+                    
+                    html += `</div>`;
+                    html += `
+                        <hr>
+                        <h4>📄 Full JSON Response</h4>
+                        <pre style="max-height:200px; overflow:auto; background:#f8f9fa; padding:10px; border-radius:5px; font-size:11px;">${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <strong>❌ Connection Error</strong>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Load default dates on page load
+        window.onload = function() {
+            setDefaultDates();
+        };
+    </script>
+</body>
+</html>

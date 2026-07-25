@@ -1201,8 +1201,106 @@ def api_save_rainfall_data(request):
 # =====================================================
 # API: GET RAINFALL DATA FROM DATABASE (FAST)
 # =====================================================
-
 def api_rainfall_from_db(request):
+    """
+    Get rainfall data from database (much faster than Earth Engine).
+    
+    Query parameters:
+    - start_date: Start date (YYYY-MM-DD) (required)
+    - end_date: End date (YYYY-MM-DD) (required)
+    - province: (optional) Filter by specific province
+    """
+    try:
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        province_filter = request.GET.get('province')
+        
+        if not start_date_str or not end_date_str:
+            return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+        
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        # Base queryset
+        queryset = RainfallProvince.objects.filter(
+            date__gte=start_date,
+            date__lte=end_date
+        ).order_by('date', 'province')
+        
+        # Apply province filter if provided
+        if province_filter:
+            queryset = queryset.filter(province=province_filter)
+        
+        # ✅ FIX: Get provinces from the filtered queryset, not ALL provinces
+        provinces = list(queryset.values_list('province', flat=True).distinct())
+        
+        if not provinces:
+            return JsonResponse({
+                'success': True,
+                'message': 'No data found in database for this date range.',
+                'provinces': {},
+                'date_range': {
+                    'start': start_date_str,
+                    'end': end_date_str
+                },
+                'metadata': {
+                    'source': 'database',
+                    'records': 0,
+                    'provinces_found': 0,
+                    'processed_at': datetime.datetime.now().isoformat()
+                }
+            }, status=200)
+        
+        results = {}
+        for province in provinces:
+            province_data = queryset.filter(province=province)
+            first_record = province_data.first()
+            coords = {
+                'lat': first_record.lat if first_record else None,
+                'lng': first_record.lng if first_record else None
+            }
+            
+            formatted_data = []
+            rain_values = []
+            for item in province_data:
+                formatted_data.append({
+                    'date': item.date.strftime('%Y-%m-%d'),
+                    'rainfall': item.rainfall_mm
+                })
+                rain_values.append(item.rainfall_mm)
+            
+            results[province] = {
+                'coords': coords,
+                'data': formatted_data,
+                'stats': {
+                    'total': round(sum(rain_values), 2) if rain_values else 0,
+                    'avg': round(sum(rain_values) / len(rain_values), 2) if rain_values else 0,
+                    'max': max(rain_values) if rain_values else 0,
+                    'min': min(rain_values) if rain_values else 0,
+                    'rainy_days': len([r for r in rain_values if r > 1]),
+                    'total_days': len(formatted_data)
+                }
+            }
+        
+        return JsonResponse({
+            'success': True,
+            'provinces': results,
+            'date_range': {
+                'start': start_date_str,
+                'end': end_date_str
+            },
+            'metadata': {
+                'source': 'database',
+                'records': queryset.count(),
+                'provinces_found': len(provinces),
+                'processed_at': datetime.datetime.now().isoformat()
+            }
+        }, status=200)
+        
+    except Exception as e:
+        logger.error(f"Error getting rainfall from DB: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
     """
     Get rainfall data from database (much faster than Earth Engine).
     
@@ -1543,6 +1641,9 @@ def test_ndvi_view(request):
 def test_rainfall_view(request):
     """Test view for Rainfall API"""
     return render(request, 'fields_admin/test_rainfall.html', {})
+def rainfall_db(request):
+    """Test view for Rainfall API"""
+    return render(request, 'fields_admin/rainfall_db.html', {})
 def rainfall_to_db(request):
     """Test view for Rainfall API"""
     return render(request, 'fields_admin/save_rain_to_db.html', {})
@@ -1554,6 +1655,22 @@ def rainfall_to_db(request):
 #
 ##
 #
+#
+#
+#
+#
+#
+##
+#
+#
+#
+#
+##
+##
+#
+#
+#
+
 #
 #
 #

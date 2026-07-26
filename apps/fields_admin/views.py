@@ -1888,10 +1888,11 @@ def export_monthly_csv_optimized(response_data):
     
     return csv_response
 #
-
-# =====================================================
-# DEKADAL RAINFALL AGGREGATION VIEW (OPTIMIZED)
-# =====================================================
+###############################################################################################
+                # =====================================================
+                # DEKADAL RAINFALL AGGREGATION VIEW (OPTIMIZED)
+                # =====================================================
+###################################################################################################
 
 import datetime
 import calendar
@@ -1938,11 +1939,11 @@ def api_rainfall_dekadal(request):
         # Parse dates
         start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
         end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
-        
-        # ============================================================
+
+    # ============================================================
         # OPTIMIZED: Single SQL query with GROUP BY for dekads
         # ============================================================
-        
+       
         table_name = RainfallProvince._meta.db_table
         
         # Build the WHERE clause
@@ -2132,7 +2133,419 @@ def export_dekadal_csv(response_data):
     
     return csv_response
 #  
+#########################################################################################
 #
+#
+#########################################################################################################
+#
+################ Seasonal Rainfall Aggregation View  ########################
+#
+#########################################################################################################
+# =====================================================
+# ANNUAL & SEASONAL RAINFALL AGGREGATION VIEW (OPTIMIZED)
+# =====================================================
+
+import datetime
+import calendar
+import logging
+from django.http import JsonResponse
+from django.db import connection
+from .models import RainfallProvince
+
+logger = logging.getLogger(__name__)
+
+
+def api_rainfall_annual(request):
+    """
+    Get annual and seasonal aggregated rainfall data.
+    
+    Seasons:
+    - Full Year: January - December
+    - OND: October, November, December (Early summer / onset)
+    - NDJ: November, December, January (Mid-summer transition)
+    - DJF: December, January, February (Peak summer rainy season)
+    - JFM: January, February, March (Late summer / tropical cyclone)
+    - FMA: February, March, April (End of summer / tail-end)
+    - ONDJFM: October, November, December, January, February, March (Cross-year rainy season)
+    - ON: October, November (Early onset)
+    - ND: November, December (Mid onset)
+    - JF: January, February (Peak rains)
+    - MA: March, April (Late rains / tail-end)
+    
+    Query parameters:
+    - start_year: Start year (YYYY) (required)
+    - end_year: End year (YYYY) (required)
+    - province: (optional) Filter by specific province
+    - season: (optional) full, OND, NDJ, DJF, JFM, FMA, ONDJFM, ON, ND, JF, MA (default: full)
+    - format: json (default) or csv
+    
+    Example:
+    /api/rainfall/annual/?start_year=2020&end_year=2024
+    /api/rainfall/annual/?start_year=2020&end_year=2024&province=Harare
+    /api/rainfall/annual/?start_year=2020&end_year=2024&season=DJF
+    /api/rainfall/annual/?start_year=2020&end_year=2024&season=ONDJFM
+    /api/rainfall/annual/?start_year=2020&end_year=2024&format=csv
+    """
+    try:
+        # Get query parameters
+        start_year = int(request.GET.get('start_year'))
+        end_year = int(request.GET.get('end_year'))
+        province_filter = request.GET.get('province')
+        season_filter = request.GET.get('season', 'FULL').upper()
+        output_format = request.GET.get('format', 'json').lower()
+        
+        # Validate parameters
+        if start_year > end_year:
+            return JsonResponse({'error': 'start_year must be less than or equal to end_year'}, status=400)
+        
+        # ============================================================
+        # SEASON DEFINITIONS
+        # ============================================================
+        
+        season_definitions = {
+            'FULL': {
+                'label': 'Full Year',
+                'months': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+                'months_abbr': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                'description': 'January - December',
+                'year_offset': 0,
+                'cross_year': False
+            },
+            'OND': {
+                'label': 'OND (Early Summer)',
+                'months': [10, 11, 12],
+                'months_abbr': ['Oct', 'Nov', 'Dec'],
+                'description': 'October, November, December - Early summer / onset of rainy season',
+                'year_offset': 0,
+                'cross_year': False
+            },
+            'NDJ': {
+                'label': 'NDJ (Mid-Summer)',
+                'months': [11, 12, 1],
+                'months_abbr': ['Nov', 'Dec', 'Jan'],
+                'description': 'November, December, January - Mid-summer transition',
+                'year_offset': 1,
+                'cross_year': True
+            },
+            'DJF': {
+                'label': 'DJF (Peak Summer)',
+                'months': [12, 1, 2],
+                'months_abbr': ['Dec', 'Jan', 'Feb'],
+                'description': 'December, January, February - Peak summer rainy season',
+                'year_offset': 1,
+                'cross_year': True
+            },
+            'JFM': {
+                'label': 'JFM (Late Summer)',
+                'months': [1, 2, 3],
+                'months_abbr': ['Jan', 'Feb', 'Mar'],
+                'description': 'January, February, March - Late summer / peak tropical cyclone season',
+                'year_offset': 0,
+                'cross_year': False
+            },
+            'FMA': {
+                'label': 'FMA (End of Summer)',
+                'months': [2, 3, 4],
+                'months_abbr': ['Feb', 'Mar', 'Apr'],
+                'description': 'February, March, April - End of summer / tail-end of rains',
+                'year_offset': 0,
+                'cross_year': False
+            },
+            'ONDJFM': {
+                'label': 'ONDJFM (Rainy Season)',
+                'months': [10, 11, 12, 1, 2, 3],
+                'months_abbr': ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'],
+                'description': 'October, November, December, January, February, March - Full rainy season (cross-year)',
+                'year_offset': 1,
+                'cross_year': True
+            },
+            'ON': {
+                'label': 'ON (Early Onset)',
+                'months': [10, 11],
+                'months_abbr': ['Oct', 'Nov'],
+                'description': 'October, November - Early onset of rains',
+                'year_offset': 0,
+                'cross_year': False
+            },
+            'ND': {
+                'label': 'ND (Mid Onset)',
+                'months': [11, 12],
+                'months_abbr': ['Nov', 'Dec'],
+                'description': 'November, December - Mid onset of rains',
+                'year_offset': 0,
+                'cross_year': False
+            },
+            'JF': {
+                'label': 'JF (Peak Rains)',
+                'months': [1, 2],
+                'months_abbr': ['Jan', 'Feb'],
+                'description': 'January, February - Peak rains',
+                'year_offset': 0,
+                'cross_year': False
+            },
+            'MA': {
+                'label': 'MA (Late Rains)',
+                'months': [3, 4],
+                'months_abbr': ['Mar', 'Apr'],
+                'description': 'March, April - Late rains / tail-end',
+                'year_offset': 0,
+                'cross_year': False
+            }
+        }
+        
+        # Validate season
+        valid_seasons = list(season_definitions.keys())
+        if season_filter not in valid_seasons:
+            return JsonResponse({
+                'error': f'Invalid season. Use: {", ".join(valid_seasons)}',
+                'example': '/api/rainfall/annual/?start_year=2020&end_year=2024&season=DJF'
+            }, status=400)
+        
+        season_info = season_definitions[season_filter]
+        months = season_info['months']
+        cross_year = season_info['cross_year']
+        
+        # ============================================================
+        # BUILD SQL QUERY
+        # ============================================================
+        
+        table_name = RainfallProvince._meta.db_table
+        
+        # Build month condition
+        month_conditions = ' OR '.join([f"EXTRACT(MONTH FROM date) = {m}" for m in months])
+        
+        # Build WHERE clause
+        where_clause = f"EXTRACT(YEAR FROM date) BETWEEN %s AND %s AND ({month_conditions})"
+        params = [start_year, end_year]
+        
+        if province_filter:
+            where_clause += " AND province = %s"
+            params.append(province_filter)
+        
+        # Build SQL with year adjustment for seasons that cross year boundary
+        if cross_year:
+            # For NDJ, DJF, ONDJFM - the season year is based on the later year
+            sql = f"""
+                SELECT 
+                    CASE 
+                        WHEN EXTRACT(MONTH FROM date) IN (1, 2, 3) THEN EXTRACT(YEAR FROM date)::int
+                        ELSE EXTRACT(YEAR FROM date)::int
+                    END as season_year,
+                    province,
+                    SUM(rainfall_mm) as total_rainfall,
+                    COUNT(*) as record_count,
+                    AVG(rainfall_mm) as avg_rainfall,
+                    MAX(rainfall_mm) as max_daily,
+                    MIN(rainfall_mm) as min_daily
+                FROM {table_name}
+                WHERE {where_clause}
+                GROUP BY 
+                    CASE 
+                        WHEN EXTRACT(MONTH FROM date) IN (1, 2, 3) THEN EXTRACT(YEAR FROM date)::int
+                        ELSE EXTRACT(YEAR FROM date)::int
+                    END,
+                    province
+                ORDER BY season_year, province
+            """
+        else:
+            # For FULL, OND, JFM, FMA, ON, ND, JF, MA - normal year grouping
+            sql = f"""
+                SELECT 
+                    EXTRACT(YEAR FROM date)::int as year,
+                    province,
+                    SUM(rainfall_mm) as total_rainfall,
+                    COUNT(*) as record_count,
+                    AVG(rainfall_mm) as avg_rainfall,
+                    MAX(rainfall_mm) as max_daily,
+                    MIN(rainfall_mm) as min_daily
+                FROM {table_name}
+                WHERE {where_clause}
+                GROUP BY EXTRACT(YEAR FROM date), province
+                ORDER BY year, province
+            """
+        
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+        
+        # Check if data exists
+        if not rows:
+            return JsonResponse({
+                'success': False,
+                'message': f'No data found for the given years and season {season_filter}.',
+                'data': []
+            }, status=404)
+        
+        # ============================================================
+        # Process results
+        # ============================================================
+        
+        # Get all provinces
+        if province_filter:
+            provinces = [province_filter]
+        else:
+            provinces = sorted(set(row[1] for row in rows))
+        
+        # Group data by year
+        year_data = {}
+        for row in rows:
+            if cross_year:
+                year = row[0]
+                province = row[1]
+                total = row[2]
+                count = row[3]
+                avg = row[4]
+                max_val = row[5]
+                min_val = row[6]
+            else:
+                year = row[0]
+                province = row[1]
+                total = row[2]
+                count = row[3]
+                avg = row[4]
+                max_val = row[5]
+                min_val = row[6]
+            
+            # For cross-year seasons, adjust the year label
+            if cross_year:
+                # The season spans across two years
+                # e.g., ONDJFM 2024 = Oct 2023 - Mar 2024
+                display_year = year
+                season_label = f"{display_year-1}/{display_year}"
+                season_display = f"{display_year-1} - {display_year}"
+            else:
+                display_year = year
+                season_label = str(year)
+                season_display = str(year)
+            
+            if display_year not in year_data:
+                year_data[display_year] = {
+                    'year': display_year,
+                    'season_year': season_label,
+                    'season_display': season_display,
+                    'season': season_filter,
+                    'season_label': season_info['label'],
+                    'season_description': season_info['description'],
+                    'months': ', '.join(season_info['months_abbr']),
+                    'cross_year': cross_year,
+                }
+                # Initialize all provinces with 0
+                for p in provinces:
+                    year_data[display_year][p] = 0.0
+                    year_data[display_year][f"{p}_count"] = 0
+                    year_data[display_year][f"{p}_avg"] = 0.0
+                    year_data[display_year][f"{p}_max"] = 0.0
+                    year_data[display_year][f"{p}_min"] = 0.0
+            
+            year_data[display_year][province] = round(total, 2)
+            year_data[display_year][f"{province}_count"] = count
+            year_data[display_year][f"{province}_avg"] = round(avg, 2) if avg else 0.0
+            year_data[display_year][f"{province}_max"] = round(max_val, 2) if max_val else 0.0
+            year_data[display_year][f"{province}_min"] = round(min_val, 2) if min_val else 0.0
+        
+        # Convert to list and sort by year
+        data = sorted(year_data.values(), key=lambda x: x['year'])
+        
+        # ============================================================
+        # Build response
+        # ============================================================
+        
+        response_data = {
+            'success': True,
+            'aggregation': 'annual',
+            'season': season_filter,
+            'season_label': season_info['label'],
+            'season_description': season_info['description'],
+            'season_months': season_info['months_abbr'],
+            'cross_year': cross_year,
+            'year_range': {
+                'start': start_year,
+                'end': end_year
+            },
+            'provinces': provinces,
+            'total_years': len(data),
+            'data': data,
+            'metadata': {
+                'source': 'database',
+                'exported_at': datetime.datetime.now().isoformat()
+            }
+        }
+        
+        # ============================================================
+        # Return as CSV if requested
+        # ============================================================
+        
+        if output_format == 'csv':
+            return export_annual_csv(response_data)
+        
+        return JsonResponse(response_data, status=200)
+        
+    except ValueError as e:
+        return JsonResponse({'error': f'Invalid parameter: {str(e)}'}, status=400)
+    except Exception as e:
+        logger.error(f"Error in annual rainfall aggregation: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def export_annual_csv(response_data):
+    """Export annual aggregation data as CSV."""
+    import csv
+    from django.http import HttpResponse
+    
+    data = response_data['data']
+    provinces = response_data['provinces']
+    season = response_data['season']
+    cross_year = response_data.get('cross_year', False)
+    
+    if not data:
+        return JsonResponse({'error': 'No data to export'}, status=404)
+    
+    csv_response = HttpResponse(content_type='text/csv')
+    filename = f"rainfall_annual_{response_data['year_range']['start']}_to_{response_data['year_range']['end']}_{season}.csv"
+    csv_response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    writer = csv.writer(csv_response)
+    
+    # Write header
+    if cross_year:
+        header = ['Year', 'Season Year', 'Season', 'Season Description', 'Months'] + provinces
+    else:
+        header = ['Year', 'Season', 'Season Description', 'Months'] + provinces
+    writer.writerow(header)
+    
+    # Write data rows
+    for row in data:
+        if cross_year:
+            row_data = [
+                row['year'],
+                row['season_display'],
+                row['season_label'],
+                row['season_description'],
+                row['months']
+            ]
+        else:
+            row_data = [
+                row['year'],
+                row['season_label'],
+                row['season_description'],
+                row['months']
+            ]
+        for province in provinces:
+            row_data.append(row.get(province, 0.0))
+        writer.writerow(row_data)
+    
+    return csv_response
+
+#####################################################################################################
+
+#
+#
+#
+#
+#
+#
+#
+
 #
 #
 #

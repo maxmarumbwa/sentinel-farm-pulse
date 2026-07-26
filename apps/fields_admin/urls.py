@@ -36,6 +36,8 @@ urlpatterns = [
     path('api/rainfall/dashboard/', views.rainfall_dashboad, name='rainfall_dashboad'),
     # rainfall aggregation 
     path('api/rainfall/monthly/', views.api_rainfall_monthly, name='api_rainfall_monthly'),
+    path('api/rainfall/dekadal/', views.api_rainfall_dekadal, name='api_rainfall_dekadal'),
+    path('api/rainfall/annual/', views.api_rainfall_annual, name='api_rainfall_annual'),
     
 
     # path('api/rainfall/provinces/', views.api_rainfall_all_provinces, name='api_rainfall_all_provinces'),

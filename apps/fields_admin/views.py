@@ -1422,16 +1422,27 @@ def api_rainfall_from_db(request):
 ###################################### Csv export of exporting all data from database ############################
 ################################################################################################################
 import csv
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 def api_rainfall_export_csv(request):
     """
-    Export all rainfall records as CSV.
+    Export all rainfall records as CSV (default) or JSON.
+    
+    Query parameters:
+    - start_date: Start date (YYYY-MM-DD) (required)
+    - end_date: End date (YYYY-MM-DD) (required)
+    - province: (optional) Filter by specific province
+    - format: 'csv' (default) or 'json'
     """
     try:
         start_date_str = request.GET.get('start_date')
         end_date_str = request.GET.get('end_date')
         province_filter = request.GET.get('province', '')
+        output_format = request.GET.get('format', 'csv').lower()  # Default: CSV (backward compatible)
         
         if not start_date_str or not end_date_str:
             return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
@@ -1447,7 +1458,39 @@ def api_rainfall_export_csv(request):
         if province_filter:
             queryset = queryset.filter(province=province_filter)
         
-        # Create CSV response
+        # Build data list
+        data = []
+        for record in queryset:
+            data.append({
+                'date': record.date.strftime('%Y-%m-%d'),
+                'province': record.province,
+                'rainfall': record.rainfall_mm
+            })
+        
+        # ============================================================
+        # Return JSON if format=json is specified
+        # ============================================================
+        if output_format == 'json':
+            return JsonResponse({
+                'success': True,
+                'data': data,
+                'count': len(data),
+                'date_range': {
+                    'start': start_date_str,
+                    'end': end_date_str
+                },
+                'filters': {
+                    'province': province_filter if province_filter else 'All'
+                },
+                'metadata': {
+                    'source': 'database',
+                    'exported_at': datetime.datetime.now().isoformat()
+                }
+            }, status=200)
+        
+        # ============================================================
+        # Default: Return CSV (for backward compatibility)
+        # ============================================================
         response = HttpResponse(content_type='text/csv')
         filename = f"rainfall_{start_date_str}_to_{end_date_str}"
         if province_filter:
@@ -1466,7 +1509,10 @@ def api_rainfall_export_csv(request):
         
         return response
         
+    except ValueError as e:
+        return JsonResponse({'error': f'Invalid date format: {str(e)}'}, status=400)
     except Exception as e:
+        logger.error(f"Error exporting rainfall data: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 ############################################################################################
 ####################################### paginated verion ##############################
@@ -1881,6 +1927,9 @@ def api_rainfall_export_csv_paginated(request):
 
 
 
+def test(request):
+    """Test view for NDVI API"""
+    return render(request, 'fields_admin/test.html', {})
 
 def test_ndvi_view(request):
     """Test view for NDVI API"""
@@ -1901,7 +1950,7 @@ def rainfall_db_all_paged(request):
 
 def rainfall_dashboad(request):
     """Test view for Rainfall API"""
-    return render(request, 'fields_admin/rainfall_dashboad.html', {})
+    return render(request, 'fields_admin/rainfall_dashboard.html', {})
 
 
 def rainfall_to_db(request):

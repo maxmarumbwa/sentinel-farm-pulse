@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🌧️ Daily Rainfall Chart</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            padding: 20px;
+            background: #f0f2f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1a2980, #26d0ce);
+            color: white;
+            padding: 20px 25px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 22px;
+            font-weight: 700;
+        }
+        .header .subtitle {
+            opacity: 0.9;
+            font-size: 13px;
+            margin-top: 4px;
+        }
+        .header .year-badge {
+            float: right;
+            background: rgba(255,255,255,0.2);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .controls-card {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        .controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .controls label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .controls select {
+            padding: 8px 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+            min-width: 120px;
+        }
+        .controls select:focus {
+            border-color: #26d0ce;
+            outline: none;
+        }
+        .btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #1a2980, #26d0ce);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(26, 41, 128, 0.3);
+        }
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .stat-box {
+            background: white;
+            padding: 12px 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+            text-align: center;
+        }
+        .stat-box .number {
+            font-size: 22px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+        .stat-box .number.green { color: #27ae60; }
+        .stat-box .number.blue { color: #3498db; }
+        .stat-box .number.orange { color: #f39c12; }
+        .stat-box .number.purple { color: #9b59b6; }
+        .stat-box .label {
+            font-size: 11px;
+            color: #7f8c8d;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        .chart-card h3 {
+            font-size: 15px;
+            color: #2c3e50;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #7f8c8d;
+        }
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #26d0ce;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            color: #e74c3c;
+            padding: 15px;
+            background: #fdf2f2;
+            border-radius: 8px;
+            border-left: 4px solid #e74c3c;
+        }
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+        .no-data .big-icon {
+            font-size: 48px;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .result {
+            margin-top: 0;
+        }
+
+        @media (max-width: 768px) {
+            .header .year-badge { float: none; display: inline-block; margin-top: 8px; }
+            .controls { flex-direction: column; align-items: stretch; }
+            .controls select { width: 100%; }
+            .stats-row { grid-template-columns: repeat(3, 1fr); }
+            .chart-container { height: 300px; }
+        }
+        @media (max-width: 480px) {
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .chart-container { height: 250px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>🌧️ Daily Rainfall Chart</h1>
+                <div class="subtitle">Daily rainfall for selected year</div>
+            </div>
+            <div class="year-badge" id="yearBadge">2026</div>
+        </div>
+
+        <div class="controls-card">
+            <div class="controls">
+                <label>📍 Province:
+                    <select id="provinceFilter">
+                        <option value="">All Provinces</option>
+                        <option value="Harare">Harare</option>
+                        <option value="Bulawayo">Bulawayo</option>
+                        <option value="Manicaland">Manicaland</option>
+                        <option value="Mashonaland Central">Mashonaland Central</option>
+                        <option value="Mashonaland East">Mashonaland East</option>
+                        <option value="Mashonaland West">Mashonaland West</option>
+                        <option value="Masvingo" selected>Masvingo</option>
+                        <option value="Matabeleland North">Matabeleland North</option>
+                        <option value="Matabeleland South">Matabeleland South</option>
+                        <option value="Midlands">Midlands</option>
+                    </select>
+                </label>
+                <label>📅 Year:
+                    <select id="yearSelect">
+                        <option value="2026">2026</option>
+                        <option value="2025">2025</option>
+                        <option value="2024">2024</option>
+                        <option value="2023">2023</option>
+                        <option value="2022">2022</option>
+                        <option value="2021">2021</option>
+                        <option value="2020">2020</option>
+                        <option value="2019">2019</option>
+                        <option value="2018">2018</option>
+                        <option value="2017">2017</option>
+                        <option value="2016">2016</option>
+                    </select>
+                </label>
+                <button class="btn btn-primary" onclick="loadData()">📊 Show Chart</button>
+                <button class="btn btn-danger" onclick="clearDashboard()">✖ Clear</button>
+            </div>
+        </div>
+
+        <div id="dashboard" class="result"></div>
+    </div>
+
+    <script>
+        let currentData = null;
+        let currentYear = '';
+        let currentProvince = '';
+        let chart = null;
+
+        function setDefaultYear() {
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            document.getElementById('yearSelect').value = currentYear;
+            document.getElementById('yearBadge').textContent = currentYear;
+        }
+
+        function clearDashboard() {
+            const dashboard = document.getElementById('dashboard');
+            dashboard.innerHTML = '';
+            currentData = null;
+            if (chart) {
+                chart.destroy();
+                chart = null;
+            }
+        }
+
+        function formatDate(dateStr) {
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('en-ZW', { month: 'short', day: '2-digit' });
+        }
+
+        async function loadData() {
+            const year = document.getElementById('yearSelect').value;
+            const province = document.getElementById('provinceFilter').value;
+
+            if (!year) {
+                alert('Please select a year.');
+                return;
+            }
+
+            currentYear = year;
+            currentProvince = province;
+            document.getElementById('yearBadge').textContent = year;
+
+            const dashboard = document.getElementById('dashboard');
+            dashboard.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p style="margin-top:15px; font-size:16px;">Loading rainfall data for ${year}...</p>
+                </div>
+            `;
+
+            try {
+                const startDate = `${year}-01-01`;
+                const endDate = `${year}-12-31`;
+
+                let url = `/api/rainfall/export/?start_date=${startDate}&end_date=${endDate}&format=json`;
+                if (province) {
+                    url += `&province=${encodeURIComponent(province)}`;
+                }
+
+                console.log('Fetching:', url);
+                const response = await fetch(url);
+                const data = await response.json();
+                console.log('Data:', data);
+
+                if (data.success && data.data && data.data.length > 0) {
+                    currentData = data;
+                    renderChart(data, year);
+                } else {
+                    dashboard.innerHTML = `
+                        <div class="no-data">
+                            <span class="big-icon">📭</span>
+                            <h3>No Data Found</h3>
+                            <p>No rainfall data available for ${year}.</p>
+                            <p style="font-size:13px; color:#95a5a6;">Try selecting a different year or province.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                dashboard.innerHTML = `
+                    <div class="error">
+                        <strong>❌ Connection Error</strong>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function renderChart(data, year) {
+            const dashboard = document.getElementById('dashboard');
+
+            const records = data.data;
+            const values = records.map(r => r.rainfall);
+            const total = values.reduce((a, b) => a + b, 0);
+            const avg = total / values.length;
+            const max = Math.max(...values);
+            const rainyDays = values.filter(v => v > 1).length;
+            const dryDays = values.filter(v => v <= 1).length;
+            const totalDays = values.length;
+
+            // Sort records by date
+            const sortedRecords = [...records].sort((a, b) => a.date.localeCompare(b.date));
+            const dates = sortedRecords.map(r => formatDate(r.date));
+            const rainfallValues = sortedRecords.map(r => r.rainfall);
+
+            let html = '';
+
+            // Stats Row
+            html += `
+                <div class="stats-row">
+                    <div class="stat-box">
+                        <div class="number green">${total.toFixed(1)}mm</div>
+                        <div class="label">Total Rainfall</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="number blue">${avg.toFixed(1)}mm</div>
+                        <div class="label">Daily Average</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="number orange">${max.toFixed(1)}mm</div>
+                        <div class="label">Maximum</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="number purple">${rainyDays}</div>
+                        <div class="label">Rainy Days</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="number">${dryDays}</div>
+                        <div class="label">Dry Days</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="number">${totalDays}</div>
+                        <div class="label">Total Days</div>
+                    </div>
+                </div>
+            `;
+
+            // Chart
+            html += `
+                <div class="chart-card">
+                    <h3>📈 Daily Rainfall - ${year} (${data.filters.province || 'All Provinces'})</h3>
+                    <div class="chart-container">
+                        <canvas id="rainfallChart"></canvas>
+                    </div>
+                </div>
+            `;
+
+            // Metadata
+            html += `
+                <div style="padding:12px 15px; background:white; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.08); font-size:12px; color:#95a5a6; margin-top:15px;">
+                    <strong>Metadata:</strong>
+                    <br>Source: ${data.metadata.source || 'database'}
+                    <br>Exported: ${data.metadata.exported_at}
+                    <br>Year: ${year}
+                    <br>Province: ${data.filters.province || 'All'}
+                    <br>Total Records: ${data.count}
+                </div>
+            `;
+
+            dashboard.innerHTML = html;
+
+            // Destroy existing chart
+            if (chart) {
+                chart.destroy();
+                chart = null;
+            }
+
+            // Create chart
+            setTimeout(() => {
+                const ctx = document.getElementById('rainfallChart').getContext('2d');
+                chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: dates,
+                        datasets: [{
+                            label: 'Daily Rainfall (mm)',
+                            data: rainfallValues,
+                            backgroundColor: '#26d0ce',
+                            borderColor: '#1a2980',
+                            borderWidth: 0.5,
+                            borderRadius: 2,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: { display: false }
+                        },
+                        scales: {
+                            x: {
+                                ticks: {
+                                    maxTicksLimit: 15,
+                                    font: { size: 9 }
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Date',
+                                    font: { size: 11 }
+                                },
+                                grid: { display: false }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Rainfall (mm)',
+                                    font: { size: 11 }
+                                },
+                                ticks: { font: { size: 10 } },
+                                grid: { color: 'rgba(0,0,0,0.05)' }
+                            }
+                        }
+                    }
+                });
+            }, 100);
+        }
+
+        window.onload = function() {
+            setDefaultYear();
+            setTimeout(loadData, 300);
+        };
+    </script>
+</body>
+</html>

@@ -1687,7 +1687,456 @@ def api_rainfall_export_csv_paginated(request):
         logger.error(f"Error exporting rainfall data: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 ##
+#
+#
 #  
+#
+#
+#
+#  
+#
+############################## ==============================###########################=======================
+############################ MONTHLY RAINFALL AGGREGATION VIEW ###########################
+########################### ==============================###########################=======================
+# =====================================================
+#  MONTHLY RAINFALL AGGREGATION VIEW
+# =====================================================
+
+import datetime
+import calendar
+import logging
+from django.http import JsonResponse
+from django.db.models import Sum
+from django.db import connection
+from .models import RainfallProvince
+
+logger = logging.getLogger(__name__)
+
+
+def api_rainfall_monthly(request):
+    """
+    Get monthly aggregated rainfall data - OPTIMIZED version.
+    Uses a single SQL query with GROUP BY.
+    
+    Query parameters:
+    - start_date: Start date (YYYY-MM-DD) (required)
+    - end_date: End date (YYYY-MM-DD) (required)
+    - province: (optional) Filter by specific province
+    - format: json (default) or csv
+    """
+    try:
+        # Get query parameters
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        province_filter = request.GET.get('province')
+        output_format = request.GET.get('format', 'json').lower()
+        
+        # Validate required parameters
+        if not start_date_str or not end_date_str:
+            return JsonResponse({
+                'error': 'start_date and end_date are required',
+                'example': '/api/rainfall/monthly/?start_date=2024-01-01&end_date=2024-12-31'
+            }, status=400)
+        
+        # Parse dates
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        # ============================================================
+        # OPTIMIZED: Single SQL query with GROUP BY
+        # ============================================================
+        
+        table_name = RainfallProvince._meta.db_table
+        
+        # Build the WHERE clause
+        where_clause = "date >= %s AND date <= %s"
+        params = [start_date, end_date]
+        
+        if province_filter:
+            where_clause += " AND province = %s"
+            params.append(province_filter)
+        
+        # Single query with GROUP BY year, month, province
+        sql = """
+            SELECT 
+                EXTRACT(YEAR FROM date)::int as year,
+                EXTRACT(MONTH FROM date)::int as month,
+                province,
+                SUM(rainfall_mm) as total_rainfall
+            FROM {table_name}
+            WHERE {where_clause}
+            GROUP BY EXTRACT(YEAR FROM date), EXTRACT(MONTH FROM date), province
+            ORDER BY year, month, province
+        """.format(table_name=table_name, where_clause=where_clause)
+        
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+        
+        # Check if data exists
+        if not rows:
+            return JsonResponse({
+                'success': False,
+                'message': 'No data found in database for the given date range.',
+                'data': []
+            }, status=404)
+        
+        # ============================================================
+        # Process results into the required format
+        # ============================================================
+        
+        # Get all provinces from the results
+        if province_filter:
+            provinces = [province_filter]
+        else:
+            provinces = sorted(set(row[2] for row in rows))
+        
+        # Group data by year-month
+        month_data = {}
+        for row in rows:
+            year = row[0]
+            month = row[1]
+            province = row[2]
+            total = row[3]
+            
+            key = f"{year}-{month:02d}"
+            
+            if key not in month_data:
+                month_data[key] = {
+                    'year': year,
+                    'month': month,
+                    'month_name': calendar.month_name[month],
+                    'month_abbr': calendar.month_abbr[month],
+                    'date': f"{year}-{month:02d}-01",
+                    'period': f"{calendar.month_name[month]} {year}",
+                    'sort_key': f"{year}-{month:02d}",
+                }
+                # Initialize all provinces with 0
+                for p in provinces:
+                    month_data[key][p] = 0.0
+            
+            month_data[key][province] = round(total, 2)
+        
+        # Convert to list and sort by date
+        data = sorted(month_data.values(), key=lambda x: x['sort_key'])
+        
+        # ============================================================
+        # Build response
+        # ============================================================
+        
+        response_data = {
+            'success': True,
+            'aggregation': 'monthly',
+            'aggregation_label': 'Monthly',
+            'date_range': {
+                'start': start_date_str,
+                'end': end_date_str
+            },
+            'provinces': provinces,
+            'total_months': len(data),
+            'data': data,
+            'metadata': {
+                'source': 'database',
+                'exported_at': datetime.datetime.now().isoformat()
+            }
+        }
+        
+        # ============================================================
+        # Return as CSV if requested
+        # ============================================================
+        
+        if output_format == 'csv':
+            return export_monthly_csv_optimized(response_data)
+        
+        return JsonResponse(response_data, status=200)
+        
+    except Exception as e:
+        logger.error(f"Error in monthly rainfall aggregation: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def export_monthly_csv_optimized(response_data):
+    """Export monthly aggregation data as CSV."""
+    import csv
+    from django.http import HttpResponse
+    
+    data = response_data['data']
+    provinces = response_data['provinces']
+    
+    if not data:
+        return JsonResponse({'error': 'No data to export'}, status=404)
+    
+    csv_response = HttpResponse(content_type='text/csv')
+    filename = f"rainfall_monthly_{response_data['date_range']['start']}_to_{response_data['date_range']['end']}.csv"
+    csv_response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    writer = csv.writer(csv_response)
+    
+    header = ['Year', 'Month', 'Month Name', 'Period'] + provinces
+    writer.writerow(header)
+    
+    for row in data:
+        row_data = [
+            row['year'],
+            row['month'],
+            row['month_name'],
+            row['period']
+        ]
+        for province in provinces:
+            row_data.append(row.get(province, 0.0))
+        writer.writerow(row_data)
+    
+    return csv_response
+#
+
+# =====================================================
+# DEKADAL RAINFALL AGGREGATION VIEW (OPTIMIZED)
+# =====================================================
+
+import datetime
+import calendar
+import logging
+from django.http import JsonResponse
+from django.db import connection
+from .models import RainfallProvince
+
+logger = logging.getLogger(__name__)
+
+
+def api_rainfall_dekadal(request):
+    """
+    Get dekadal aggregated rainfall data (10-day periods).
+    Dekad 1 = days 01-10
+    Dekad 2 = days 11-20
+    Dekad 3 = days 21-end of month
+    
+    Query parameters:
+    - start_date: Start date (YYYY-MM-DD) (required)
+    - end_date: End date (YYYY-MM-DD) (required)
+    - province: (optional) Filter by specific province
+    - format: json (default) or csv
+    
+    Example:
+    /api/rainfall/dekadal/?start_date=2024-01-01&end_date=2024-12-31
+    /api/rainfall/dekadal/?start_date=2024-01-01&end_date=2024-12-31&province=Harare
+    /api/rainfall/dekadal/?start_date=2024-01-01&end_date=2024-12-31&format=csv
+    """
+    try:
+        # Get query parameters
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        province_filter = request.GET.get('province')
+        output_format = request.GET.get('format', 'json').lower()
+        
+        # Validate required parameters
+        if not start_date_str or not end_date_str:
+            return JsonResponse({
+                'error': 'start_date and end_date are required',
+                'example': '/api/rainfall/dekadal/?start_date=2024-01-01&end_date=2024-12-31'
+            }, status=400)
+        
+        # Parse dates
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        # ============================================================
+        # OPTIMIZED: Single SQL query with GROUP BY for dekads
+        # ============================================================
+        
+        table_name = RainfallProvince._meta.db_table
+        
+        # Build the WHERE clause
+        where_clause = "date >= %s AND date <= %s"
+        params = [start_date, end_date]
+        
+        if province_filter:
+            where_clause += " AND province = %s"
+            params.append(province_filter)
+        
+        # Single query with GROUP BY year, month, dekad, province
+        sql = """
+            SELECT 
+                EXTRACT(YEAR FROM date)::int as year,
+                EXTRACT(MONTH FROM date)::int as month,
+                CASE 
+                    WHEN EXTRACT(DAY FROM date) <= 10 THEN 1
+                    WHEN EXTRACT(DAY FROM date) <= 20 THEN 2
+                    ELSE 3
+                END as dekad,
+                province,
+                SUM(rainfall_mm) as total_rainfall,
+                COUNT(*) as record_count
+            FROM {table_name}
+            WHERE {where_clause}
+            GROUP BY 
+                EXTRACT(YEAR FROM date),
+                EXTRACT(MONTH FROM date),
+                CASE 
+                    WHEN EXTRACT(DAY FROM date) <= 10 THEN 1
+                    WHEN EXTRACT(DAY FROM date) <= 20 THEN 2
+                    ELSE 3
+                END,
+                province
+            ORDER BY year, month, dekad, province
+        """.format(table_name=table_name, where_clause=where_clause)
+        
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+        
+        # Check if data exists
+        if not rows:
+            return JsonResponse({
+                'success': False,
+                'message': 'No data found in database for the given date range.',
+                'data': []
+            }, status=404)
+        
+        # ============================================================
+        # Process results into the required format
+        # ============================================================
+        
+        # Get all provinces from the results
+        if province_filter:
+            provinces = [province_filter]
+        else:
+            provinces = sorted(set(row[3] for row in rows))
+        
+        # Group data by year-month-dekad
+        dekad_data = {}
+        for row in rows:
+            year = row[0]
+            month = row[1]
+            dekad = row[2]
+            province = row[3]
+            total = row[4]
+            count = row[5]
+            
+            # Calculate start and end dates for the dekad
+            if dekad == 1:
+                start_day = 1
+                end_day = 10
+            elif dekad == 2:
+                start_day = 11
+                end_day = 20
+            else:
+                start_day = 21
+                end_day = calendar.monthrange(year, month)[1]
+            
+            start_date_str_key = f"{year}-{month:02d}-{start_day:02d}"
+            end_date_str_key = f"{year}-{month:02d}-{end_day:02d}"
+            
+            # Create key for grouping
+            key = f"{year}-{month:02d}-D{dekad}"
+            
+            if key not in dekad_data:
+                month_name = calendar.month_name[month][:3]  # Jan, Feb, etc.
+                dekad_data[key] = {
+                    'year': year,
+                    'month': month,
+                    'month_name': calendar.month_name[month],
+                    'month_abbr': calendar.month_abbr[month],
+                    'dekad': dekad,
+                    'dekad_label': f"D{dekad}",
+                    'date': f"{year}-{month:02d}-{start_day:02d}",
+                    'start_date': f"{year}-{month:02d}-{start_day:02d}",
+                    'end_date': f"{year}-{month:02d}-{end_day:02d}",
+                    'period': f"{month_name} D{dekad}",
+                    'sort_key': f"{year}-{month:02d}-{dekad:02d}",
+                }
+                # Initialize all provinces with 0
+                for p in provinces:
+                    dekad_data[key][p] = 0.0
+                    dekad_data[key][f"{p}_count"] = 0
+            
+            dekad_data[key][province] = round(total, 2)
+            dekad_data[key][f"{province}_count"] = count
+        
+        # Convert to list and sort by date
+        data = sorted(dekad_data.values(), key=lambda x: x['sort_key'])
+        
+        # ============================================================
+        # Build response
+        # ============================================================
+        
+        response_data = {
+            'success': True,
+            'aggregation': 'dekadal',
+            'aggregation_label': 'Dekadal (10-day periods)',
+            'dekad_definitions': {
+                'Dekad 1': 'Days 01-10',
+                'Dekad 2': 'Days 11-20',
+                'Dekad 3': 'Days 21-end of month'
+            },
+            'date_range': {
+                'start': start_date_str,
+                'end': end_date_str
+            },
+            'provinces': provinces,
+            'total_dekads': len(data),
+            'data': data,
+            'metadata': {
+                'source': 'database',
+                'exported_at': datetime.datetime.now().isoformat()
+            }
+        }
+        
+        # ============================================================
+        # Return as CSV if requested
+        # ============================================================
+        
+        if output_format == 'csv':
+            return export_dekadal_csv(response_data)
+        
+        return JsonResponse(response_data, status=200)
+        
+    except Exception as e:
+        logger.error(f"Error in dekadal rainfall aggregation: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def export_dekadal_csv(response_data):
+    """Export dekadal aggregation data as CSV."""
+    import csv
+    from django.http import HttpResponse
+    
+    data = response_data['data']
+    provinces = response_data['provinces']
+    
+    if not data:
+        return JsonResponse({'error': 'No data to export'}, status=404)
+    
+    csv_response = HttpResponse(content_type='text/csv')
+    filename = f"rainfall_dekadal_{response_data['date_range']['start']}_to_{response_data['date_range']['end']}.csv"
+    csv_response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    writer = csv.writer(csv_response)
+    
+    # Write header
+    header = ['Year', 'Month', 'Dekad', 'Start Date', 'End Date', 'Period'] + provinces
+    writer.writerow(header)
+    
+    # Write data rows
+    for row in data:
+        row_data = [
+            row['year'],
+            row['month'],
+            row['dekad'],
+            row['start_date'],
+            row['end_date'],
+            row['period']
+        ]
+        for province in provinces:
+            row_data.append(row.get(province, 0.0))
+        writer.writerow(row_data)
+    
+    return csv_response
+#  
+#
+#
+#
+#
+#
 #
 #
 #

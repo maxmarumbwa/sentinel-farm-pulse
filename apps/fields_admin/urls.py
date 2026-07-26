@@ -34,7 +34,9 @@ urlpatterns = [
     path('api/rainfall/export/', views.api_rainfall_export_csv, name='api_rainfall_export_csv'),
     path('api/rainfall_db_al_page/', views.api_rainfall_export_csv_paginated, name='api_rainfall_export'),
     path('api/rainfall/dashboard/', views.rainfall_dashboad, name='rainfall_dashboad'),
-
+    # rainfall aggregation 
+    path('api/rainfall/monthly/', views.api_rainfall_monthly, name='api_rainfall_monthly'),
+    
 
     # path('api/rainfall/provinces/', views.api_rainfall_all_provinces, name='api_rainfall_all_provinces'),
     # path('api/rainfall/point/', views.api_rainfall_single_point, name='api_rainfall_single_point'),

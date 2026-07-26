@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>🌧️ Monthly Rainfall Bar Chart</title>
+    <title>🌧️ Daily Rainfall Chart</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
     </script>
     <style>
@@ -112,6 +112,13 @@
         }
         .btn-danger:hover {
             background: #c0392b;
+        }
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #229954;
         }
 
         .quick-buttons {
@@ -224,33 +231,6 @@
             margin-top: 0;
         }
 
-        .monthly-table {
-            display: grid;
-            grid-template-columns: repeat(6, 1fr);
-            gap: 8px;
-            font-size: 13px;
-            margin-top: 10px;
-        }
-        .monthly-table .month-item {
-            text-align: center;
-            padding: 8px;
-            background: #f8f9fa;
-            border-radius: 6px;
-        }
-        .monthly-table .month-item .month-name {
-            font-weight: 700;
-            color: #2c3e50;
-        }
-        .monthly-table .month-item .month-value {
-            font-weight: 600;
-        }
-        .monthly-table .month-item .month-value.has-rain {
-            color: #27ae60;
-        }
-        .monthly-table .month-item .month-value.no-rain {
-            color: #95a5a6;
-        }
-
         @media (max-width: 768px) {
             .header .date-range-badge { float: none; display: inline-block; margin-top: 8px; }
             .controls { flex-direction: column; align-items: stretch; }
@@ -259,12 +239,10 @@
             .quick-buttons { justify-content: center; }
             .stats-row { grid-template-columns: repeat(3, 1fr); }
             .chart-container { height: 300px; }
-            .monthly-table { grid-template-columns: repeat(3, 1fr); }
         }
         @media (max-width: 480px) {
             .stats-row { grid-template-columns: repeat(2, 1fr); }
             .chart-container { height: 250px; }
-            .monthly-table { grid-template-columns: repeat(2, 1fr); }
         }
     </style>
 </head>
@@ -272,8 +250,8 @@
     <div class="container">
         <div class="header">
             <div>
-                <h1>🌧️ Monthly Rainfall Bar Chart</h1>
-                <div class="subtitle">Monthly rainfall totals</div>
+                <h1>🌧️ Daily Rainfall Chart</h1>
+                <div class="subtitle">Dynamic rainfall plotting with custom date range</div>
             </div>
             <div class="date-range-badge" id="dateRangeBadge">Loading...</div>
         </div>
@@ -298,9 +276,9 @@
                 <label>📅 From: <input type="date" id="startDate"></label>
                 <label>📅 To: <input type="date" id="endDate"></label>
                 <div class="quick-buttons">
-                    <button class="btn-sm" onclick="setQuickRange(30)">1m</button>
-                    <button class="btn-sm" onclick="setQuickRange(90)">3m</button>
-                    <button class="btn-sm" onclick="setQuickRange(180)">6m</button>
+                    <button class="btn-sm" onclick="setQuickRange(7)">7d</button>
+                    <button class="btn-sm" onclick="setQuickRange(30)">30d</button>
+                    <button class="btn-sm" onclick="setQuickRange(90)">90d</button>
                     <button class="btn-sm" onclick="setQuickRange(365)">1y</button>
                     <button class="btn-sm" onclick="setQuickRange(0)">All</button>
                 </div>
@@ -321,10 +299,10 @@
 
         function setDefaultDates() {
             const today = new Date();
-            const twoYearsAgo = new Date(today);
-            twoYearsAgo.setFullYear(today.getFullYear() - 2);
+            const oneYearAgo = new Date(today);
+            oneYearAgo.setFullYear(today.getFullYear() - 1);
             
-            document.getElementById('startDate').value = twoYearsAgo.toISOString().split('T')[0];
+            document.getElementById('startDate').value = oneYearAgo.toISOString().split('T')[0];
             document.getElementById('endDate').value = today.toISOString().split('T')[0];
             
             updateDateBadge();
@@ -347,6 +325,7 @@
             const start = new Date(end);
             
             if (days === 0) {
+                // All data - go back 10 years
                 start.setFullYear(end.getFullYear() - 10);
             } else {
                 start.setDate(end.getDate() - days);
@@ -355,6 +334,8 @@
             document.getElementById('startDate').value = start.toISOString().split('T')[0];
             document.getElementById('endDate').value = end.toISOString().split('T')[0];
             updateDateBadge();
+            
+            // Auto-plot
             loadData();
         }
 
@@ -450,29 +431,10 @@
             const dryDays = values.filter(v => v <= 1).length;
             const totalDays = values.length;
 
-            // Group by month
-            const monthlyData = {};
-            records.forEach(r => {
-                const date = new Date(r.date);
-                const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                const monthLabel = date.toLocaleDateString('en-ZW', { month: 'short', year: 'numeric' });
-                
-                if (!monthlyData[monthKey]) {
-                    monthlyData[monthKey] = {
-                        label: monthLabel,
-                        total: 0,
-                        count: 0
-                    };
-                }
-                monthlyData[monthKey].total += r.rainfall;
-                monthlyData[monthKey].count += 1;
-            });
-
-            // Sort by date
-            const sortedMonths = Object.keys(monthlyData).sort();
-            const monthLabels = sortedMonths.map(m => monthlyData[m].label);
-            const monthTotals = sortedMonths.map(m => monthlyData[m].total);
-            const monthCounts = sortedMonths.map(m => monthlyData[m].count);
+            // Sort records by date
+            const sortedRecords = [...records].sort((a, b) => a.date.localeCompare(b.date));
+            const dates = sortedRecords.map(r => formatDate(r.date));
+            const rainfallValues = sortedRecords.map(r => r.rainfall);
 
             let html = '';
 
@@ -489,11 +451,11 @@
                     </div>
                     <div class="stat-box">
                         <div class="number orange">${max.toFixed(1)}mm</div>
-                        <div class="label">Maximum Day</div>
+                        <div class="label">Maximum</div>
                     </div>
                     <div class="stat-box">
                         <div class="number purple">${min.toFixed(1)}mm</div>
-                        <div class="label">Minimum Day</div>
+                        <div class="label">Minimum</div>
                     </div>
                     <div class="stat-box">
                         <div class="number red">${rainyDays}</div>
@@ -510,30 +472,16 @@
                 </div>
             `;
 
-            // Chart - Single color like original
+            // Chart
+            const start = new Date(currentStartDate);
+            const end = new Date(currentEndDate);
+            const diff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+            
             html += `
                 <div class="chart-card">
-                    <h3>📊 Monthly Rainfall - ${data.filters.province || 'All Provinces'}</h3>
+                    <h3>📈 Daily Rainfall - ${formatDate(currentStartDate)} to ${formatDate(currentEndDate)} (${data.filters.province || 'All Provinces'})</h3>
                     <div class="chart-container">
                         <canvas id="rainfallChart"></canvas>
-                    </div>
-                </div>
-            `;
-
-            // Monthly data table
-            html += `
-                <div style="background:white; border-radius:10px; padding:15px; margin-top:15px; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-                    <h3 style="font-size:14px; color:#2c3e50; margin-bottom:10px;">📋 Monthly Totals</h3>
-                    <div class="monthly-table">
-                        ${monthLabels.map((label, i) => `
-                            <div class="month-item">
-                                <div class="month-name">${label}</div>
-                                <div class="month-value ${monthTotals[i] > 0 ? 'has-rain' : 'no-rain'}">
-                                    ${monthTotals[i].toFixed(1)}mm
-                                </div>
-                                <div style="font-size:10px; color:#95a5a6;">${monthCounts[i]} days</div>
-                            </div>
-                        `).join('')}
                     </div>
                 </div>
             `;
@@ -547,7 +495,7 @@
                     <br>Date Range: ${data.date_range.start} to ${data.date_range.end}
                     <br>Province: ${data.filters.province || 'All'}
                     <br>Total Records: ${data.count}
-                    <br>Months: ${monthLabels.length}
+                    <br>Days: ${diff}
                 </div>
             `;
 
@@ -559,21 +507,20 @@
                 chart = null;
             }
 
-            // Create chart - Single color like original daily chart
+            // Create chart
             setTimeout(() => {
                 const ctx = document.getElementById('rainfallChart').getContext('2d');
-                
                 chart = new Chart(ctx, {
                     type: 'bar',
                     data: {
-                        labels: monthLabels,
+                        labels: dates,
                         datasets: [{
-                            label: 'Monthly Rainfall (mm)',
-                            data: monthTotals,
+                            label: 'Daily Rainfall (mm)',
+                            data: rainfallValues,
                             backgroundColor: '#26d0ce',
                             borderColor: '#1a2980',
-                            borderWidth: 1,
-                            borderRadius: 4,
+                            borderWidth: 0.5,
+                            borderRadius: 2,
                         }]
                     },
                     options: {
@@ -581,21 +528,18 @@
                         maintainAspectRatio: false,
                         plugins: {
                             legend: { display: false },
-                            datalabels: {
-                                anchor: 'end',
-                                align: 'end',
-                                color: '#2c3e50',
-                                font: { weight: 'bold', size: 10 },
-                                formatter: (v) => v > 0 ? v.toFixed(0) + 'mm' : ''
-                            }
+                            datalabels: { display: false }
                         },
                         scales: {
                             x: {
                                 ticks: {
-                                    maxTicksLimit: 20,
-                                    font: { size: 10 },
-                                    maxRotation: 45,
-                                    minRotation: 0
+                                    maxTicksLimit: Math.min(30, dates.length),
+                                    font: { size: 9 }
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Date',
+                                    font: { size: 11 }
                                 },
                                 grid: { display: false }
                             },
@@ -610,8 +554,7 @@
                                 grid: { color: 'rgba(0,0,0,0.05)' }
                             }
                         }
-                    },
-                    plugins: [ChartDataLabels]
+                    }
                 });
             }, 100);
         }

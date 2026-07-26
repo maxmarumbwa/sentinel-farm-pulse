@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>View All Rainfall Data</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .card h2 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+        .btn-primary {
+            background: #2c3e50;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #1a252f;
+        }
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #229954;
+        }
+        .btn-info {
+            background: #3498db;
+            color: white;
+        }
+        .btn-info:hover {
+            background: #2980b9;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 10px 0;
+            align-items: center;
+        }
+        .controls label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+        }
+        .controls input[type="date"] {
+            padding: 5px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        select {
+            padding: 5px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        
+        .result {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            max-height: 800px;
+            overflow: auto;
+        }
+        .loading {
+            text-align: center;
+            padding: 30px;
+            color: #7f8c8d;
+        }
+        .spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2c3e50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            color: #e74c3c;
+            padding: 10px;
+            background: #fdf2f2;
+            border-radius: 5px;
+            border-left: 4px solid #e74c3c;
+        }
+        .success {
+            color: #27ae60;
+            padding: 10px;
+            background: #f0fdf4;
+            border-radius: 5px;
+            border-left: 4px solid #27ae60;
+        }
+        .info {
+            color: #3498db;
+            padding: 10px;
+            background: #e8f0fe;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+            margin: 10px 0;
+        }
+        .stat-box {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            border-left: 3px solid #2c3e50;
+        }
+        .stat-box .number {
+            font-size: 22px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .stat-box .number.green { color: #27ae60; }
+        .stat-box .label {
+            font-size: 11px;
+            color: #7f8c8d;
+        }
+        
+        .data-table-container {
+            max-height: 500px;
+            overflow: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        table thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        table th {
+            background: #2c3e50;
+            color: white;
+            padding: 10px 12px;
+            text-align: left;
+        }
+        table th:last-child {
+            text-align: right;
+        }
+        table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+        }
+        table td:last-child {
+            text-align: right;
+        }
+        table tr:hover {
+            background: #f8f9fa;
+        }
+        table tr.rainy {
+            background: #f0fdf4;
+        }
+        table tr.rainy:hover {
+            background: #d5f5e3;
+        }
+        table tr.dry {
+            background: #f8f9fa;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 3px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .badge-dry { background: #f8f9fa; color: #7f8c8d; }
+        .badge-light { background: #d6eaf8; color: #2e86c1; }
+        .badge-moderate { background: #d5f5e3; color: #27ae60; }
+        .badge-heavy { background: #fdebd0; color: #e67e22; }
+        .badge-extreme { background: #fadbd8; color: #e74c3c; }
+        
+        .help-text {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin: 5px 0;
+        }
+        hr {
+            margin: 15px 0;
+            border: none;
+            border-top: 1px solid #e9ecef;
+        }
+        .metadata {
+            font-size: 11px;
+            color: #95a5a6;
+            margin-top: 10px;
+        }
+        
+        .summary-card {
+            background: white;
+            padding: 12px 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #2c3e50;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .summary-card .province-name {
+            font-weight: bold;
+            font-size: 16px;
+            color: #2c3e50;
+        }
+        .summary-card .stats-detail {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            font-size: 13px;
+            color: #555;
+        }
+        .summary-card .stats-detail span {
+            white-space: nowrap;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar .progress-fill {
+            height: 100%;
+            background: #27ae60;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 11px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 All Rainfall Data</h1>
+        <p class="help-text">View ALL rainfall data for Zimbabwe provinces (no pagination).</p>
+        
+        <div class="card">
+            <h2>📅 Select Date Range</h2>
+            
+            <div class="controls">
+                <label>Start: <input type="date" id="startDate"></label>
+                <label>End: <input type="date" id="endDate"></label>
+                <label>Province: 
+                    <select id="provinceFilter">
+                        <option value="">All Provinces</option>
+                        <option value="Harare">Harare</option>
+                        <option value="Bulawayo">Bulawayo</option>
+                        <option value="Manicaland">Manicaland</option>
+                        <option value="Mashonaland Central">Mashonaland Central</option>
+                        <option value="Mashonaland East">Mashonaland East</option>
+                        <option value="Mashonaland West">Mashonaland West</option>
+                        <option value="Masvingo">Masvingo</option>
+                        <option value="Matabeleland North">Matabeleland North</option>
+                        <option value="Matabeleland South">Matabeleland South</option>
+                        <option value="Midlands">Midlands</option>
+                    </select>
+                </label>
+                <button class="btn btn-primary" onclick="viewAllData()">📊 View All</button>
+                <button class="btn btn-success" onclick="exportCSV()">📥 Download CSV</button>
+                <button class="btn btn-danger" onclick="clearResult()">✖ Clear</button>
+            </div>
+            
+            <div id="result" class="result" style="display:none;"></div>
+        </div>
+    </div>
+    
+    <script>
+        let currentData = null;
+        let currentStartDate = '';
+        let currentEndDate = '';
+        let currentProvince = '';
+        
+        function setDefaultDates() {
+            const today = new Date();
+            const fiveYearsAgo = new Date(today);
+            fiveYearsAgo.setFullYear(today.getFullYear() - 5);
+            document.getElementById('startDate').value = fiveYearsAgo.toISOString().split('T')[0];
+            document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        }
+        
+        function clearResult() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'none';
+            resultDiv.innerHTML = '';
+            currentData = null;
+        }
+        
+        function formatDate(dateStr) {
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('en-ZW', { year: 'numeric', month: 'short', day: '2-digit' });
+        }
+        
+        function getStatus(rainfall) {
+            if (rainfall === 0) {
+                return { text: '☀️ Dry', class: 'badge-dry' };
+            } else if (rainfall < 1) {
+                return { text: '🌤️ Light', class: 'badge-light' };
+            } else if (rainfall < 20) {
+                return { text: '🌧️ Moderate', class: 'badge-moderate' };
+            } else if (rainfall < 50) {
+                return { text: '⛈️ Heavy', class: 'badge-heavy' };
+            } else {
+                return { text: '🌊 Extreme', class: 'badge-extreme' };
+            }
+        }
+        
+        function calculateStats(data) {
+            if (!data || data.length === 0) {
+                return {
+                    total: 0,
+                    avg: 0,
+                    max: 0,
+                    min: 0,
+                    rainy_days: 0,
+                    total_days: 0
+                };
+            }
+            
+            const values = data.map(d => d.rainfall);
+            const total = values.reduce((a, b) => a + b, 0);
+            const avg = total / values.length;
+            const max = Math.max(...values);
+            const min = Math.min(...values);
+            const rainy_days = values.filter(v => v > 1).length;
+            
+            return {
+                total: total,
+                avg: avg,
+                max: max,
+                min: min,
+                rainy_days: rainy_days,
+                total_days: values.length
+            };
+        }
+        
+        async function viewAllData() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const province = document.getElementById('provinceFilter').value;
+            
+            if (!startDate || !endDate) {
+                alert('Please select both start and end dates.');
+                return;
+            }
+            
+            currentStartDate = startDate;
+            currentEndDate = endDate;
+            currentProvince = province;
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading ALL rainfall data...</p>
+                    <p style="font-size:13px; color:#95a5a6;">Fetching page 1...</p>
+                </div>
+            `;
+            
+            try {
+                // ✅ Use the main API with large page size to get all records
+                let allData = [];
+                let page = 1;
+                const pageSize = 500; // Max allowed by API
+                let hasMore = true;
+                let totalRecords = 0;
+                let totalPages = 0;
+                
+                while (hasMore) {
+                    let url = `/api/rainfall/db/?start_date=${startDate}&end_date=${endDate}&page=${page}&page_size=${pageSize}&format=full`;
+                    if (province) {
+                        url += `&province=${encodeURIComponent(province)}`;
+                    }
+                    
+                    console.log(`Fetching page ${page}:`, url);
+                    
+                    // Update loading message
+                    resultDiv.innerHTML = `
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p>Loading ALL rainfall data...</p>
+                            <p style="font-size:13px; color:#95a5a6;">Fetching page ${page}...</p>
+                            ${totalRecords > 0 ? `<div class="progress-bar"><div class="progress-fill" style="width:${Math.min((allData.length / totalRecords) * 100, 100)}%">${allData.length} / ${totalRecords}</div></div>` : ''}
+                        </div>
+                    `;
+                    
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    
+                    if (!data.success) {
+                        throw new Error(data.error || 'Failed to fetch data');
+                    }
+                    
+                    // Get province data
+                    const provinceNames = Object.keys(data.provinces);
+                    if (provinceNames.length === 0) {
+                        hasMore = false;
+                        break;
+                    }
+                    
+                    // Extract data from response
+                    for (const provinceName of provinceNames) {
+                        const provinceData = data.provinces[provinceName];
+                        if (provinceData.data && provinceData.data.length > 0) {
+                            // Add province name to each record
+                            const records = provinceData.data.map(item => ({
+                                date: item.date,
+                                province: provinceName,
+                                rainfall: item.rainfall
+                            }));
+                            allData = allData.concat(records);
+                        }
+                    }
+                    
+                    totalRecords = data.pagination.total_records || 0;
+                    totalPages = data.pagination.total_pages || 0;
+                    
+                    hasMore = data.pagination.has_next || false;
+                    page = data.pagination.next_page || page + 1;
+                    
+                    // Safety: prevent infinite loop
+                    if (page > 100) break;
+                }
+                
+                console.log(`Total records loaded: ${allData.length}`);
+                
+                if (allData.length === 0) {
+                    resultDiv.innerHTML = `
+                        <div class="info">
+                            ℹ️ No data found in database for this date range.
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Store data for CSV export
+                currentData = {
+                    success: true,
+                    count: allData.length,
+                    data: allData,
+                    date_range: {
+                        start: startDate,
+                        end: endDate
+                    },
+                    filters: {
+                        province: province || 'All'
+                    },
+                    metadata: {
+                        source: 'database',
+                        exported_at: new Date().toISOString()
+                    }
+                };
+                
+                // Group data by province
+                const groupedData = {};
+                allData.forEach(item => {
+                    if (!groupedData[item.province]) {
+                        groupedData[item.province] = [];
+                    }
+                    groupedData[item.province].push(item);
+                });
+                
+                const provinceNames = Object.keys(groupedData);
+                
+                let html = '';
+                
+                // Stats summary
+                html += `
+                    <div class="success">
+                        ✅ ${allData.length} total records found
+                        <br><strong>Provinces:</strong> ${provinceNames.length}
+                        <br><strong>Date Range:</strong> ${startDate} to ${endDate}
+                        <br><strong>Pages fetched:</strong> ${totalPages}
+                    </div>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <div class="number green">${allData.length}</div>
+                            <div class="label">Total Records</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="number">${provinceNames.length}</div>
+                            <div class="label">Provinces</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="number">${totalPages}</div>
+                            <div class="label">Pages Fetched</div>
+                        </div>
+                    </div>
+                `;
+                
+                // Show data for each province
+                for (const provinceName of provinceNames) {
+                    const provinceData = groupedData[provinceName];
+                    const stats = calculateStats(provinceData);
+                    const rainyDays = stats.rainy_days;
+                    const totalDays = stats.total_days;
+                    const totalRain = stats.total;
+                    const avgRain = stats.avg;
+                    const maxRain = stats.max;
+                    
+                    html += `
+                        <hr>
+                        <div class="summary-card">
+                            <div class="province-name">📍 ${provinceName}</div>
+                            <div class="stats-detail">
+                                <span>📅 ${totalDays} days</span>
+                                <span>💧 ${totalRain.toFixed(1)}mm total</span>
+                                <span>📊 ${avgRain.toFixed(1)}mm avg</span>
+                                <span>📈 ${maxRain.toFixed(1)}mm max</span>
+                                <span>🌧️ ${rainyDays} rainy days</span>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Show table with all data
+                    html += `
+                        <div class="data-table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Rainfall (mm)</th>
+                                        <th style="text-align:right;">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+                    
+                    // Sort by date (newest first)
+                    const sortedData = [...provinceData].sort((a, b) => b.date.localeCompare(a.date));
+                    
+                    for (const item of sortedData) {
+                        const rainfall = item.rainfall;
+                        const hasRain = rainfall > 0;
+                        const status = getStatus(rainfall);
+                        
+                        html += `
+                            <tr class="${hasRain ? 'rainy' : 'dry'}">
+                                <td>${formatDate(item.date)}</td>
+                                <td style="font-weight:${hasRain ? 'bold' : 'normal'}; color:${hasRain ? '#27ae60' : '#95a5a6'};">
+                                    ${rainfall.toFixed(1)}mm
+                                </td>
+                                <td style="text-align:right;">
+                                    <span class="badge ${status.class}">${status.text}</span>
+                                </td>
+                            </tr>
+                        `;
+                    }
+                    
+                    html += `
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                }
+                
+                // Metadata
+                html += `
+                    <hr>
+                    <div class="metadata">
+                        <strong>Metadata:</strong>
+                        <br>Source: database
+                        <br>Exported: ${new Date().toISOString()}
+                        <br>Date Range: ${startDate} to ${endDate}
+                        ${province ? `<br>Filter: ${province}` : ''}
+                        <br>Total Records: ${allData.length}
+                        <br>Pages Fetched: ${totalPages}
+                    </div>
+                `;
+                
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <strong>❌ Connection Error</strong>
+                        <p>${error.message}</p>
+                        <p style="font-size:12px;">Please check your internet connection and try again.</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function exportCSV() {
+            if (!currentData || !currentData.data || currentData.data.length === 0) {
+                alert('Please load data first by clicking "View All".');
+                return;
+            }
+            
+            // Build CSV
+            let csv = 'Date,Province,Rainfall (mm)\n';
+            
+            for (const item of currentData.data) {
+                csv += `${item.date},${item.province},${item.rainfall.toFixed(2)}\n`;
+            }
+            
+            // Download CSV
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `rainfall_${currentStartDate}_to_${currentEndDate}${currentProvince ? '_' + currentProvince : ''}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        // Load default dates on page load
+        window.onload = function() {
+            setDefaultDates();
+        };
+    </script>
+</body>
+</html>

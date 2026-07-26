@@ -1201,19 +1201,20 @@ def api_save_rainfall_data(request):
 # =====================================================
 # API: GET RAINFALL DATA FROM DATABASE (FAST)
 # =====================================================
+#
+#
+from django.db import connection
 def api_rainfall_from_db(request):
     """
-    Get rainfall data from database (much faster than Earth Engine).
-    
-    Query parameters:
-    - start_date: Start date (YYYY-MM-DD) (required)
-    - end_date: End date (YYYY-MM-DD) (required)
-    - province: (optional) Filter by specific province
+    Get rainfall data - ULTRA FAST with single SQL query using JSON aggregation.
     """
     try:
         start_date_str = request.GET.get('start_date')
         end_date_str = request.GET.get('end_date')
-        province_filter = request.GET.get('province')
+        province_filter = request.GET.get('province', '')
+        page = int(request.GET.get('page', 1))
+        page_size = min(int(request.GET.get('page_size', 100)), 500)
+        format_type = request.GET.get('format', 'summary')
         
         if not start_date_str or not end_date_str:
             return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
@@ -1221,24 +1222,94 @@ def api_rainfall_from_db(request):
         start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
         end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
         
-        # Base queryset
-        queryset = RainfallProvince.objects.filter(
-            date__gte=start_date,
-            date__lte=end_date
-        ).order_by('date', 'province')
+        offset = (page - 1) * page_size
+        table_name = RainfallProvince._meta.db_table
         
-        # Apply province filter if provided
-        if province_filter:
-            queryset = queryset.filter(province=province_filter)
+        # ============================================================
+        # SINGLE SQL QUERY - Everything in one go
+        # ============================================================
+        sql = """
+            WITH filtered_data AS (
+                SELECT 
+                    date,
+                    province,
+                    rainfall_mm,
+                    lat,
+                    lng
+                FROM {table_name}
+                WHERE date >= %s AND date <= %s
+                AND (%s = '' OR province = %s)
+            ),
+            stats AS (
+                SELECT 
+                    province,
+                    COUNT(*) as total_days,
+                    COALESCE(SUM(rainfall_mm), 0) as total_rainfall,
+                    COALESCE(AVG(rainfall_mm), 0) as avg_rainfall,
+                    COALESCE(MAX(rainfall_mm), 0) as max_rainfall,
+                    COALESCE(MIN(rainfall_mm), 0) as min_rainfall,
+                    COUNT(CASE WHEN rainfall_mm > 1 THEN 1 END) as rainy_days
+                FROM filtered_data
+                GROUP BY province
+            ),
+            paginated AS (
+                SELECT 
+                    date,
+                    province,
+                    rainfall_mm,
+                    lat,
+                    lng
+                FROM filtered_data
+                ORDER BY date, province
+                LIMIT %s OFFSET %s
+            ),
+            total_count AS (
+                SELECT COUNT(*) as total FROM filtered_data
+            )
+            SELECT 
+                (SELECT total FROM total_count) as total_records,
+                (SELECT json_agg(json_build_object(
+                    'date', date,
+                    'province', province,
+                    'rainfall', rainfall_mm,
+                    'lat', lat,
+                    'lng', lng
+                )) FROM paginated) as data,
+                (SELECT json_agg(json_build_object(
+                    'province', province,
+                    'total_days', total_days,
+                    'total_rainfall', total_rainfall,
+                    'avg_rainfall', avg_rainfall,
+                    'max_rainfall', max_rainfall,
+                    'min_rainfall', min_rainfall,
+                    'rainy_days', rainy_days
+                )) FROM stats) as stats
+        """.format(table_name=table_name)
         
-        # ✅ FIX: Get provinces from the filtered queryset, not ALL provinces
-        provinces = list(queryset.values_list('province', flat=True).distinct())
+        with connection.cursor() as cursor:
+            cursor.execute(sql, [
+                start_date, 
+                end_date, 
+                province_filter, 
+                province_filter,
+                page_size, 
+                offset
+            ])
+            result = cursor.fetchone()
         
-        if not provinces:
+        if not result or result[0] == 0:
             return JsonResponse({
                 'success': True,
                 'message': 'No data found in database for this date range.',
                 'provinces': {},
+                'pagination': {
+                    'page': page,
+                    'page_size': page_size,
+                    'total_records': 0,
+                    'total_pages': 0,
+                    'has_next': False,
+                    'has_previous': False
+                },
                 'date_range': {
                     'start': start_date_str,
                     'end': end_date_str
@@ -1247,72 +1318,120 @@ def api_rainfall_from_db(request):
                     'source': 'database',
                     'records': 0,
                     'provinces_found': 0,
+                    'format': format_type,
                     'processed_at': datetime.datetime.now().isoformat()
                 }
             }, status=200)
         
+        total_records = result[0]
+        data_list = result[1] or []
+        stats_list = result[2] or []
+        
+        # Process data
         results = {}
-        for province in provinces:
-            province_data = queryset.filter(province=province)
-            first_record = province_data.first()
-            coords = {
-                'lat': first_record.lat if first_record else None,
-                'lng': first_record.lng if first_record else None
+        province_data = {}
+        province_coords = {}
+        
+        for item in data_list:
+            province = item['province']
+            if province not in province_data:
+                province_data[province] = []
+                province_coords[province] = {
+                    'lat': item['lat'],
+                    'lng': item['lng']
+                }
+            province_data[province].append({
+                'date': item['date'].strftime('%Y-%m-%d') if isinstance(item['date'], datetime.date) else item['date'],
+                'rainfall': item['rainfall']
+            })
+        
+        # Build stats dict
+        stats_dict = {}
+        for stat in stats_list:
+            province = stat['province']
+            stats_dict[province] = {
+                'total_days': stat['total_days'],
+                'total_rainfall': round(stat['total_rainfall'], 2),
+                'avg_rainfall': round(stat['avg_rainfall'], 2),
+                'max_rainfall': round(stat['max_rainfall'], 2),
+                'min_rainfall': round(stat['min_rainfall'], 2),
+                'rainy_days': stat['rainy_days']
             }
-            
-            formatted_data = []
-            rain_values = []
-            for item in province_data:
-                formatted_data.append({
-                    'date': item.date.strftime('%Y-%m-%d'),
-                    'rainfall': item.rainfall_mm
-                })
-                rain_values.append(item.rainfall_mm)
+        
+        # Build final results
+        for province, data in province_data.items():
+            stats = stats_dict.get(province, {})
+            total_days = stats.get('total_days', 0)
+            province_total_pages = (total_days + page_size - 1) // page_size if total_days > 0 else 0
             
             results[province] = {
-                'coords': coords,
-                'data': formatted_data,
+                'coords': province_coords.get(province, {'lat': None, 'lng': None}),
+                'data': data if format_type == 'full' else [],
                 'stats': {
-                    'total': round(sum(rain_values), 2) if rain_values else 0,
-                    'avg': round(sum(rain_values) / len(rain_values), 2) if rain_values else 0,
-                    'max': max(rain_values) if rain_values else 0,
-                    'min': min(rain_values) if rain_values else 0,
-                    'rainy_days': len([r for r in rain_values if r > 1]),
-                    'total_days': len(formatted_data)
+                    'total': stats.get('total_rainfall', 0),
+                    'avg': stats.get('avg_rainfall', 0),
+                    'max': stats.get('max_rainfall', 0),
+                    'min': stats.get('min_rainfall', 0),
+                    'rainy_days': stats.get('rainy_days', 0),
+                    'total_days': total_days
+                },
+                'pagination': {
+                    'total_records': total_days,
+                    'showing': len(data),
+                    'page': page,
+                    'page_size': page_size,
+                    'total_pages': province_total_pages
                 }
             }
+        
+        total_pages = (total_records + page_size - 1) // page_size if total_records > 0 else 0
         
         return JsonResponse({
             'success': True,
             'provinces': results,
+            'pagination': {
+                'page': page,
+                'page_size': page_size,
+                'total_records': total_records,
+                'total_pages': total_pages,
+                'has_next': page < total_pages,
+                'has_previous': page > 1,
+                'next_page': page + 1 if page < total_pages else None,
+                'previous_page': page - 1 if page > 1 else None
+            },
             'date_range': {
                 'start': start_date_str,
                 'end': end_date_str
             },
             'metadata': {
                 'source': 'database',
-                'records': queryset.count(),
-                'provinces_found': len(provinces),
+                'records': total_records,
+                'provinces_found': len(results),
+                'format': format_type,
                 'processed_at': datetime.datetime.now().isoformat()
             }
         }, status=200)
         
+    except ValueError as e:
+        return JsonResponse({'error': f'Invalid parameter: {str(e)}'}, status=400)
     except Exception as e:
         logger.error(f"Error getting rainfall from DB: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+#
+################################################################################################################
+###################################### Csv export of exporting all data from database ############################
+################################################################################################################
+import csv
+from django.http import HttpResponse
 
+def api_rainfall_export_csv(request):
     """
-    Get rainfall data from database (much faster than Earth Engine).
-    
-    Query parameters:
-    - start_date: Start date (YYYY-MM-DD) (required)
-    - end_date: End date (YYYY-MM-DD) (required)
-    - province: (optional) Filter by specific province
+    Export all rainfall records as CSV.
     """
     try:
         start_date_str = request.GET.get('start_date')
         end_date_str = request.GET.get('end_date')
-        province_filter = request.GET.get('province')
+        province_filter = request.GET.get('province', '')
         
         if not start_date_str or not end_date_str:
             return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
@@ -1328,77 +1447,206 @@ def api_rainfall_from_db(request):
         if province_filter:
             queryset = queryset.filter(province=province_filter)
         
-        provinces = list(RainfallProvince.objects.filter(
-            date__gte=start_date,
-            date__lte=end_date
-        ).values_list('province', flat=True).distinct())
+        # Create CSV response
+        response = HttpResponse(content_type='text/csv')
+        filename = f"rainfall_{start_date_str}_to_{end_date_str}"
+        if province_filter:
+            filename += f"_{province_filter}"
+        response['Content-Disposition'] = f'attachment; filename="{filename}.csv"'
         
-        if not provinces:
+        writer = csv.writer(response)
+        writer.writerow(['Date', 'Province', 'Rainfall (mm)'])
+        
+        for record in queryset:
+            writer.writerow([
+                record.date.strftime('%Y-%m-%d'),
+                record.province,
+                f"{record.rainfall_mm:.2f}"
+            ])
+        
+        return response
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+############################################################################################
+####################################### paginated verion ##############################
+###############################################################################################
+
+def api_rainfall_export_csv_paginated(request):
+    """
+    Export rainfall data with pagination support.
+    
+    Query parameters:
+    - start_date: Start date (YYYY-MM-DD) (required)
+    - end_date: End date (YYYY-MM-DD) (required)
+    - province: (optional) Filter by specific province
+    - page: Page number (default: 1)
+    - page_size: Records per page (default: 100, max: 1000)
+    - format: 'json' or 'csv' (default: 'json')
+    """
+    try:
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        province_filter = request.GET.get('province', '')
+        page = int(request.GET.get('page', 1))
+        page_size = min(int(request.GET.get('page_size', 100)), 1000)
+        output_format = request.GET.get('format', 'json').lower()
+        
+        if not start_date_str or not end_date_str:
+            return JsonResponse({
+                'error': 'start_date and end_date are required',
+                'example': '/api/rainfall/export/?start_date=2020-01-01&end_date=2026-07-26&province=Masvingo&page=1&page_size=100'
+            }, status=400)
+        
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        offset = (page - 1) * page_size
+        table_name = RainfallProvince._meta.db_table
+        
+        # ============================================================
+        # QUERY 1: Get total count
+        # ============================================================
+        sql_count = """
+            SELECT COUNT(*) as total
+            FROM {table_name}
+            WHERE date >= %s AND date <= %s
+            AND (%s = '' OR province = %s)
+        """.format(table_name=table_name)
+        
+        with connection.cursor() as cursor:
+            cursor.execute(sql_count, [start_date, end_date, province_filter, province_filter])
+            total_records = cursor.fetchone()[0]
+        
+        if total_records == 0:
             return JsonResponse({
                 'success': True,
-                'message': 'No data found in database. Please save data first.',
-                'provinces': {},
+                'message': 'No data found in database for this date range.',
+                'data': [],
+                'count': 0,
+                'pagination': {
+                    'page': page,
+                    'page_size': page_size,
+                    'total_records': 0,
+                    'total_pages': 0,
+                    'has_next': False,
+                    'has_previous': False
+                },
                 'date_range': {
                     'start': start_date_str,
                     'end': end_date_str
                 },
+                'filters': {
+                    'province': province_filter if province_filter else 'All'
+                },
                 'metadata': {
                     'source': 'database',
-                    'records': 0,
-                    'processed_at': datetime.datetime.now().isoformat()
+                    'exported_at': datetime.datetime.now().isoformat()
                 }
             }, status=200)
         
-        results = {}
-        for province in provinces:
-            province_data = queryset.filter(province=province)
-            first_record = province_data.first()
-            coords = {
-                'lat': first_record.lat if first_record else None,
-                'lng': first_record.lng if first_record else None
-            }
-            
-            formatted_data = []
-            rain_values = []
-            for item in province_data:
-                formatted_data.append({
-                    'date': item.date.strftime('%Y-%m-%d'),
-                    'rainfall': item.rainfall_mm
-                })
-                rain_values.append(item.rainfall_mm)
-            
-            results[province] = {
-                'coords': coords,
-                'data': formatted_data,
-                'stats': {
-                    'total': round(sum(rain_values), 2) if rain_values else 0,
-                    'avg': round(sum(rain_values) / len(rain_values), 2) if rain_values else 0,
-                    'max': max(rain_values) if rain_values else 0,
-                    'min': min(rain_values) if rain_values else 0,
-                    'rainy_days': len([r for r in rain_values if r > 1]),
-                    'total_days': len(formatted_data)
-                }
-            }
+        # ============================================================
+        # QUERY 2: Get paginated data
+        # ============================================================
+        sql_data = """
+            SELECT 
+                date,
+                province,
+                rainfall_mm
+            FROM {table_name}
+            WHERE date >= %s AND date <= %s
+            AND (%s = '' OR province = %s)
+            ORDER BY date, province
+            LIMIT %s OFFSET %s
+        """.format(table_name=table_name)
         
+        with connection.cursor() as cursor:
+            cursor.execute(sql_data, [
+                start_date, 
+                end_date, 
+                province_filter, 
+                province_filter,
+                page_size, 
+                offset
+            ])
+            rows = cursor.fetchall()
+        
+        # Process data
+        data = []
+        for row in rows:
+            data.append({
+                'date': row[0].strftime('%Y-%m-%d'),
+                'province': row[1],
+                'rainfall': row[2]
+            })
+        
+        # Calculate pagination
+        total_pages = (total_records + page_size - 1) // page_size if total_records > 0 else 0
+        
+        pagination = {
+            'page': page,
+            'page_size': page_size,
+            'total_records': total_records,
+            'total_pages': total_pages,
+            'has_next': page < total_pages,
+            'has_previous': page > 1,
+            'next_page': page + 1 if page < total_pages else None,
+            'previous_page': page - 1 if page > 1 else None
+        }
+        
+        # ============================================================
+        # Return JSON or CSV
+        # ============================================================
+        if output_format == 'csv':
+            import csv
+            from django.http import HttpResponse
+            
+            response = HttpResponse(content_type='text/csv')
+            filename = f"rainfall_{start_date_str}_to_{end_date_str}"
+            if province_filter:
+                filename += f"_{province_filter}"
+            filename += f"_page{page}"
+            response['Content-Disposition'] = f'attachment; filename="{filename}.csv"'
+            
+            writer = csv.writer(response)
+            writer.writerow(['Date', 'Province', 'Rainfall (mm)'])
+            for row in data:
+                writer.writerow([row['date'], row['province'], f"{row['rainfall']:.2f}"])
+            
+            return response
+        
+        # Return JSON
         return JsonResponse({
             'success': True,
-            'provinces': results,
+            'data': data,
+            'count': len(data),
+            'total_records': total_records,
+            'pagination': pagination,
             'date_range': {
                 'start': start_date_str,
                 'end': end_date_str
             },
+            'filters': {
+                'province': province_filter if province_filter else 'All'
+            },
             'metadata': {
                 'source': 'database',
-                'records': queryset.count(),
-                'provinces_found': len(provinces),
-                'processed_at': datetime.datetime.now().isoformat()
+                'exported_at': datetime.datetime.now().isoformat()
             }
         }, status=200)
         
+    except ValueError as e:
+        return JsonResponse({'error': f'Invalid parameter: {str(e)}'}, status=400)
     except Exception as e:
-        logger.error(f"Error getting rainfall from DB: {str(e)}")
+        logger.error(f"Error exporting rainfall data: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
+##
+#  
+#
+#
+#
+#
+#
 #OLD VIEW getting datadirect from google earth engine
 # # =====================================================
 # # RAINFALL DATA - CHIRPS
@@ -1643,7 +1891,19 @@ def test_rainfall_view(request):
     return render(request, 'fields_admin/test_rainfall.html', {})
 def rainfall_db(request):
     """Test view for Rainfall API"""
-    return render(request, 'fields_admin/rainfall_db.html', {})
+    return render(request, 'fields_admin/view_rainfall_db.html', {})
+def rainfall_db_all(request):
+    """Test view for Rainfall API"""
+    return render(request, 'fields_admin/view_rainfall_db_all.html', {})
+def rainfall_db_all_paged(request):
+    """Test view for Rainfall API"""
+    return render(request, 'fields_admin/view_rainfall_db_all_paged.html', {})
+
+def rainfall_dashboad(request):
+    """Test view for Rainfall API"""
+    return render(request, 'fields_admin/rainfall_dashboad.html', {})
+
+
 def rainfall_to_db(request):
     """Test view for Rainfall API"""
     return render(request, 'fields_admin/save_rain_to_db.html', {})

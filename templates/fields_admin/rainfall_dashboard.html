@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🌧️ Rainfall Monitoring Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            padding: 20px;
+            background: #f0f2f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1a2980, #26d0ce);
+            color: white;
+            padding: 25px 30px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 20px rgba(26, 41, 128, 0.3);
+        }
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .header .subtitle {
+            opacity: 0.9;
+            margin-top: 5px;
+            font-size: 14px;
+        }
+        .header .last-updated {
+            float: right;
+            font-size: 13px;
+            opacity: 0.8;
+            margin-top: -30px;
+        }
+        
+        /* Controls */
+        .controls-card {
+            background: white;
+            padding: 20px 25px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .controls label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .controls input[type="date"] {
+            padding: 8px 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border 0.2s;
+        }
+        .controls input[type="date"]:focus {
+            border-color: #26d0ce;
+            outline: none;
+        }
+        .btn {
+            padding: 9px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #1a2980, #26d0ce);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(26, 41, 128, 0.3);
+        }
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #229954;
+        }
+        .btn-outline {
+            background: transparent;
+            border: 2px solid #e9ecef;
+            color: #2c3e50;
+        }
+        .btn-outline:hover {
+            background: #f8f9fa;
+        }
+        
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .stat-card {
+            background: white;
+            padding: 18px 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-3px);
+        }
+        .stat-card .number {
+            font-size: 32px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+        .stat-card .number.green { color: #27ae60; }
+        .stat-card .number.blue { color: #3498db; }
+        .stat-card .number.orange { color: #f39c12; }
+        .stat-card .number.red { color: #e74c3c; }
+        .stat-card .number.purple { color: #9b59b6; }
+        .stat-card .label {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .stat-card .icon {
+            font-size: 24px;
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        /* Province Cards */
+        .province-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+        }
+        .province-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: all 0.3s;
+            border-left: 5px solid #26d0ce;
+            position: relative;
+            overflow: hidden;
+        }
+        .province-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+        }
+        .province-card .province-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .province-card .province-name {
+            font-size: 18px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+        .province-card .province-emoji {
+            font-size: 28px;
+        }
+        .province-card .stats-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin: 10px 0;
+        }
+        .province-card .stat-item {
+            text-align: center;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .province-card .stat-item .value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+        .province-card .stat-item .value.rainy { color: #3498db; }
+        .province-card .stat-item .value.dry { color: #95a5a6; }
+        .province-card .stat-item .value.total { color: #27ae60; }
+        .province-card .stat-item .label {
+            font-size: 10px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        
+        .province-card .rain-bar-container {
+            margin: 10px 0 5px 0;
+        }
+        .province-card .rain-bar {
+            height: 6px;
+            background: #e9ecef;
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+        }
+        .province-card .rain-bar .fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.8s ease;
+            background: linear-gradient(90deg, #3498db, #2ecc71);
+        }
+        .province-card .rain-bar-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #7f8c8d;
+            margin-top: 3px;
+        }
+        
+        .province-card .rainfall-status {
+            display: inline-block;
+            padding: 3px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-wet { background: #d5f5e3; color: #27ae60; }
+        .status-moderate { background: #fdebd0; color: #f39c12; }
+        .status-dry { background: #f8f9fa; color: #7f8c8d; }
+        .status-heavy { background: #fadbd8; color: #e74c3c; }
+        
+        .province-card .badge-warning {
+            background: #fef9e7;
+            color: #f39c12;
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #7f8c8d;
+        }
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #26d0ce;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Error / Info */
+        .error {
+            color: #e74c3c;
+            padding: 15px;
+            background: #fdf2f2;
+            border-radius: 10px;
+            border-left: 4px solid #e74c3c;
+        }
+        .success {
+            color: #27ae60;
+            padding: 15px;
+            background: #f0fdf4;
+            border-radius: 10px;
+            border-left: 4px solid #27ae60;
+        }
+        .info {
+            color: #3498db;
+            padding: 15px;
+            background: #e8f0fe;
+            border-radius: 10px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .result {
+            margin-top: 20px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header .last-updated {
+                float: none;
+                margin-top: 10px;
+                display: block;
+            }
+            .province-grid {
+                grid-template-columns: 1fr;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .controls label {
+                flex-wrap: wrap;
+            }
+            .controls input[type="date"] {
+                width: 100%;
+            }
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+        .no-data .big-icon {
+            font-size: 48px;
+            display: block;
+            margin-bottom: 10px;
+        }
+        
+        /* Tooltip */
+        .tooltip {
+            position: relative;
+            cursor: help;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🌧️ Rainfall Monitoring Dashboard</h1>
+            <div class="subtitle">Zimbabwe Province Rainfall Summary</div>
+            <div class="last-updated" id="lastUpdated">Last updated: --</div>
+        </div>
+        
+        <!-- Controls -->
+        <div class="controls-card">
+            <div class="controls">
+                <label>📅 Start: <input type="date" id="startDate"></label>
+                <label>📅 End: <input type="date" id="endDate"></label>
+                <button class="btn btn-primary" onclick="loadDashboard()">📊 Update Dashboard</button>
+                <button class="btn btn-success" onclick="exportSummary()">📥 Export Summary</button>
+                <button class="btn btn-danger" onclick="clearDashboard()">✖ Clear</button>
+            </div>
+        </div>
+        
+        <!-- Dashboard -->
+        <div id="dashboard" class="result"></div>
+    </div>
+    
+    <script>
+        let currentData = null;
+        let currentStartDate = '';
+        let currentEndDate = '';
+        
+        function setDefaultDates() {
+            const today = new Date();
+            const oneYearAgo = new Date(today);
+            oneYearAgo.setFullYear(today.getFullYear() - 1);
+            document.getElementById('startDate').value = oneYearAgo.toISOString().split('T')[0];
+            document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        }
+        
+        function clearDashboard() {
+            document.getElementById('dashboard').innerHTML = '';
+            currentData = null;
+        }
+        
+        function getStatus(rainfall, totalDays) {
+            if (totalDays === 0) return { text: 'No Data', class: 'status-dry' };
+            const avg = rainfall / totalDays;
+            if (avg === 0) return { text: '🌵 Dry', class: 'status-dry' };
+            if (avg < 1) return { text: '🌤️ Light', class: 'status-moderate' };
+            if (avg < 5) return { text: '🌧️ Moderate', class: 'status-moderate' };
+            if (avg < 10) return { text: '⛈️ Wet', class: 'status-wet' };
+            return { text: '🌊 Heavy', class: 'status-heavy' };
+        }
+        
+        function getEmoji(province) {
+            const emojis = {
+                'Harare': '🏙️',
+                'Bulawayo': '🏛️',
+                'Manicaland': '⛰️',
+                'Mashonaland Central': '🌾',
+                'Mashonaland East': '🌿',
+                'Mashonaland West': '🌳',
+                'Masvingo': '🏜️',
+                'Matabeleland North': '🦁',
+                'Matabeleland South': '🦏',
+                'Midlands': '⛰️'
+            };
+            return emojis[province] || '📍';
+        }
+        
+        function formatDate(dateStr) {
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('en-ZW', { year: 'numeric', month: 'short', day: '2-digit' });
+        }
+        
+        async function loadDashboard() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('Please select both start and end dates.');
+                return;
+            }
+            
+            currentStartDate = startDate;
+            currentEndDate = endDate;
+            
+            const dashboard = document.getElementById('dashboard');
+            dashboard.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p style="margin-top:15px; font-size:16px;">Loading rainfall data...</p>
+                    <p style="font-size:13px; color:#95a5a6;">${formatDate(startDate)} - ${formatDate(endDate)}</p>
+                </div>
+            `;
+            
+            try {
+                // Use summary format for fast loading
+                let url = `/api/rainfall/db/?start_date=${startDate}&end_date=${endDate}&page=1&page_size=500&format=summary`;
+                
+                console.log('Fetching:', url);
+                const response = await fetch(url);
+                const data = await response.json();
+                console.log('Data:', data);
+                
+                if (data.success) {
+                    currentData = data;
+                    
+                    const provinceNames = Object.keys(data.provinces);
+                    
+                    if (provinceNames.length === 0) {
+                        dashboard.innerHTML = `
+                            <div class="no-data">
+                                <span class="big-icon">📭</span>
+                                <h3>No Data Found</h3>
+                                <p>No rainfall data available for the selected date range.</p>
+                                <p style="font-size:13px; color:#95a5a6;">${formatDate(startDate)} - ${formatDate(endDate)}</p>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    // Calculate overall stats
+                    let totalRainfall = 0;
+                    let totalDays = 0;
+                    let totalRainyDays = 0;
+                    let maxRainfall = 0;
+                    let maxProvince = '';
+                    
+                    for (const [province, result] of Object.entries(data.provinces)) {
+                        const stats = result.stats;
+                        totalRainfall += stats.total || 0;
+                        totalDays += stats.total_days || 0;
+                        totalRainyDays += stats.rainy_days || 0;
+                        if ((stats.max || 0) > maxRainfall) {
+                            maxRainfall = stats.max || 0;
+                            maxProvince = province;
+                        }
+                    }
+                    
+                    // Overall Stats Cards
+                    let html = `
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <span class="icon">🌧️</span>
+                                <div class="number green">${totalRainfall.toFixed(1)}mm</div>
+                                <div class="label">Total Rainfall</div>
+                            </div>
+                            <div class="stat-card">
+                                <span class="icon">📊</span>
+                                <div class="number blue">${(totalRainfall / (totalDays || 1)).toFixed(1)}mm</div>
+                                <div class="label">Average Daily</div>
+                            </div>
+                            <div class="stat-card">
+                                <span class="icon">📅</span>
+                                <div class="number purple">${totalDays}</div>
+                                <div class="label">Total Days</div>
+                            </div>
+                            <div class="stat-card">
+                                <span class="icon">💧</span>
+                                <div class="number orange">${totalRainyDays}</div>
+                                <div class="label">Rainy Days</div>
+                            </div>
+                            <div class="stat-card">
+                                <span class="icon">📈</span>
+                                <div class="number red">${maxRainfall.toFixed(1)}mm</div>
+                                <div class="label">Max Daily (${maxProvince})</div>
+                            </div>
+                            <div class="stat-card">
+                                <span class="icon">📍</span>
+                                <div class="number">${provinceNames.length}</div>
+                                <div class="label">Provinces</div>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-bottom:15px; font-size:13px; color:#7f8c8d;">
+                            📅 ${formatDate(startDate)} - ${formatDate(endDate)} &nbsp;|&nbsp; 
+                            📊 ${data.metadata.records} total records
+                        </div>
+                    `;
+                    
+                    // Province Cards
+                    html += `<div class="province-grid">`;
+                    
+                    // Sort provinces by total rainfall (descending)
+                    const sortedProvinces = provinceNames.sort((a, b) => {
+                        return (data.provinces[b].stats.total || 0) - (data.provinces[a].stats.total || 0);
+                    });
+                    
+                    for (const province of sortedProvinces) {
+                        const result = data.provinces[province];
+                        const stats = result.stats;
+                        const total = stats.total || 0;
+                        const avg = stats.avg || 0;
+                        const max = stats.max || 0;
+                        const rainyDays = stats.rainy_days || 0;
+                        const totalDays = stats.total_days || 0;
+                        const dryDays = totalDays - rainyDays;
+                        
+                        const status = getStatus(total, totalDays);
+                        const emoji = getEmoji(province);
+                        
+                        // Calculate rain bar percentage (max 100% = 50mm)
+                        const barPercent = Math.min((total / (totalDays || 1)) / 10 * 100, 100);
+                        const barColor = barPercent > 50 ? '#e74c3c' : barPercent > 25 ? '#f39c12' : barPercent > 10 ? '#2ecc71' : '#3498db';
+                        
+                        html += `
+                            <div class="province-card">
+                                <div class="province-header">
+                                    <span class="province-name">${emoji} ${province}</span>
+                                    <span class="rainfall-status ${status.class}">${status.text}</span>
+                                </div>
+                                
+                                <div class="stats-row">
+                                    <div class="stat-item">
+                                        <div class="value total">${total.toFixed(1)}mm</div>
+                                        <div class="label">Total</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="value">${avg.toFixed(1)}mm</div>
+                                        <div class="label">Daily Avg</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="value rainy">${max.toFixed(1)}mm</div>
+                                        <div class="label">Max</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="rain-bar-container">
+                                    <div class="rain-bar">
+                                        <div class="fill" style="width: ${barPercent}%; background: ${barColor};"></div>
+                                    </div>
+                                    <div class="rain-bar-label">
+                                        <span>☀️ Dry</span>
+                                        <span>🌧️ ${barPercent.toFixed(0)}% of max</span>
+                                        <span>🌊 Wet</span>
+                                    </div>
+                                </div>
+                                
+                                <div style="display:flex; justify-content:space-between; font-size:12px; color:#7f8c8d; margin-top:8px;">
+                                    <span>📅 ${totalDays} days</span>
+                                    <span>💧 ${rainyDays} rainy days</span>
+                                    <span>☀️ ${dryDays} dry days</span>
+                                    <span class="badge-warning">${(rainyDays / (totalDays || 1) * 100).toFixed(0)}% wet</span>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    html += `</div>`;
+                    
+                    // Metadata
+                    html += `
+                        <div style="margin-top:25px; padding:15px; background:white; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.08); font-size:12px; color:#95a5a6;">
+                            <strong>Metadata:</strong>
+                            <br>Source: ${data.metadata.source || 'database'}
+                            <br>Processed: ${data.metadata.processed_at}
+                            <br>Date Range: ${data.date_range.start} to ${data.date_range.end}
+                            <br>Total Records: ${data.metadata.records}
+                            <br>Provinces: ${data.metadata.provinces_found}
+                            <br>Format: ${data.metadata.format}
+                        </div>
+                    `;
+                    
+                    dashboard.innerHTML = html;
+                    
+                    // Update last updated
+                    document.getElementById('lastUpdated').textContent = `Last updated: ${new Date().toLocaleString()}`;
+                    
+                } else {
+                    dashboard.innerHTML = `<div class="error">❌ Error: ${data.error || 'Unknown error'}</div>`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                dashboard.innerHTML = `
+                    <div class="error">
+                        <strong>❌ Connection Error</strong>
+                        <p>${error.message}</p>
+                        <p style="font-size:12px; color:#95a5a6;">Please check your connection and try again.</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function exportSummary() {
+            if (!currentData) {
+                alert('Please load data first by clicking "Update Dashboard".');
+                return;
+            }
+            
+            // Build CSV summary
+            let csv = 'Province,Total (mm),Daily Avg (mm),Max (mm),Rainy Days,Dry Days,Total Days\n';
+            
+            for (const [province, result] of Object.entries(currentData.provinces)) {
+                const stats = result.stats;
+                const totalDays = stats.total_days || 0;
+                const rainyDays = stats.rainy_days || 0;
+                csv += `${province},${(stats.total || 0).toFixed(2)},${(stats.avg || 0).toFixed(2)},${(stats.max || 0).toFixed(2)},${rainyDays},${totalDays - rainyDays},${totalDays}\n`;
+            }
+            
+            // Download CSV
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `rainfall_summary_${currentStartDate}_to_${currentEndDate}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        // Load default dates on page load
+        window.onload = function() {
+            setDefaultDates();
+            // Auto-load dashboard
+            setTimeout(loadDashboard, 300);
+        };
+    </script>
+</body>
+</html>

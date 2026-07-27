@@ -1694,9 +1694,11 @@ def api_rainfall_export_csv_paginated(request):
 #################################### DATA AGGREGATION VIEWS WITH lta ########################################
 ###############################################################################################################
 ###############################################################################################################
+#export_monthly_csv_optimized
 
 # =====================================================
 # MONTHLY RAINFALL AGGREGATION WITH CORRECT LTA
+# LTA is calculated from the data available in the date range
 # =====================================================
 
 import datetime
@@ -1714,15 +1716,16 @@ def api_rainfall_monthly(request):
     Get monthly aggregated rainfall data with Long-Term Average (LTA),
     Anomaly, and Percentage of Average.
     
-    LTA for each month = average of monthly totals
-    e.g., LTA_Jan = (Jan2000_total + Jan2001_total + ... + Jan2020_total) / 21
+    LTA is calculated from the data available in the requested date range.
+    e.g., if start_date=2000-01-01 and end_date=2001-03-31,
+    LTA_Jan = (Jan2000 + Jan2001) / 2
     
     Query parameters:
     - start_date: Start date (YYYY-MM-DD) (required)
     - end_date: End date (YYYY-MM-DD) (required)
     - province: (optional) Filter by specific province
-    - lta_start: Start year for LTA calculation (default: 2000)
-    - lta_end: End year for LTA calculation (default: 2020)
+    - lta_start: (optional) Override start year for LTA
+    - lta_end: (optional) Override end year for LTA
     - format: json (default) or csv
     """
     try:
@@ -1730,18 +1733,29 @@ def api_rainfall_monthly(request):
         start_date_str = request.GET.get('start_date')
         end_date_str = request.GET.get('end_date')
         province_filter = request.GET.get('province')
-        lta_start_year = int(request.GET.get('lta_start', 2000))
-        lta_end_year = int(request.GET.get('lta_end', 2020))
+        lta_start_year = request.GET.get('lta_start')
+        lta_end_year = request.GET.get('lta_end')
         output_format = request.GET.get('format', 'json').lower()
         
         if not start_date_str or not end_date_str:
             return JsonResponse({
                 'error': 'start_date and end_date are required',
-                'example': '/api/rainfall/monthly/lta/?start_date=2024-01-01&end_date=2024-12-31'
+                'example': '/api/rainfall/monthly/lta/?start_date=2000-01-01&end_date=2020-12-31'
             }, status=400)
         
         start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
         end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        # Determine LTA period
+        # If lta_start/lta_end are provided, use them
+        # Otherwise, use the years from the requested date range
+        if lta_start_year and lta_end_year:
+            lta_start = int(lta_start_year)
+            lta_end = int(lta_end_year)
+        else:
+            # Use the years from the requested date range
+            lta_start = start_date.year
+            lta_end = end_date.year
         
         # ============================================================
         # STEP 1: Get monthly totals for the requested period
@@ -1786,11 +1800,11 @@ def api_rainfall_monthly(request):
             provinces = sorted(set(row[2] for row in monthly_rows))
         
         # ============================================================
-        # STEP 2: Calculate CORRECT LTA for each month
-        # First get monthly totals for LTA period, then average them
+        # STEP 2: Calculate LTA for each month using the LTA period
+        # LTA = average of monthly totals for each month within LTA period
         # ============================================================
         
-        lta_where = f"EXTRACT(YEAR FROM date) BETWEEN {lta_start_year} AND {lta_end_year}"
+        lta_where = f"EXTRACT(YEAR FROM date) BETWEEN {lta_start} AND {lta_end}"
         if province_filter:
             lta_where += f" AND province = '{province_filter}'"
         
@@ -1812,6 +1826,8 @@ def api_rainfall_monthly(request):
         
         # Group monthly totals by month and province
         lta_data = {}
+        lta_years_set = set()
+        
         for row in monthly_lta_rows:
             year = row[0]
             month = row[1]
@@ -1822,23 +1838,15 @@ def api_rainfall_monthly(request):
             if key not in lta_data:
                 lta_data[key] = []
             lta_data[key].append(monthly_total)
+            lta_years_set.add(year)
         
         # Calculate LTA as average of monthly totals
         lta_lookup = {}
         lta_count_lookup = {}
-        lta_years_set = set()
         
         for key, values in lta_data.items():
             lta_lookup[key] = round(sum(values) / len(values), 2)
             lta_count_lookup[key] = len(values)
-            
-            # Also track years with data for this month-province
-            # We already have the years from the query
-            for row in monthly_lta_rows:
-                month = row[1]
-                province = row[2]
-                if f"{month}-{province}" == key:
-                    lta_years_set.add(row[0])
         
         lta_num_years = len(lta_years_set)
         lta_years = sorted(lta_years_set)
@@ -1897,11 +1905,12 @@ def api_rainfall_monthly(request):
             'aggregation': 'monthly',
             'aggregation_label': 'Monthly with LTA',
             'lta_period': {
-                'start_year': lta_start_year,
-                'end_year': lta_end_year,
+                'start_year': lta_start,
+                'end_year': lta_end,
                 'num_years': lta_num_years,
                 'years': lta_years,
-                'description': f"{lta_num_years} years ({lta_start_year}-{lta_end_year})"
+                'description': f"{lta_num_years} years ({lta_start}-{lta_end})",
+                'note': 'LTA is calculated from the available data in the LTA period'
             },
             'date_range': {
                 'start': start_date_str,
@@ -1974,6 +1983,7 @@ def export_monthly_csv_optimized(response_data):
         writer.writerow(row_data)
     
     return csv_response
+
 
 
 ######################################################################################################

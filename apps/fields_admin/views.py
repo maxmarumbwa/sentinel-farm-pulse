@@ -1984,20 +1984,7 @@ def export_monthly_csv_optimized(response_data):
     
     return csv_response
 
-
-
 ######################################################################################################
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
 #
 ##
 ###############################################################################################
@@ -2005,12 +1992,359 @@ def export_monthly_csv_optimized(response_data):
                 # DEKADAL RAINFALL AGGREGATION VIEW (OPTIMIZED)
                 # =====================================================
 ###################################################################################################
+# =====================================================
+# DEKADAL RAINFALL AGGREGATION WITH LTA
+# =====================================================
 
-#
-#
-#
-#
-#
+import datetime
+import calendar
+import logging
+from django.http import JsonResponse
+from django.db import connection
+from .models import RainfallProvince
+
+logger = logging.getLogger(__name__)
+
+
+def api_rainfall_dekadal(request):
+    """
+    Get dekadal aggregated rainfall data with Long-Term Average (LTA),
+    Anomaly, and Percentage of Average.
+    
+    Dekad 1 = days 01-10
+    Dekad 2 = days 11-20
+    Dekad 3 = days 21-end of month
+    
+    LTA is calculated from the data available in the requested date range.
+    e.g., if start_date=2000-01-01 and end_date=2001-03-31,
+    LTA_Jan_D1 = (Jan_D1_2000 + Jan_D1_2001) / 2
+    
+    Query parameters:
+    - start_date: Start date (YYYY-MM-DD) (required)
+    - end_date: End date (YYYY-MM-DD) (required)
+    - province: (optional) Filter by specific province
+    - lta_start: (optional) Override start year for LTA
+    - lta_end: (optional) Override end year for LTA
+    - format: json (default) or csv
+    
+    Example:
+    /api/rainfall/dekadal/lta/?start_date=2000-01-01&end_date=2024-12-31&province=Harare
+    """
+    try:
+        # Get query parameters
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        province_filter = request.GET.get('province')
+        lta_start_year = request.GET.get('lta_start')
+        lta_end_year = request.GET.get('lta_end')
+        output_format = request.GET.get('format', 'json').lower()
+        
+        if not start_date_str or not end_date_str:
+            return JsonResponse({
+                'error': 'start_date and end_date are required',
+                'example': '/api/rainfall/dekadal/lta/?start_date=2000-01-01&end_date=2024-12-31'
+            }, status=400)
+        
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        # Determine LTA period
+        if lta_start_year and lta_end_year:
+            lta_start = int(lta_start_year)
+            lta_end = int(lta_end_year)
+        else:
+            # Use the years from the requested date range
+            lta_start = start_date.year
+            lta_end = end_date.year
+        
+        # ============================================================
+        # STEP 1: Get dekadal totals for the requested period
+        # ============================================================
+        
+        table_name = RainfallProvince._meta.db_table
+        
+        where_clause = "date >= %s AND date <= %s"
+        params = [start_date, end_date]
+        
+        if province_filter:
+            where_clause += " AND province = %s"
+            params.append(province_filter)
+        
+        sql_dekadal = f"""
+            SELECT 
+                EXTRACT(YEAR FROM date)::int as year,
+                EXTRACT(MONTH FROM date)::int as month,
+                CASE 
+                    WHEN EXTRACT(DAY FROM date) <= 10 THEN 1
+                    WHEN EXTRACT(DAY FROM date) <= 20 THEN 2
+                    ELSE 3
+                END as dekad,
+                province,
+                SUM(rainfall_mm) as total_rainfall
+            FROM {table_name}
+            WHERE {where_clause}
+            GROUP BY 
+                EXTRACT(YEAR FROM date),
+                EXTRACT(MONTH FROM date),
+                CASE 
+                    WHEN EXTRACT(DAY FROM date) <= 10 THEN 1
+                    WHEN EXTRACT(DAY FROM date) <= 20 THEN 2
+                    ELSE 3
+                END,
+                province
+            ORDER BY year, month, dekad, province
+        """
+        
+        with connection.cursor() as cursor:
+            cursor.execute(sql_dekadal, params)
+            dekadal_rows = cursor.fetchall()
+        
+        if not dekadal_rows:
+            return JsonResponse({
+                'success': False,
+                'message': 'No data found for the given date range.',
+                'data': []
+            }, status=404)
+        
+        # Get all provinces
+        if province_filter:
+            provinces = [province_filter]
+        else:
+            provinces = sorted(set(row[3] for row in dekadal_rows))
+        
+        # ============================================================
+        # STEP 2: Calculate LTA for each month-dekad using the LTA period
+        # LTA = average of dekadal totals for each month-dekad within LTA period
+        # ============================================================
+        
+        lta_where = f"EXTRACT(YEAR FROM date) BETWEEN {lta_start} AND {lta_end}"
+        if province_filter:
+            lta_where += f" AND province = '{province_filter}'"
+        
+        # Get dekadal totals for LTA period
+        sql_dekadal_lta = f"""
+            SELECT 
+                EXTRACT(YEAR FROM date)::int as year,
+                EXTRACT(MONTH FROM date)::int as month,
+                CASE 
+                    WHEN EXTRACT(DAY FROM date) <= 10 THEN 1
+                    WHEN EXTRACT(DAY FROM date) <= 20 THEN 2
+                    ELSE 3
+                END as dekad,
+                province,
+                SUM(rainfall_mm) as dekadal_total
+            FROM {table_name}
+            WHERE {lta_where}
+            GROUP BY 
+                EXTRACT(YEAR FROM date),
+                EXTRACT(MONTH FROM date),
+                CASE 
+                    WHEN EXTRACT(DAY FROM date) <= 10 THEN 1
+                    WHEN EXTRACT(DAY FROM date) <= 20 THEN 2
+                    ELSE 3
+                END,
+                province
+        """
+        
+        with connection.cursor() as cursor:
+            cursor.execute(sql_dekadal_lta)
+            dekadal_lta_rows = cursor.fetchall()
+        
+        # Group dekadal totals by month-dekad and province
+        lta_data = {}
+        lta_years_set = set()
+        
+        for row in dekadal_lta_rows:
+            year = row[0]
+            month = row[1]
+            dekad = row[2]
+            province = row[3]
+            dekadal_total = row[4]
+            
+            key = f"{month}-{dekad}-{province}"
+            if key not in lta_data:
+                lta_data[key] = []
+            lta_data[key].append(dekadal_total)
+            lta_years_set.add(year)
+        
+        # Calculate LTA as average of dekadal totals
+        lta_lookup = {}
+        lta_count_lookup = {}
+        
+        for key, values in lta_data.items():
+            lta_lookup[key] = round(sum(values) / len(values), 2)
+            lta_count_lookup[key] = len(values)
+        
+        lta_num_years = len(lta_years_set)
+        lta_years = sorted(lta_years_set)
+        
+        # ============================================================
+        # STEP 3: Combine data with LTA
+        # ============================================================
+        
+        dekad_data = {}
+        for row in dekadal_rows:
+            year = row[0]
+            month = row[1]
+            dekad = row[2]
+            province = row[3]
+            total = row[4]
+            
+            # Calculate start and end dates for the dekad
+            if dekad == 1:
+                start_day = 1
+                end_day = 10
+            elif dekad == 2:
+                start_day = 11
+                end_day = 20
+            else:
+                start_day = 21
+                end_day = calendar.monthrange(year, month)[1]
+            
+            start_date_str_key = f"{year}-{month:02d}-{start_day:02d}"
+            end_date_str_key = f"{year}-{month:02d}-{end_day:02d}"
+            
+            key = f"{year}-{month:02d}-D{dekad}"
+            
+            if key not in dekad_data:
+                month_name = calendar.month_name[month][:3]
+                dekad_data[key] = {
+                    'year': year,
+                    'month': month,
+                    'month_name': calendar.month_name[month],
+                    'month_abbr': calendar.month_abbr[month],
+                    'dekad': dekad,
+                    'dekad_label': f"D{dekad}",
+                    'date': f"{year}-{month:02d}-{start_day:02d}",
+                    'start_date': f"{year}-{month:02d}-{start_day:02d}",
+                    'end_date': f"{year}-{month:02d}-{end_day:02d}",
+                    'period': f"{month_name} D{dekad}",
+                    'sort_key': f"{year}-{month:02d}-{dekad:02d}",
+                }
+                for p in provinces:
+                    dekad_data[key][p] = 0.0
+                    dekad_data[key][f"{p}_lta"] = 0.0
+                    dekad_data[key][f"{p}_lta_count"] = 0
+                    dekad_data[key][f"{p}_anomaly"] = 0.0
+                    dekad_data[key][f"{p}_pct_avg"] = 0.0
+            
+            lta_key = f"{month}-{dekad}-{province}"
+            lta_value = lta_lookup.get(lta_key, 0.0)
+            lta_count = lta_count_lookup.get(lta_key, 0)
+            
+            anomaly = total - lta_value
+            pct_avg = (total / lta_value * 100) if lta_value > 0 else 0
+            
+            dekad_data[key][province] = round(total, 2)
+            dekad_data[key][f"{province}_lta"] = lta_value
+            dekad_data[key][f"{province}_lta_count"] = lta_count
+            dekad_data[key][f"{province}_anomaly"] = round(anomaly, 2)
+            dekad_data[key][f"{province}_pct_avg"] = round(pct_avg, 1)
+        
+        data = sorted(dekad_data.values(), key=lambda x: x['sort_key'])
+        
+        # ============================================================
+        # STEP 4: Build response
+        # ============================================================
+        
+        response_data = {
+            'success': True,
+            'aggregation': 'dekadal',
+            'aggregation_label': 'Dekadal with LTA',
+            'dekad_definitions': {
+                'Dekad 1': 'Days 01-10',
+                'Dekad 2': 'Days 11-20',
+                'Dekad 3': 'Days 21-end of month'
+            },
+            'lta_period': {
+                'start_year': lta_start,
+                'end_year': lta_end,
+                'num_years': lta_num_years,
+                'years': lta_years,
+                'description': f"{lta_num_years} years ({lta_start}-{lta_end})",
+                'note': 'LTA is calculated from the available data in the LTA period'
+            },
+            'date_range': {
+                'start': start_date_str,
+                'end': end_date_str
+            },
+            'provinces': provinces,
+            'total_dekads': len(data),
+            'fields_explanation': {
+                'rainfall': 'Total dekadal rainfall (mm)',
+                'lta': 'Long-Term Average dekadal rainfall (mm)',
+                'lta_count': 'Number of years used to calculate LTA',
+                'anomaly': 'Rainfall - LTA (mm)',
+                'pct_avg': 'Percentage of LTA (%)'
+            },
+            'data': data,
+            'metadata': {
+                'source': 'database',
+                'exported_at': datetime.datetime.now().isoformat()
+            }
+        }
+        
+        if output_format == 'csv':
+            return export_dekadal_lta_csv(response_data)
+        
+        return JsonResponse(response_data, status=200)
+        
+    except Exception as e:
+        logger.error(f"Error in dekadal LTA aggregation: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def export_dekadal_csv(response_data):
+    """Export dekadal LTA data as CSV."""
+    import csv
+    from django.http import HttpResponse
+    
+    data = response_data['data']
+    provinces = response_data['provinces']
+    
+    if not data:
+        return JsonResponse({'error': 'No data to export'}, status=404)
+    
+    csv_response = HttpResponse(content_type='text/csv')
+    filename = f"rainfall_dekadal_lta_{response_data['date_range']['start']}_to_{response_data['date_range']['end']}.csv"
+    csv_response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    writer = csv.writer(csv_response)
+    
+    # Write header
+    header = ['Year', 'Month', 'Dekad', 'Start Date', 'End Date', 'Period']
+    for province in provinces:
+        header.extend([
+            f'{province}_rainfall',
+            f'{province}_lta',
+            f'{province}_lta_count',
+            f'{province}_anomaly',
+            f'{province}_pct_avg'
+        ])
+    writer.writerow(header)
+    
+    # Write data rows
+    for row in data:
+        row_data = [
+            row['year'],
+            row['month'],
+            row['dekad'],
+            row['start_date'],
+            row['end_date'],
+            row['period']
+        ]
+        for province in provinces:
+            row_data.extend([
+                row.get(province, 0.0),
+                row.get(f'{province}_lta', 0.0),
+                row.get(f'{province}_lta_count', 0),
+                row.get(f'{province}_anomaly', 0.0),
+                row.get(f'{province}_pct_avg', 0.0)
+            ])
+        writer.writerow(row_data)
+    
+    return csv_response
+#################################################################################################################
 ##
 #########################################################################################################
 #
@@ -2022,9 +2356,9 @@ def export_monthly_csv_optimized(response_data):
 #
 #  
 ############################################  OLD VIEWS  ###################################################
-############################## ==============================###########################=======================
-############################ MONTHLY RAINFALL AGGREGATION VIEW ###########################
-########################### ==============================###########################=======================
+# ############################# ==============================###########################=======================
+# ########################### MONTHLY RAINFALL AGGREGATION VIEW ###########################
+# ########################## ==============================###########################=======================
 # =====================================================
 #  MONTHLY RAINFALL AGGREGATION VIEW
 # =====================================================
@@ -2221,209 +2555,209 @@ def export_monthly_csv_optimized(response_data):
                 # =====================================================
 ###################################################################################################
 
-import datetime
-import calendar
-import logging
-from django.http import JsonResponse
-from django.db import connection
-from .models import RainfallProvince
+# import datetime
+# import calendar
+# import logging
+# from django.http import JsonResponse
+# from django.db import connection
+# from .models import RainfallProvince
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
 
-def api_rainfall_dekadal(request):
-    """
-    Get dekadal aggregated rainfall data (10-day periods).
-    Dekad 1 = days 01-10
-    Dekad 2 = days 11-20
-    Dekad 3 = days 21-end of month
+# def api_rainfall_dekadal(request):
+#     """
+#     Get dekadal aggregated rainfall data (10-day periods).
+#     Dekad 1 = days 01-10
+#     Dekad 2 = days 11-20
+#     Dekad 3 = days 21-end of month
     
-    Query parameters:
-    - start_date: Start date (YYYY-MM-DD) (required)
-    - end_date: End date (YYYY-MM-DD) (required)
-    - province: (optional) Filter by specific province
-    - format: json (default) or csv
+#     Query parameters:
+#     - start_date: Start date (YYYY-MM-DD) (required)
+#     - end_date: End date (YYYY-MM-DD) (required)
+#     - province: (optional) Filter by specific province
+#     - format: json (default) or csv
     
-    Example:
-    /api/rainfall/dekadal/?start_date=2024-01-01&end_date=2024-12-31
-    /api/rainfall/dekadal/?start_date=2024-01-01&end_date=2024-12-31&province=Harare
-    /api/rainfall/dekadal/?start_date=2024-01-01&end_date=2024-12-31&format=csv
-    """
-    try:
-        # Get query parameters
-        start_date_str = request.GET.get('start_date')
-        end_date_str = request.GET.get('end_date')
-        province_filter = request.GET.get('province')
-        output_format = request.GET.get('format', 'json').lower()
+#     Example:
+#     /api/rainfall/dekadal/?start_date=2024-01-01&end_date=2024-12-31
+#     /api/rainfall/dekadal/?start_date=2024-01-01&end_date=2024-12-31&province=Harare
+#     /api/rainfall/dekadal/?start_date=2024-01-01&end_date=2024-12-31&format=csv
+#     """
+#     try:
+#         # Get query parameters
+#         start_date_str = request.GET.get('start_date')
+#         end_date_str = request.GET.get('end_date')
+#         province_filter = request.GET.get('province')
+#         output_format = request.GET.get('format', 'json').lower()
         
-        # Validate required parameters
-        if not start_date_str or not end_date_str:
-            return JsonResponse({
-                'error': 'start_date and end_date are required',
-                'example': '/api/rainfall/dekadal/?start_date=2024-01-01&end_date=2024-12-31'
-            }, status=400)
+#         # Validate required parameters
+#         if not start_date_str or not end_date_str:
+#             return JsonResponse({
+#                 'error': 'start_date and end_date are required',
+#                 'example': '/api/rainfall/dekadal/?start_date=2024-01-01&end_date=2024-12-31'
+#             }, status=400)
         
-        # Parse dates
-        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
-        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+#         # Parse dates
+#         start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+#         end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
 
-    # ============================================================
-        # OPTIMIZED: Single SQL query with GROUP BY for dekads
-        # ============================================================
+#     # ============================================================
+#         # OPTIMIZED: Single SQL query with GROUP BY for dekads
+#         # ============================================================
        
-        table_name = RainfallProvince._meta.db_table
+#         table_name = RainfallProvince._meta.db_table
         
-        # Build the WHERE clause
-        where_clause = "date >= %s AND date <= %s"
-        params = [start_date, end_date]
+#         # Build the WHERE clause
+#         where_clause = "date >= %s AND date <= %s"
+#         params = [start_date, end_date]
         
-        if province_filter:
-            where_clause += " AND province = %s"
-            params.append(province_filter)
+#         if province_filter:
+#             where_clause += " AND province = %s"
+#             params.append(province_filter)
         
-        # Single query with GROUP BY year, month, dekad, province
-        sql = """
-            SELECT 
-                EXTRACT(YEAR FROM date)::int as year,
-                EXTRACT(MONTH FROM date)::int as month,
-                CASE 
-                    WHEN EXTRACT(DAY FROM date) <= 10 THEN 1
-                    WHEN EXTRACT(DAY FROM date) <= 20 THEN 2
-                    ELSE 3
-                END as dekad,
-                province,
-                SUM(rainfall_mm) as total_rainfall,
-                COUNT(*) as record_count
-            FROM {table_name}
-            WHERE {where_clause}
-            GROUP BY 
-                EXTRACT(YEAR FROM date),
-                EXTRACT(MONTH FROM date),
-                CASE 
-                    WHEN EXTRACT(DAY FROM date) <= 10 THEN 1
-                    WHEN EXTRACT(DAY FROM date) <= 20 THEN 2
-                    ELSE 3
-                END,
-                province
-            ORDER BY year, month, dekad, province
-        """.format(table_name=table_name, where_clause=where_clause)
+#         # Single query with GROUP BY year, month, dekad, province
+#         sql = """
+#             SELECT 
+#                 EXTRACT(YEAR FROM date)::int as year,
+#                 EXTRACT(MONTH FROM date)::int as month,
+#                 CASE 
+#                     WHEN EXTRACT(DAY FROM date) <= 10 THEN 1
+#                     WHEN EXTRACT(DAY FROM date) <= 20 THEN 2
+#                     ELSE 3
+#                 END as dekad,
+#                 province,
+#                 SUM(rainfall_mm) as total_rainfall,
+#                 COUNT(*) as record_count
+#             FROM {table_name}
+#             WHERE {where_clause}
+#             GROUP BY 
+#                 EXTRACT(YEAR FROM date),
+#                 EXTRACT(MONTH FROM date),
+#                 CASE 
+#                     WHEN EXTRACT(DAY FROM date) <= 10 THEN 1
+#                     WHEN EXTRACT(DAY FROM date) <= 20 THEN 2
+#                     ELSE 3
+#                 END,
+#                 province
+#             ORDER BY year, month, dekad, province
+#         """.format(table_name=table_name, where_clause=where_clause)
         
-        with connection.cursor() as cursor:
-            cursor.execute(sql, params)
-            rows = cursor.fetchall()
+#         with connection.cursor() as cursor:
+#             cursor.execute(sql, params)
+#             rows = cursor.fetchall()
         
-        # Check if data exists
-        if not rows:
-            return JsonResponse({
-                'success': False,
-                'message': 'No data found in database for the given date range.',
-                'data': []
-            }, status=404)
+#         # Check if data exists
+#         if not rows:
+#             return JsonResponse({
+#                 'success': False,
+#                 'message': 'No data found in database for the given date range.',
+#                 'data': []
+#             }, status=404)
         
-        # ============================================================
-        # Process results into the required format
-        # ============================================================
+#         # ============================================================
+#         # Process results into the required format
+#         # ============================================================
         
-        # Get all provinces from the results
-        if province_filter:
-            provinces = [province_filter]
-        else:
-            provinces = sorted(set(row[3] for row in rows))
+#         # Get all provinces from the results
+#         if province_filter:
+#             provinces = [province_filter]
+#         else:
+#             provinces = sorted(set(row[3] for row in rows))
         
-        # Group data by year-month-dekad
-        dekad_data = {}
-        for row in rows:
-            year = row[0]
-            month = row[1]
-            dekad = row[2]
-            province = row[3]
-            total = row[4]
-            count = row[5]
+#         # Group data by year-month-dekad
+#         dekad_data = {}
+#         for row in rows:
+#             year = row[0]
+#             month = row[1]
+#             dekad = row[2]
+#             province = row[3]
+#             total = row[4]
+#             count = row[5]
             
-            # Calculate start and end dates for the dekad
-            if dekad == 1:
-                start_day = 1
-                end_day = 10
-            elif dekad == 2:
-                start_day = 11
-                end_day = 20
-            else:
-                start_day = 21
-                end_day = calendar.monthrange(year, month)[1]
+#             # Calculate start and end dates for the dekad
+#             if dekad == 1:
+#                 start_day = 1
+#                 end_day = 10
+#             elif dekad == 2:
+#                 start_day = 11
+#                 end_day = 20
+#             else:
+#                 start_day = 21
+#                 end_day = calendar.monthrange(year, month)[1]
             
-            start_date_str_key = f"{year}-{month:02d}-{start_day:02d}"
-            end_date_str_key = f"{year}-{month:02d}-{end_day:02d}"
+#             start_date_str_key = f"{year}-{month:02d}-{start_day:02d}"
+#             end_date_str_key = f"{year}-{month:02d}-{end_day:02d}"
             
-            # Create key for grouping
-            key = f"{year}-{month:02d}-D{dekad}"
+#             # Create key for grouping
+#             key = f"{year}-{month:02d}-D{dekad}"
             
-            if key not in dekad_data:
-                month_name = calendar.month_name[month][:3]  # Jan, Feb, etc.
-                dekad_data[key] = {
-                    'year': year,
-                    'month': month,
-                    'month_name': calendar.month_name[month],
-                    'month_abbr': calendar.month_abbr[month],
-                    'dekad': dekad,
-                    'dekad_label': f"D{dekad}",
-                    'date': f"{year}-{month:02d}-{start_day:02d}",
-                    'start_date': f"{year}-{month:02d}-{start_day:02d}",
-                    'end_date': f"{year}-{month:02d}-{end_day:02d}",
-                    'period': f"{month_name} D{dekad}",
-                    'sort_key': f"{year}-{month:02d}-{dekad:02d}",
-                }
-                # Initialize all provinces with 0
-                for p in provinces:
-                    dekad_data[key][p] = 0.0
-                    dekad_data[key][f"{p}_count"] = 0
+#             if key not in dekad_data:
+#                 month_name = calendar.month_name[month][:3]  # Jan, Feb, etc.
+#                 dekad_data[key] = {
+#                     'year': year,
+#                     'month': month,
+#                     'month_name': calendar.month_name[month],
+#                     'month_abbr': calendar.month_abbr[month],
+#                     'dekad': dekad,
+#                     'dekad_label': f"D{dekad}",
+#                     'date': f"{year}-{month:02d}-{start_day:02d}",
+#                     'start_date': f"{year}-{month:02d}-{start_day:02d}",
+#                     'end_date': f"{year}-{month:02d}-{end_day:02d}",
+#                     'period': f"{month_name} D{dekad}",
+#                     'sort_key': f"{year}-{month:02d}-{dekad:02d}",
+#                 }
+#                 # Initialize all provinces with 0
+#                 for p in provinces:
+#                     dekad_data[key][p] = 0.0
+#                     dekad_data[key][f"{p}_count"] = 0
             
-            dekad_data[key][province] = round(total, 2)
-            dekad_data[key][f"{province}_count"] = count
+#             dekad_data[key][province] = round(total, 2)
+#             dekad_data[key][f"{province}_count"] = count
         
-        # Convert to list and sort by date
-        data = sorted(dekad_data.values(), key=lambda x: x['sort_key'])
+#         # Convert to list and sort by date
+#         data = sorted(dekad_data.values(), key=lambda x: x['sort_key'])
         
-        # ============================================================
-        # Build response
-        # ============================================================
+#         # ============================================================
+#         # Build response
+#         # ============================================================
         
-        response_data = {
-            'success': True,
-            'aggregation': 'dekadal',
-            'aggregation_label': 'Dekadal (10-day periods)',
-            'dekad_definitions': {
-                'Dekad 1': 'Days 01-10',
-                'Dekad 2': 'Days 11-20',
-                'Dekad 3': 'Days 21-end of month'
-            },
-            'date_range': {
-                'start': start_date_str,
-                'end': end_date_str
-            },
-            'provinces': provinces,
-            'total_dekads': len(data),
-            'data': data,
-            'metadata': {
-                'source': 'database',
-                'exported_at': datetime.datetime.now().isoformat()
-            }
-        }
+#         response_data = {
+#             'success': True,
+#             'aggregation': 'dekadal',
+#             'aggregation_label': 'Dekadal (10-day periods)',
+#             'dekad_definitions': {
+#                 'Dekad 1': 'Days 01-10',
+#                 'Dekad 2': 'Days 11-20',
+#                 'Dekad 3': 'Days 21-end of month'
+#             },
+#             'date_range': {
+#                 'start': start_date_str,
+#                 'end': end_date_str
+#             },
+#             'provinces': provinces,
+#             'total_dekads': len(data),
+#             'data': data,
+#             'metadata': {
+#                 'source': 'database',
+#                 'exported_at': datetime.datetime.now().isoformat()
+#             }
+#         }
         
-        # ============================================================
-        # Return as CSV if requested
-        # ============================================================
+#         # ============================================================
+#         # Return as CSV if requested
+#         # ============================================================
         
-        if output_format == 'csv':
-            return export_dekadal_csv(response_data)
+#         if output_format == 'csv':
+#             return export_dekadal_csv(response_data)
         
-        return JsonResponse(response_data, status=200)
+#         return JsonResponse(response_data, status=200)
         
-    except Exception as e:
-        logger.error(f"Error in dekadal rainfall aggregation: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
+#     except Exception as e:
+#         logger.error(f"Error in dekadal rainfall aggregation: {str(e)}")
+#         return JsonResponse({'error': str(e)}, status=500)
 
 
-def export_dekadal_csv(response_data):
+# def export_dekadal_csv(response_data):
     """Export dekadal aggregation data as CSV."""
     import csv
     from django.http import HttpResponse

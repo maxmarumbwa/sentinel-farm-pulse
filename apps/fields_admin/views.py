@@ -2802,6 +2802,9 @@ def export_dekadal_csv(response_data):
 ################ ANNUAL & SEASONAL RAINFALL AGGREGATION VIEW  ########################
 #
 #########################################################################################################
+# =====================================================
+# ANNUAL/SEASONAL RAINFALL AGGREGATION WITH LTA
+# =====================================================
 
 import datetime
 import calendar
@@ -2815,10 +2818,11 @@ logger = logging.getLogger(__name__)
 
 def api_rainfall_annual(request):
     """
-    Get annual and seasonal aggregated rainfall data.
+    Get annual and seasonal aggregated rainfall data with Long-Term Average (LTA),
+    Anomaly, and Percentage of Average.
     
     Seasons:
-    - Full Year: January - December
+    - FULL: January - December (Full Year)
     - OND: October, November, December (Early summer / onset)
     - NDJ: November, December, January (Mid-summer transition)
     - DJF: December, January, February (Peak summer rainy season)
@@ -2830,19 +2834,22 @@ def api_rainfall_annual(request):
     - JF: January, February (Peak rains)
     - MA: March, April (Late rains / tail-end)
     
+    LTA is calculated from the data available in the requested date range.
+    e.g., if start_year=2000 and end_year=2024,
+    LTA_DJF = average of all DJF seasons from 2000-2024
+    
     Query parameters:
     - start_year: Start year (YYYY) (required)
     - end_year: End year (YYYY) (required)
     - province: (optional) Filter by specific province
     - season: (optional) full, OND, NDJ, DJF, JFM, FMA, ONDJFM, ON, ND, JF, MA (default: full)
+    - lta_start: (optional) Override start year for LTA
+    - lta_end: (optional) Override end year for LTA
     - format: json (default) or csv
     
     Example:
-    /api/rainfall/annual/?start_year=2020&end_year=2024
-    /api/rainfall/annual/?start_year=2020&end_year=2024&province=Harare
-    /api/rainfall/annual/?start_year=2020&end_year=2024&season=DJF
-    /api/rainfall/annual/?start_year=2020&end_year=2024&season=ONDJFM
-    /api/rainfall/annual/?start_year=2020&end_year=2024&format=csv
+    /api/rainfall/annual/lta/?start_year=2000&end_year=2024&province=Harare
+    /api/rainfall/annual/lta/?start_year=2000&end_year=2024&season=DJF&province=Harare
     """
     try:
         # Get query parameters
@@ -2850,6 +2857,8 @@ def api_rainfall_annual(request):
         end_year = int(request.GET.get('end_year'))
         province_filter = request.GET.get('province')
         season_filter = request.GET.get('season', 'FULL').upper()
+        lta_start_year = request.GET.get('lta_start')
+        lta_end_year = request.GET.get('lta_end')
         output_format = request.GET.get('format', 'json').lower()
         
         # Validate parameters
@@ -2956,15 +2965,24 @@ def api_rainfall_annual(request):
         if season_filter not in valid_seasons:
             return JsonResponse({
                 'error': f'Invalid season. Use: {", ".join(valid_seasons)}',
-                'example': '/api/rainfall/annual/?start_year=2020&end_year=2024&season=DJF'
+                'example': '/api/rainfall/annual/lta/?start_year=2000&end_year=2024&season=DJF'
             }, status=400)
         
         season_info = season_definitions[season_filter]
         months = season_info['months']
         cross_year = season_info['cross_year']
         
+        # Determine LTA period
+        if lta_start_year and lta_end_year:
+            lta_start = int(lta_start_year)
+            lta_end = int(lta_end_year)
+        else:
+            # Use the years from the requested date range
+            lta_start = start_year
+            lta_end = end_year
+        
         # ============================================================
-        # BUILD SQL QUERY
+        # STEP 1: Build SQL for the requested period
         # ============================================================
         
         table_name = RainfallProvince._meta.db_table
@@ -2982,19 +3000,14 @@ def api_rainfall_annual(request):
         
         # Build SQL with year adjustment for seasons that cross year boundary
         if cross_year:
-            # For NDJ, DJF, ONDJFM - the season year is based on the later year
-            sql = f"""
+            sql_data = f"""
                 SELECT 
                     CASE 
                         WHEN EXTRACT(MONTH FROM date) IN (1, 2, 3) THEN EXTRACT(YEAR FROM date)::int
                         ELSE EXTRACT(YEAR FROM date)::int
                     END as season_year,
                     province,
-                    SUM(rainfall_mm) as total_rainfall,
-                    COUNT(*) as record_count,
-                    AVG(rainfall_mm) as avg_rainfall,
-                    MAX(rainfall_mm) as max_daily,
-                    MIN(rainfall_mm) as min_daily
+                    SUM(rainfall_mm) as total_rainfall
                 FROM {table_name}
                 WHERE {where_clause}
                 GROUP BY 
@@ -3006,16 +3019,11 @@ def api_rainfall_annual(request):
                 ORDER BY season_year, province
             """
         else:
-            # For FULL, OND, JFM, FMA, ON, ND, JF, MA - normal year grouping
-            sql = f"""
+            sql_data = f"""
                 SELECT 
                     EXTRACT(YEAR FROM date)::int as year,
                     province,
-                    SUM(rainfall_mm) as total_rainfall,
-                    COUNT(*) as record_count,
-                    AVG(rainfall_mm) as avg_rainfall,
-                    MAX(rainfall_mm) as max_daily,
-                    MIN(rainfall_mm) as min_daily
+                    SUM(rainfall_mm) as total_rainfall
                 FROM {table_name}
                 WHERE {where_clause}
                 GROUP BY EXTRACT(YEAR FROM date), province
@@ -3023,61 +3031,120 @@ def api_rainfall_annual(request):
             """
         
         with connection.cursor() as cursor:
-            cursor.execute(sql, params)
-            rows = cursor.fetchall()
+            cursor.execute(sql_data, params)
+            data_rows = cursor.fetchall()
         
-        # Check if data exists
-        if not rows:
+        if not data_rows:
             return JsonResponse({
                 'success': False,
                 'message': f'No data found for the given years and season {season_filter}.',
                 'data': []
             }, status=404)
         
-        # ============================================================
-        # Process results
-        # ============================================================
-        
         # Get all provinces
         if province_filter:
             provinces = [province_filter]
         else:
-            provinces = sorted(set(row[1] for row in rows))
+            provinces = sorted(set(row[1] for row in data_rows))
         
-        # Group data by year
-        year_data = {}
-        for row in rows:
+        # ============================================================
+        # STEP 2: Calculate LTA for each season using the LTA period
+        # LTA = average of seasonal totals for each season within LTA period
+        # ============================================================
+        
+        lta_where = f"EXTRACT(YEAR FROM date) BETWEEN {lta_start} AND {lta_end} AND ({month_conditions})"
+        if province_filter:
+            lta_where += f" AND province = '{province_filter}'"
+        
+        # Build LTA SQL
+        if cross_year:
+            sql_lta = f"""
+                SELECT 
+                    CASE 
+                        WHEN EXTRACT(MONTH FROM date) IN (1, 2, 3) THEN EXTRACT(YEAR FROM date)::int
+                        ELSE EXTRACT(YEAR FROM date)::int
+                    END as season_year,
+                    province,
+                    SUM(rainfall_mm) as seasonal_total
+                FROM {table_name}
+                WHERE {lta_where}
+                GROUP BY 
+                    CASE 
+                        WHEN EXTRACT(MONTH FROM date) IN (1, 2, 3) THEN EXTRACT(YEAR FROM date)::int
+                        ELSE EXTRACT(YEAR FROM date)::int
+                    END,
+                    province
+            """
+        else:
+            sql_lta = f"""
+                SELECT 
+                    EXTRACT(YEAR FROM date)::int as year,
+                    province,
+                    SUM(rainfall_mm) as seasonal_total
+                FROM {table_name}
+                WHERE {lta_where}
+                GROUP BY EXTRACT(YEAR FROM date), province
+            """
+        
+        with connection.cursor() as cursor:
+            cursor.execute(sql_lta)
+            lta_rows = cursor.fetchall()
+        
+        # Group seasonal totals by province
+        lta_data = {}
+        lta_years_set = set()
+        
+        for row in lta_rows:
             if cross_year:
                 year = row[0]
                 province = row[1]
-                total = row[2]
-                count = row[3]
-                avg = row[4]
-                max_val = row[5]
-                min_val = row[6]
+                seasonal_total = row[2]
             else:
                 year = row[0]
                 province = row[1]
-                total = row[2]
-                count = row[3]
-                avg = row[4]
-                max_val = row[5]
-                min_val = row[6]
+                seasonal_total = row[2]
             
-            # For cross-year seasons, adjust the year label
+            key = f"{province}"
+            if key not in lta_data:
+                lta_data[key] = []
+            lta_data[key].append(seasonal_total)
+            lta_years_set.add(year)
+        
+        # Calculate LTA as average of seasonal totals
+        lta_lookup = {}
+        lta_count_lookup = {}
+        
+        for key, values in lta_data.items():
+            lta_lookup[key] = round(sum(values) / len(values), 2)
+            lta_count_lookup[key] = len(values)
+        
+        lta_num_years = len(lta_years_set)
+        lta_years = sorted(lta_years_set)
+        
+        # ============================================================
+        # STEP 3: Combine data with LTA
+        # ============================================================
+        
+        season_data = {}
+        for row in data_rows:
             if cross_year:
-                # The season spans across two years
-                # e.g., ONDJFM 2024 = Oct 2023 - Mar 2024
+                year = row[0]
+                province = row[1]
+                total = row[2]
+                # Season year display: e.g., 2020 represents 2019/2020 season
                 display_year = year
-                season_label = f"{display_year-1}/{display_year}"
-                season_display = f"{display_year-1} - {display_year}"
+                season_label = f"{year-1}/{year}"
+                season_display = f"{year-1} - {year}"
             else:
+                year = row[0]
+                province = row[1]
+                total = row[2]
                 display_year = year
                 season_label = str(year)
                 season_display = str(year)
             
-            if display_year not in year_data:
-                year_data[display_year] = {
+            if display_year not in season_data:
+                season_data[display_year] = {
                     'year': display_year,
                     'season_year': season_label,
                     'season_display': season_display,
@@ -3087,41 +3154,62 @@ def api_rainfall_annual(request):
                     'months': ', '.join(season_info['months_abbr']),
                     'cross_year': cross_year,
                 }
-                # Initialize all provinces with 0
                 for p in provinces:
-                    year_data[display_year][p] = 0.0
-                    year_data[display_year][f"{p}_count"] = 0
-                    year_data[display_year][f"{p}_avg"] = 0.0
-                    year_data[display_year][f"{p}_max"] = 0.0
-                    year_data[display_year][f"{p}_min"] = 0.0
+                    season_data[display_year][p] = 0.0
+                    season_data[display_year][f"{p}_lta"] = 0.0
+                    season_data[display_year][f"{p}_lta_count"] = 0
+                    season_data[display_year][f"{p}_anomaly"] = 0.0
+                    season_data[display_year][f"{p}_pct_avg"] = 0.0
             
-            year_data[display_year][province] = round(total, 2)
-            year_data[display_year][f"{province}_count"] = count
-            year_data[display_year][f"{province}_avg"] = round(avg, 2) if avg else 0.0
-            year_data[display_year][f"{province}_max"] = round(max_val, 2) if max_val else 0.0
-            year_data[display_year][f"{province}_min"] = round(min_val, 2) if min_val else 0.0
+            lta_key = province
+            lta_value = lta_lookup.get(lta_key, 0.0)
+            lta_count = lta_count_lookup.get(lta_key, 0)
+            
+            anomaly = total - lta_value
+            pct_avg = (total / lta_value * 100) if lta_value > 0 else 0
+            
+            season_data[display_year][province] = round(total, 2)
+            season_data[display_year][f"{province}_lta"] = lta_value
+            season_data[display_year][f"{province}_lta_count"] = lta_count
+            season_data[display_year][f"{province}_anomaly"] = round(anomaly, 2)
+            season_data[display_year][f"{province}_pct_avg"] = round(pct_avg, 1)
         
-        # Convert to list and sort by year
-        data = sorted(year_data.values(), key=lambda x: x['year'])
+        data = sorted(season_data.values(), key=lambda x: x['year'])
         
         # ============================================================
-        # Build response
+        # STEP 4: Build response
         # ============================================================
         
         response_data = {
             'success': True,
             'aggregation': 'annual',
+            'aggregation_label': 'Annual/Seasonal with LTA',
             'season': season_filter,
             'season_label': season_info['label'],
             'season_description': season_info['description'],
             'season_months': season_info['months_abbr'],
             'cross_year': cross_year,
+            'lta_period': {
+                'start_year': lta_start,
+                'end_year': lta_end,
+                'num_years': lta_num_years,
+                'years': lta_years,
+                'description': f"{lta_num_years} years ({lta_start}-{lta_end})",
+                'note': 'LTA is calculated from the available data in the LTA period'
+            },
             'year_range': {
                 'start': start_year,
                 'end': end_year
             },
             'provinces': provinces,
-            'total_years': len(data),
+            'total_seasons': len(data),
+            'fields_explanation': {
+                'rainfall': 'Total seasonal rainfall (mm)',
+                'lta': 'Long-Term Average seasonal rainfall (mm)',
+                'lta_count': 'Number of years used to calculate LTA',
+                'anomaly': 'Rainfall - LTA (mm)',
+                'pct_avg': 'Percentage of LTA (%)'
+            },
             'data': data,
             'metadata': {
                 'source': 'database',
@@ -3129,46 +3217,50 @@ def api_rainfall_annual(request):
             }
         }
         
-        # ============================================================
-        # Return as CSV if requested
-        # ============================================================
-        
         if output_format == 'csv':
-            return export_annual_csv(response_data)
+            return export_annual_lta_csv(response_data)
         
         return JsonResponse(response_data, status=200)
         
     except ValueError as e:
         return JsonResponse({'error': f'Invalid parameter: {str(e)}'}, status=400)
     except Exception as e:
-        logger.error(f"Error in annual rainfall aggregation: {str(e)}")
+        logger.error(f"Error in annual LTA aggregation: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 
-def export_annual_csv(response_data):
-    """Export annual aggregation data as CSV."""
+def export_annual_lta_csv(response_data):
+    """Export annual LTA data as CSV."""
     import csv
     from django.http import HttpResponse
     
     data = response_data['data']
     provinces = response_data['provinces']
-    season = response_data['season']
     cross_year = response_data.get('cross_year', False)
     
     if not data:
         return JsonResponse({'error': 'No data to export'}, status=404)
     
     csv_response = HttpResponse(content_type='text/csv')
-    filename = f"rainfall_annual_{response_data['year_range']['start']}_to_{response_data['year_range']['end']}_{season}.csv"
+    filename = f"rainfall_annual_lta_{response_data['year_range']['start']}_to_{response_data['year_range']['end']}_{response_data['season']}.csv"
     csv_response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
     writer = csv.writer(csv_response)
     
     # Write header
     if cross_year:
-        header = ['Year', 'Season Year', 'Season', 'Season Description', 'Months'] + provinces
+        header = ['Year', 'Season Year', 'Season', 'Season Description', 'Months']
     else:
-        header = ['Year', 'Season', 'Season Description', 'Months'] + provinces
+        header = ['Year', 'Season', 'Season Description', 'Months']
+    
+    for province in provinces:
+        header.extend([
+            f'{province}_rainfall',
+            f'{province}_lta',
+            f'{province}_lta_count',
+            f'{province}_anomaly',
+            f'{province}_pct_avg'
+        ])
     writer.writerow(header)
     
     # Write data rows
@@ -3188,12 +3280,20 @@ def export_annual_csv(response_data):
                 row['season_description'],
                 row['months']
             ]
+        
         for province in provinces:
-            row_data.append(row.get(province, 0.0))
+            row_data.extend([
+                row.get(province, 0.0),
+                row.get(f'{province}_lta', 0.0),
+                row.get(f'{province}_lta_count', 0),
+                row.get(f'{province}_anomaly', 0.0),
+                row.get(f'{province}_pct_avg', 0.0)
+            ])
         writer.writerow(row_data)
     
     return csv_response
 
+#
 #####################################################################################################
 
 #

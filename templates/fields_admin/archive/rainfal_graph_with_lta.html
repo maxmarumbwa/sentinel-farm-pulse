@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dekadal Rainfall with LTA</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .card { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .card h2 { margin-top: 0; color: #2c3e50; font-size: 16px; }
+        .card h3 { margin: 10px 0 5px 0; color: #2c3e50; font-size: 14px; }
+        
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; align-items: center; }
+        .controls label { display: flex; align-items: center; gap: 5px; font-size: 13px; }
+        .controls input[type="date"] { padding: 5px 10px; border: 1px solid #ddd; border-radius: 4px; }
+        .controls select { padding: 5px 10px; border: 1px solid #ddd; border-radius: 4px; }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .btn-primary { background: #2c3e50; color: white; }
+        .btn-primary:hover { background: #1a252f; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #229954; }
+        .btn-warning { background: #f39c12; color: white; }
+        .btn-warning:hover { background: #e67e22; }
+        .btn-info { background: #3498db; color: white; }
+        .btn-info:hover { background: #2980b9; }
+        .btn-secondary { background: #95a5a6; color: white; }
+        .btn-secondary:hover { background: #7f8c8d; }
+        
+        .date-section {
+            padding: 12px 15px;
+            border-radius: 5px;
+            margin: 5px 0;
+            border-left: 4px solid #2c3e50;
+        }
+        .date-section.obs { background: #ebf5fb; border-left-color: #3498db; }
+        .date-section.lta { background: #fdedec; border-left-color: #e74c3c; }
+        .date-section .label { font-weight: bold; font-size: 13px; display: flex; align-items: center; gap: 10px; }
+        .date-section .label .badge { font-size: 11px; font-weight: normal; padding: 2px 10px; border-radius: 12px; }
+        .badge.obs { background: #3498db; color: white; }
+        .badge.lta { background: #e74c3c; color: white; }
+        
+        .chart-container { position: relative; width: 100%; height: 500px; margin: 20px 0; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .stat-card {
+            background: white;
+            padding: 12px;
+            border-radius: 5px;
+            border-left: 4px solid #2c3e50;
+            text-align: center;
+        }
+        .stat-card .number { font-size: 22px; font-weight: bold; color: #2c3e50; }
+        .stat-card .label { font-size: 11px; color: #7f8c8d; }
+        .stat-card.rainfall { border-left-color: #3498db; }
+        .stat-card.lta { border-left-color: #e74c3c; }
+        .stat-card.anomaly { border-left-color: #f39c12; }
+        
+        .legend {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin: 15px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            flex-wrap: wrap;
+        }
+        .legend-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        .legend-color { width: 20px; height: 4px; border-radius: 2px; }
+        .legend-color.bar { height: 16px; width: 16px; border-radius: 3px; background: #3498db; }
+        .legend-color.line { height: 4px; width: 30px; background: #e74c3c; }
+        
+        .loading { text-align: center; padding: 40px; color: #7f8c8d; }
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2c3e50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .error { color: #e74c3c; padding: 15px; background: #fdf2f2; border-radius: 5px; border-left: 4px solid #e74c3c; }
+        .info { color: #3498db; padding: 10px; background: #e8f0fe; border-radius: 5px; border-left: 4px solid #3498db; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 15px 0; }
+        th { background: #2c3e50; color: white; padding: 8px 10px; text-align: left; position: sticky; top: 0; }
+        td { padding: 6px 10px; border-bottom: 1px solid #e0e0e0; }
+        tr:hover { background: #f8f9fa; }
+        .positive { color: #e74c3c; }
+        .negative { color: #3498db; }
+        .table-container { max-height: 350px; overflow: auto; }
+        
+        .quick-btns { display: flex; gap: 5px; flex-wrap: wrap; margin: 5px 0; }
+        .quick-btns .btn { padding: 4px 12px; font-size: 12px; }
+        
+        .db-info {
+            background: #2c3e50;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 13px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .db-info span { display: flex; align-items: center; gap: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌧️ Dekadal Rainfall with LTA</h1>
+        
+        <div class="card">
+            <h2>📊 Controls</h2>
+            
+            <!-- Database Info -->
+            <div id="dbInfo" class="db-info" style="display:none;">
+                <span>📊 <strong id="dbRecordCount">-</strong> records</span>
+                <span>📅 <strong id="dbDateRange">-</strong></span>
+                <span>📍 <strong id="dbProvinceCount">-</strong> provinces</span>
+                <span style="color:#f1c40f;">💡 LTA defaults to full database range</span>
+            </div>
+            
+            <!-- Observation Period -->
+            <div class="date-section obs">
+                <div class="label">
+                    🔵 Observation Period (Rainfall Data)
+                    <span class="badge obs">Selected</span>
+                </div>
+                <div class="controls">
+                    <label>Start: <input type="date" id="obsStart"></label>
+                    <label>End: <input type="date" id="obsEnd"></label>
+                    <div class="quick-btns">
+                        <button class="btn btn-info" onclick="setObsCurrentYear()">📅 Current Year</button>
+                        <button class="btn btn-info" onclick="setObsLastYear()">📅 Last Year</button>
+                        <button class="btn btn-info" onclick="setObsLast3Years()">📅 Last 3 Years</button>
+                        <button class="btn btn-info" onclick="setObsFullDB()">📅 Full Database</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- LTA Period -->
+            <div class="date-section lta">
+                <div class="label">
+                    🔴 LTA Period (Long-Term Average)
+                    <span class="badge lta">Selected</span>
+                </div>
+                <div class="controls">
+                    <label>Start: <input type="date" id="ltaStart"></label>
+                    <label>End: <input type="date" id="ltaEnd"></label>
+                    <div class="quick-btns">
+                        <button class="btn btn-warning" onclick="setLTADefault()">📅 Full Database</button>
+                        <button class="btn btn-warning" onclick="setLTAPrevYear()">📅 Previous Year</button>
+                        <button class="btn btn-warning" onclick="setLTA5Year()">📅 Last 5 Years</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Province and Actions -->
+            <div class="controls" style="margin-top:15px;">
+                <label>Province: 
+                    <select id="provinceSelect">
+                        <option value="">All</option>
+                        <option value="Harare" selected>Harare</option>
+                        <option value="Bulawayo">Bulawayo</option>
+                        <option value="Manicaland">Manicaland</option>
+                        <option value="Mashonaland Central">Mashonaland Central</option>
+                        <option value="Mashonaland East">Mashonaland East</option>
+                        <option value="Mashonaland West">Mashonaland West</option>
+                        <option value="Masvingo">Masvingo</option>
+                        <option value="Matabeleland North">Matabeleland North</option>
+                        <option value="Matabeleland South">Matabeleland South</option>
+                        <option value="Midlands">Midlands</option>
+                    </select>
+                </label>
+                <button class="btn btn-primary" onclick="loadData()">📊 Load Data</button>
+                <button class="btn btn-success" onclick="exportCSV()">📥 Export CSV</button>
+                <button class="btn btn-secondary" onclick="loadDefault()">🔄 Reset Defaults</button>
+            </div>
+        </div>
+        
+        <!-- Chart -->
+        <div class="card" id="chartCard" style="display:none;">
+            <h2>📈 Dekadal Rainfall Chart</h2>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color bar"></div>
+                    <span>Observed Rainfall (mm)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color line"></div>
+                    <span>LTA (Long-Term Average)</span>
+                </div>
+                <div class="legend-item">
+                    <span style="color:#3498db;">🔵</span>
+                    <span>Observation Period</span>
+                </div>
+                <div class="legend-item">
+                    <span style="color:#e74c3c;">🔴</span>
+                    <span>LTA Period</span>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="rainfallChart"></canvas>
+            </div>
+            
+            <div class="stats-grid" id="statsGrid"></div>
+            
+            <div style="margin-top:15px; padding:10px; background:#f8f9fa; border-radius:5px; font-size:12px; display:flex; gap:20px; flex-wrap:wrap;">
+                <div><strong>Observation Period:</strong> <span id="obsPeriodDisplay">-</span></div>
+                <div><strong>LTA Period:</strong> <span id="ltaPeriodDisplay">-</span></div>
+                <div><strong>Total Dekads:</strong> <span id="totalDekads">-</span></div>
+                <div><strong>Data Points:</strong> <span id="dataPoints">-</span></div>
+            </div>
+            
+            <div id="tableContainer" style="display:none; margin-top:20px;">
+                <h4>📋 Data Table</h4>
+                <div class="table-container" id="tableWrapper"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let chart = null;
+        let currentData = null;
+        let dbInfo = null;
+        
+        // ============================================================
+        // GET DATABASE INFO
+        // ============================================================
+        
+        async function getDatabaseInfo() {
+            try {
+                const response = await fetch('/api/rainfall/db/info/');
+                const data = await response.json();
+                if (data.success) {
+                    dbInfo = data;
+                    document.getElementById('dbInfo').style.display = 'flex';
+                    document.getElementById('dbRecordCount').textContent = data.total_records.toLocaleString();
+                    document.getElementById('dbDateRange').textContent = `${data.min_date} to ${data.max_date}`;
+                    document.getElementById('dbProvinceCount').textContent = data.province_count;
+                    return data;
+                }
+            } catch (error) {
+                console.error('Error fetching DB info:', error);
+                return null;
+            }
+        }
+        
+        // ============================================================
+        // DATE HELPERS
+        // ============================================================
+        
+        function getToday() {
+            const d = new Date();
+            return d.toISOString().split('T')[0];
+        }
+        
+        function getDateDaysAgo(days) {
+            const d = new Date();
+            d.setDate(d.getDate() - days);
+            return d.toISOString().split('T')[0];
+        }
+        
+        function getDateYearsAgo(years) {
+            const d = new Date();
+            d.setFullYear(d.getFullYear() - years);
+            return d.toISOString().split('T')[0];
+        }
+        
+        function getDateYearStart(year) {
+            return `${year}-01-01`;
+        }
+        
+        function getDateYearEnd(year) {
+            return `${year}-12-31`;
+        }
+        
+        // ============================================================
+        // SET OBSERVATION PERIOD
+        // ============================================================
+        
+        function setObsCurrentYear() {
+            const year = new Date().getFullYear();
+            document.getElementById('obsStart').value = getDateYearStart(year);
+            document.getElementById('obsEnd').value = getToday();
+        }
+        
+        function setObsLastYear() {
+            const year = new Date().getFullYear() - 1;
+            document.getElementById('obsStart').value = getDateYearStart(year);
+            document.getElementById('obsEnd').value = getDateYearEnd(year);
+        }
+        
+        function setObsLast3Years() {
+            const year = new Date().getFullYear() - 3;
+            document.getElementById('obsStart').value = getDateYearStart(year);
+            document.getElementById('obsEnd').value = getToday();
+        }
+        
+        function setObsFullDB() {
+            if (dbInfo) {
+                document.getElementById('obsStart').value = dbInfo.min_date;
+                document.getElementById('obsEnd').value = dbInfo.max_date;
+            } else {
+                alert('Database info not loaded yet. Please wait.');
+            }
+        }
+        
+        // ============================================================
+        // SET LTA PERIOD - UPDATED
+        // ============================================================
+        
+        function setLTADefault() {
+            // Full database range
+            if (dbInfo) {
+                document.getElementById('ltaStart').value = dbInfo.min_date;
+                document.getElementById('ltaEnd').value = dbInfo.max_date;
+            } else {
+                // Fallback
+                document.getElementById('ltaStart').value = '2000-01-01';
+                document.getElementById('ltaEnd').value = '2024-12-31';
+            }
+        }
+        
+        function setLTAPrevYear() {
+            // Previous Year (comparing to current year - 1)
+            const year = new Date().getFullYear() - 1;
+            document.getElementById('ltaStart').value = getDateYearStart(year);
+            document.getElementById('ltaEnd').value = getDateYearEnd(year);
+        }
+        
+        function setLTA5Year() {
+            // Last 5 Years (current year - 5 to current year - 1)
+            const currentYear = new Date().getFullYear();
+            const startYear = currentYear - 5;
+            const endYear = currentYear - 1;
+            document.getElementById('ltaStart').value = getDateYearStart(startYear);
+            document.getElementById('ltaEnd').value = getDateYearEnd(endYear);
+        }
+        
+        // ============================================================
+        // LOAD DEFAULT
+        // ============================================================
+        
+        function loadDefault() {
+            setObsCurrentYear();
+            setLTADefault();
+            loadData();
+        }
+        
+        // ============================================================
+        // MAIN LOAD FUNCTION
+        // ============================================================
+        
+        async function loadData() {
+            const obsStart = document.getElementById('obsStart').value;
+            const obsEnd = document.getElementById('obsEnd').value;
+            const ltaStart = document.getElementById('ltaStart').value;
+            const ltaEnd = document.getElementById('ltaEnd').value;
+            const province = document.getElementById('provinceSelect').value;
+            
+            if (!obsStart || !obsEnd) {
+                alert('Please select observation period dates.');
+                return;
+            }
+            
+            if (!ltaStart || !ltaEnd) {
+                alert('Please select LTA period dates.');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('chartCard');
+            resultDiv.style.display = 'block';
+            
+            const loadingDiv = document.getElementById('statsGrid');
+            loadingDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading dekadal rainfall data...</p>
+                    <p style="font-size:13px; color:#95a5a6;">Observation: ${obsStart} to ${obsEnd}</p>
+                    <p style="font-size:13px; color:#95a5a6;">LTA: ${ltaStart} to ${ltaEnd}</p>
+                </div>
+            `;
+            
+            try {
+                let url = `/api/rainfall/dekadal/?start_date=${obsStart}&end_date=${obsEnd}&lta_start=${ltaStart.split('-')[0]}&lta_end=${ltaEnd.split('-')[0]}`;
+                if (province) {
+                    url += `&province=${province}`;
+                }
+                
+                console.log('Fetching:', url);
+                const response = await fetch(url);
+                const data = await response.json();
+                console.log('Data:', data);
+                
+                if (data.success) {
+                    currentData = data;
+                    renderChart(data, province);
+                    renderStats(data, province);
+                    renderTable(data, province);
+                    
+                    document.getElementById('obsPeriodDisplay').textContent = `${obsStart} to ${obsEnd}`;
+                    document.getElementById('ltaPeriodDisplay').textContent = data.lta_period.description;
+                    document.getElementById('totalDekads').textContent = data.total_dekads;
+                    document.getElementById('dataPoints').textContent = data.metadata.records;
+                } else {
+                    loadingDiv.innerHTML = `<div class="error">❌ Error: ${data.message || 'No data found'}</div>`;
+                }
+            } catch (error) {
+                loadingDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+        
+        // ============================================================
+        // RENDER CHART
+        // ============================================================
+        
+        function renderChart(data, province) {
+            const p = province || data.provinces[0];
+            
+            const labels = data.data.map(d => d.period);
+            const rainfall = data.data.map(d => d[p] || 0);
+            const lta = data.data.map(d => d[`${p}_lta`] || 0);
+            
+            const ctx = document.getElementById('rainfallChart').getContext('2d');
+            
+            if (chart) {
+                chart.destroy();
+            }
+            
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: `${p} Rainfall (mm)`,
+                            data: rainfall,
+                            backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                            borderColor: 'rgba(52, 152, 219, 1)',
+                            borderWidth: 1,
+                            order: 1,
+                            yAxisID: 'y',
+                        },
+                        {
+                            label: `LTA (${data.lta_period.description})`,
+                            data: lta,
+                            type: 'line',
+                            borderColor: 'rgba(231, 76, 60, 1)',
+                            backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                            borderWidth: 3,
+                            pointBackgroundColor: 'rgba(231, 76, 60, 1)',
+                            pointBorderColor: 'white',
+                            pointBorderWidth: 2,
+                            pointRadius: 4,
+                            fill: false,
+                            tension: 0.3,
+                            order: 0,
+                            yAxisID: 'y',
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `${p} - Dekadal Rainfall vs LTA`,
+                            font: { size: 16, weight: 'bold' },
+                            padding: { bottom: 10 }
+                        },
+                        subtitle: {
+                            display: true,
+                            text: `Observation: ${document.getElementById('obsStart').value} to ${document.getElementById('obsEnd').value} | LTA: ${data.lta_period.description}`,
+                            font: { size: 12 },
+                            color: '#7f8c8d',
+                            padding: { bottom: 10 }
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    let value = context.raw;
+                                    if (value !== null && value !== undefined && value > 0) {
+                                        label += `: ${value.toFixed(1)} mm`;
+                                    } else {
+                                        label += ': No data';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                maxRotation: 90,
+                                minRotation: 45,
+                                font: { size: 10 }
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Rainfall (mm)',
+                                font: { size: 14 }
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.05)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            setTimeout(() => {
+                chart.resize();
+            }, 100);
+        }
+        
+        // ============================================================
+        // RENDER STATS
+        // ============================================================
+        
+        function renderStats(data, province) {
+            const p = province || data.provinces[0];
+            
+            const rainfallValues = data.data.map(d => d[p] || 0).filter(v => v > 0);
+            const ltaValues = data.data.map(d => d[`${p}_lta`] || 0).filter(v => v > 0);
+            const anomalies = data.data.map(d => d[`${p}_anomaly`] || 0);
+            
+            const totalRainfall = rainfallValues.reduce((a, b) => a + b, 0);
+            const avgLTA = ltaValues.reduce((a, b) => a + b, 0) / (ltaValues.length || 1);
+            const avgAnomaly = anomalies.reduce((a, b) => a + b, 0) / (anomalies.length || 1);
+            const maxRainfall = Math.max(...rainfallValues, 0);
+            const minRainfall = Math.min(...rainfallValues, 0);
+            
+            const statsGrid = document.getElementById('statsGrid');
+            statsGrid.innerHTML = `
+                <div class="stat-card rainfall">
+                    <div class="number">${totalRainfall.toFixed(1)}</div>
+                    <div class="label">Total Rainfall (mm)</div>
+                </div>
+                <div class="stat-card lta">
+                    <div class="number">${avgLTA.toFixed(1)}</div>
+                    <div class="label">Avg LTA (mm)</div>
+                </div>
+                <div class="stat-card anomaly">
+                    <div class="number ${avgAnomaly >= 0 ? 'positive' : 'negative'}">${avgAnomaly >= 0 ? '+' : ''}${avgAnomaly.toFixed(1)}</div>
+                    <div class="label">Avg Anomaly (mm)</div>
+                </div>
+                <div class="stat-card" style="border-left-color: #27ae60;">
+                    <div class="number">${maxRainfall.toFixed(1)}</div>
+                    <div class="label">Max Dekadal (mm)</div>
+                </div>
+                <div class="stat-card" style="border-left-color: #e74c3c;">
+                    <div class="number">${minRainfall.toFixed(1)}</div>
+                    <div class="label">Min Dekadal (mm)</div>
+                </div>
+                <div class="stat-card" style="border-left-color: #9b59b6;">
+                    <div class="number">${data.data.length}</div>
+                    <div class="label">Number of Dekads</div>
+                </div>
+            `;
+        }
+        
+        // ============================================================
+        // RENDER TABLE
+        // ============================================================
+        
+        function renderTable(data, province) {
+            const p = province || data.provinces[0];
+            const tableWrapper = document.getElementById('tableWrapper');
+            const tableContainer = document.getElementById('tableContainer');
+            
+            tableContainer.style.display = 'block';
+            
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Period</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Rainfall (mm)</th>
+                            <th>LTA (mm)</th>
+                            <th>Anomaly (mm)</th>
+                            <th>% of Average</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            data.data.forEach(d => {
+                const rainfall = d[p] || 0;
+                const lta = d[`${p}_lta`] || 0;
+                const anomaly = d[`${p}_anomaly`] || 0;
+                const pctAvg = d[`${p}_pct_avg`] || 0;
+                const anomalyClass = anomaly >= 0 ? 'positive' : 'negative';
+                
+                html += `
+                    <tr>
+                        <td><strong>${d.period}</strong></td>
+                        <td>${d.start_date}</td>
+                        <td>${d.end_date}</td>
+                        <td>${rainfall.toFixed(1)}</td>
+                        <td>${lta.toFixed(1)}</td>
+                        <td class="${anomalyClass}">${anomaly >= 0 ? '+' : ''}${anomaly.toFixed(1)}</td>
+                        <td>${pctAvg.toFixed(1)}%</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                    </tbody>
+                </table>
+            `;
+            
+            tableWrapper.innerHTML = html;
+        }
+        
+        // ============================================================
+        // EXPORT CSV
+        // ============================================================
+        
+        function exportCSV() {
+            if (!currentData) {
+                alert('Please load data first.');
+                return;
+            }
+            
+            const province = document.getElementById('provinceSelect').value || currentData.provinces[0];
+            
+            let csv = 'Period,Start Date,End Date,Rainfall (mm),LTA (mm),Anomaly (mm),% of Average\n';
+            
+            currentData.data.forEach(d => {
+                const rainfall = d[province] || 0;
+                const lta = d[`${province}_lta`] || 0;
+                const anomaly = d[`${province}_anomaly`] || 0;
+                const pctAvg = d[`${province}_pct_avg`] || 0;
+                
+                csv += `${d.period},${d.start_date},${d.end_date},${rainfall.toFixed(1)},${lta.toFixed(1)},${anomaly.toFixed(1)},${pctAvg.toFixed(1)}%\n`;
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `dekadal_rainfall_${province}_${document.getElementById('obsStart').value}_to_${document.getElementById('obsEnd').value}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        // ============================================================
+        // INIT
+        // ============================================================
+        
+        async function init() {
+            await getDatabaseInfo();
+            setObsCurrentYear();
+            setLTADefault();
+            loadData();
+        }
+        
+        window.onload = function() {
+            init();
+        };
+    </script>
+</body>
+</html>

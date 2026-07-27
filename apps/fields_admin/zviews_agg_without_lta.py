@@ -1689,20 +1689,24 @@ def api_rainfall_export_csv_paginated(request):
 ##
 #
 #
-################################################################################################################
+#  
+#
+#
+#
+#  
+#
 ############################## ==============================###########################=======================
-#################################### DATA AGGREGATION VIEWS WITH lta ########################################
-###############################################################################################################
-###############################################################################################################
-
+############################ MONTHLY RAINFALL AGGREGATION VIEW ###########################
+########################### ==============================###########################=======================
 # =====================================================
-# MONTHLY RAINFALL AGGREGATION WITH CORRECT LTA
+#  MONTHLY RAINFALL AGGREGATION VIEW
 # =====================================================
 
 import datetime
 import calendar
 import logging
 from django.http import JsonResponse
+from django.db.models import Sum
 from django.db import connection
 from .models import RainfallProvince
 
@@ -1711,18 +1715,13 @@ logger = logging.getLogger(__name__)
 
 def api_rainfall_monthly(request):
     """
-    Get monthly aggregated rainfall data with Long-Term Average (LTA),
-    Anomaly, and Percentage of Average.
-    
-    LTA for each month = average of monthly totals
-    e.g., LTA_Jan = (Jan2000_total + Jan2001_total + ... + Jan2020_total) / 21
+    Get monthly aggregated rainfall data - OPTIMIZED version.
+    Uses a single SQL query with GROUP BY.
     
     Query parameters:
     - start_date: Start date (YYYY-MM-DD) (required)
     - end_date: End date (YYYY-MM-DD) (required)
     - province: (optional) Filter by specific province
-    - lta_start: Start year for LTA calculation (default: 2000)
-    - lta_end: End year for LTA calculation (default: 2020)
     - format: json (default) or csv
     """
     try:
@@ -1730,25 +1729,26 @@ def api_rainfall_monthly(request):
         start_date_str = request.GET.get('start_date')
         end_date_str = request.GET.get('end_date')
         province_filter = request.GET.get('province')
-        lta_start_year = int(request.GET.get('lta_start', 2000))
-        lta_end_year = int(request.GET.get('lta_end', 2020))
         output_format = request.GET.get('format', 'json').lower()
         
+        # Validate required parameters
         if not start_date_str or not end_date_str:
             return JsonResponse({
                 'error': 'start_date and end_date are required',
-                'example': '/api/rainfall/monthly/lta/?start_date=2024-01-01&end_date=2024-12-31'
+                'example': '/api/rainfall/monthly/?start_date=2024-01-01&end_date=2024-12-31'
             }, status=400)
         
+        # Parse dates
         start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
         end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
         
         # ============================================================
-        # STEP 1: Get monthly totals for the requested period
+        # OPTIMIZED: Single SQL query with GROUP BY
         # ============================================================
         
         table_name = RainfallProvince._meta.db_table
         
+        # Build the WHERE clause
         where_clause = "date >= %s AND date <= %s"
         params = [start_date, end_date]
         
@@ -1756,7 +1756,8 @@ def api_rainfall_monthly(request):
             where_clause += " AND province = %s"
             params.append(province_filter)
         
-        sql_monthly = f"""
+        # Single query with GROUP BY year, month, province
+        sql = """
             SELECT 
                 EXTRACT(YEAR FROM date)::int as year,
                 EXTRACT(MONTH FROM date)::int as month,
@@ -1766,89 +1767,33 @@ def api_rainfall_monthly(request):
             WHERE {where_clause}
             GROUP BY EXTRACT(YEAR FROM date), EXTRACT(MONTH FROM date), province
             ORDER BY year, month, province
-        """
+        """.format(table_name=table_name, where_clause=where_clause)
         
         with connection.cursor() as cursor:
-            cursor.execute(sql_monthly, params)
-            monthly_rows = cursor.fetchall()
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
         
-        if not monthly_rows:
+        # Check if data exists
+        if not rows:
             return JsonResponse({
                 'success': False,
-                'message': 'No data found for the given date range.',
+                'message': 'No data found in database for the given date range.',
                 'data': []
             }, status=404)
         
-        # Get all provinces
+        # ============================================================
+        # Process results into the required format
+        # ============================================================
+        
+        # Get all provinces from the results
         if province_filter:
             provinces = [province_filter]
         else:
-            provinces = sorted(set(row[2] for row in monthly_rows))
+            provinces = sorted(set(row[2] for row in rows))
         
-        # ============================================================
-        # STEP 2: Calculate CORRECT LTA for each month
-        # First get monthly totals for LTA period, then average them
-        # ============================================================
-        
-        lta_where = f"EXTRACT(YEAR FROM date) BETWEEN {lta_start_year} AND {lta_end_year}"
-        if province_filter:
-            lta_where += f" AND province = '{province_filter}'"
-        
-        # Get monthly totals for LTA period
-        sql_monthly_lta = f"""
-            SELECT 
-                EXTRACT(YEAR FROM date)::int as year,
-                EXTRACT(MONTH FROM date)::int as month,
-                province,
-                SUM(rainfall_mm) as monthly_total
-            FROM {table_name}
-            WHERE {lta_where}
-            GROUP BY EXTRACT(YEAR FROM date), EXTRACT(MONTH FROM date), province
-        """
-        
-        with connection.cursor() as cursor:
-            cursor.execute(sql_monthly_lta)
-            monthly_lta_rows = cursor.fetchall()
-        
-        # Group monthly totals by month and province
-        lta_data = {}
-        for row in monthly_lta_rows:
-            year = row[0]
-            month = row[1]
-            province = row[2]
-            monthly_total = row[3]
-            
-            key = f"{month}-{province}"
-            if key not in lta_data:
-                lta_data[key] = []
-            lta_data[key].append(monthly_total)
-        
-        # Calculate LTA as average of monthly totals
-        lta_lookup = {}
-        lta_count_lookup = {}
-        lta_years_set = set()
-        
-        for key, values in lta_data.items():
-            lta_lookup[key] = round(sum(values) / len(values), 2)
-            lta_count_lookup[key] = len(values)
-            
-            # Also track years with data for this month-province
-            # We already have the years from the query
-            for row in monthly_lta_rows:
-                month = row[1]
-                province = row[2]
-                if f"{month}-{province}" == key:
-                    lta_years_set.add(row[0])
-        
-        lta_num_years = len(lta_years_set)
-        lta_years = sorted(lta_years_set)
-        
-        # ============================================================
-        # STEP 3: Combine data with LTA
-        # ============================================================
-        
+        # Group data by year-month
         month_data = {}
-        for row in monthly_rows:
+        for row in rows:
             year = row[0]
             month = row[1]
             province = row[2]
@@ -1866,56 +1811,29 @@ def api_rainfall_monthly(request):
                     'period': f"{calendar.month_name[month]} {year}",
                     'sort_key': f"{year}-{month:02d}",
                 }
+                # Initialize all provinces with 0
                 for p in provinces:
                     month_data[key][p] = 0.0
-                    month_data[key][f"{p}_lta"] = 0.0
-                    month_data[key][f"{p}_lta_count"] = 0
-                    month_data[key][f"{p}_anomaly"] = 0.0
-                    month_data[key][f"{p}_pct_avg"] = 0.0
-            
-            lta_key = f"{month}-{province}"
-            lta_value = lta_lookup.get(lta_key, 0.0)
-            lta_count = lta_count_lookup.get(lta_key, 0)
-            
-            anomaly = total - lta_value
-            pct_avg = (total / lta_value * 100) if lta_value > 0 else 0
             
             month_data[key][province] = round(total, 2)
-            month_data[key][f"{province}_lta"] = lta_value
-            month_data[key][f"{province}_lta_count"] = lta_count
-            month_data[key][f"{province}_anomaly"] = round(anomaly, 2)
-            month_data[key][f"{province}_pct_avg"] = round(pct_avg, 1)
         
+        # Convert to list and sort by date
         data = sorted(month_data.values(), key=lambda x: x['sort_key'])
         
         # ============================================================
-        # STEP 4: Build response
+        # Build response
         # ============================================================
         
         response_data = {
             'success': True,
             'aggregation': 'monthly',
-            'aggregation_label': 'Monthly with LTA',
-            'lta_period': {
-                'start_year': lta_start_year,
-                'end_year': lta_end_year,
-                'num_years': lta_num_years,
-                'years': lta_years,
-                'description': f"{lta_num_years} years ({lta_start_year}-{lta_end_year})"
-            },
+            'aggregation_label': 'Monthly',
             'date_range': {
                 'start': start_date_str,
                 'end': end_date_str
             },
             'provinces': provinces,
             'total_months': len(data),
-            'fields_explanation': {
-                'rainfall': 'Total monthly rainfall (mm)',
-                'lta': 'Long-Term Average monthly rainfall (mm)',
-                'lta_count': 'Number of years used to calculate LTA',
-                'anomaly': 'Rainfall - LTA (mm)',
-                'pct_avg': 'Percentage of LTA (%)'
-            },
             'data': data,
             'metadata': {
                 'source': 'database',
@@ -1923,18 +1841,22 @@ def api_rainfall_monthly(request):
             }
         }
         
+        # ============================================================
+        # Return as CSV if requested
+        # ============================================================
+        
         if output_format == 'csv':
-            return export_monthly_lta_csv(response_data)
+            return export_monthly_csv_optimized(response_data)
         
         return JsonResponse(response_data, status=200)
         
     except Exception as e:
-        logger.error(f"Error in monthly LTA aggregation: {str(e)}")
+        logger.error(f"Error in monthly rainfall aggregation: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 
 def export_monthly_csv_optimized(response_data):
-    """Export monthly LTA data as CSV."""
+    """Export monthly aggregation data as CSV."""
     import csv
     from django.http import HttpResponse
     
@@ -1945,266 +1867,27 @@ def export_monthly_csv_optimized(response_data):
         return JsonResponse({'error': 'No data to export'}, status=404)
     
     csv_response = HttpResponse(content_type='text/csv')
-    filename = f"rainfall_monthly_lta_{response_data['date_range']['start']}_to_{response_data['date_range']['end']}.csv"
+    filename = f"rainfall_monthly_{response_data['date_range']['start']}_to_{response_data['date_range']['end']}.csv"
     csv_response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
     writer = csv.writer(csv_response)
     
-    header = ['Year', 'Month', 'Period']
-    for province in provinces:
-        header.extend([
-            f'{province}_rainfall',
-            f'{province}_lta',
-            f'{province}_lta_count',
-            f'{province}_anomaly',
-            f'{province}_pct_avg'
-        ])
+    header = ['Year', 'Month', 'Month Name', 'Period'] + provinces
     writer.writerow(header)
     
     for row in data:
-        row_data = [row['year'], row['month'], row['period']]
+        row_data = [
+            row['year'],
+            row['month'],
+            row['month_name'],
+            row['period']
+        ]
         for province in provinces:
-            row_data.extend([
-                row.get(province, 0.0),
-                row.get(f'{province}_lta', 0.0),
-                row.get(f'{province}_lta_count', 0),
-                row.get(f'{province}_anomaly', 0.0),
-                row.get(f'{province}_pct_avg', 0.0)
-            ])
+            row_data.append(row.get(province, 0.0))
         writer.writerow(row_data)
     
     return csv_response
-
-
-######################################################################################################
 #
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-##
-###############################################################################################
-                # =====================================================
-                # DEKADAL RAINFALL AGGREGATION VIEW (OPTIMIZED)
-                # =====================================================
-###################################################################################################
-
-#
-#
-#
-#
-#
-##
-#########################################################################################################
-#
-################ ANNUAL & SEASONAL RAINFALL AGGREGATION VIEW  ########################
-#
-#########################################################################################################
-
-#
-#
-#  
-############################################  OLD VIEWS  ###################################################
-############################## ==============================###########################=======================
-############################ MONTHLY RAINFALL AGGREGATION VIEW ###########################
-########################### ==============================###########################=======================
-# =====================================================
-#  MONTHLY RAINFALL AGGREGATION VIEW
-# =====================================================
-
-# import datetime
-# import calendar
-# import logging
-# from django.http import JsonResponse
-# from django.db.models import Sum
-# from django.db import connection
-# from .models import RainfallProvince
-
-# logger = logging.getLogger(__name__)
-
-
-# def api_rainfall_monthly(request):
-#     """
-#     Get monthly aggregated rainfall data - OPTIMIZED version.
-#     Uses a single SQL query with GROUP BY.
-    
-#     Query parameters:
-#     - start_date: Start date (YYYY-MM-DD) (required)
-#     - end_date: End date (YYYY-MM-DD) (required)
-#     - province: (optional) Filter by specific province
-#     - format: json (default) or csv
-#     """
-#     try:
-#         # Get query parameters
-#         start_date_str = request.GET.get('start_date')
-#         end_date_str = request.GET.get('end_date')
-#         province_filter = request.GET.get('province')
-#         output_format = request.GET.get('format', 'json').lower()
-        
-#         # Validate required parameters
-#         if not start_date_str or not end_date_str:
-#             return JsonResponse({
-#                 'error': 'start_date and end_date are required',
-#                 'example': '/api/rainfall/monthly/?start_date=2024-01-01&end_date=2024-12-31'
-#             }, status=400)
-        
-#         # Parse dates
-#         start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
-#         end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
-        
-#         # ============================================================
-#         # OPTIMIZED: Single SQL query with GROUP BY
-#         # ============================================================
-        
-#         table_name = RainfallProvince._meta.db_table
-        
-#         # Build the WHERE clause
-#         where_clause = "date >= %s AND date <= %s"
-#         params = [start_date, end_date]
-        
-#         if province_filter:
-#             where_clause += " AND province = %s"
-#             params.append(province_filter)
-        
-#         # Single query with GROUP BY year, month, province
-#         sql = """
-#             SELECT 
-#                 EXTRACT(YEAR FROM date)::int as year,
-#                 EXTRACT(MONTH FROM date)::int as month,
-#                 province,
-#                 SUM(rainfall_mm) as total_rainfall
-#             FROM {table_name}
-#             WHERE {where_clause}
-#             GROUP BY EXTRACT(YEAR FROM date), EXTRACT(MONTH FROM date), province
-#             ORDER BY year, month, province
-#         """.format(table_name=table_name, where_clause=where_clause)
-        
-#         with connection.cursor() as cursor:
-#             cursor.execute(sql, params)
-#             rows = cursor.fetchall()
-        
-#         # Check if data exists
-#         if not rows:
-#             return JsonResponse({
-#                 'success': False,
-#                 'message': 'No data found in database for the given date range.',
-#                 'data': []
-#             }, status=404)
-        
-#         # ============================================================
-#         # Process results into the required format
-#         # ============================================================
-        
-#         # Get all provinces from the results
-#         if province_filter:
-#             provinces = [province_filter]
-#         else:
-#             provinces = sorted(set(row[2] for row in rows))
-        
-#         # Group data by year-month
-#         month_data = {}
-#         for row in rows:
-#             year = row[0]
-#             month = row[1]
-#             province = row[2]
-#             total = row[3]
-            
-#             key = f"{year}-{month:02d}"
-            
-#             if key not in month_data:
-#                 month_data[key] = {
-#                     'year': year,
-#                     'month': month,
-#                     'month_name': calendar.month_name[month],
-#                     'month_abbr': calendar.month_abbr[month],
-#                     'date': f"{year}-{month:02d}-01",
-#                     'period': f"{calendar.month_name[month]} {year}",
-#                     'sort_key': f"{year}-{month:02d}",
-#                 }
-#                 # Initialize all provinces with 0
-#                 for p in provinces:
-#                     month_data[key][p] = 0.0
-            
-#             month_data[key][province] = round(total, 2)
-        
-#         # Convert to list and sort by date
-#         data = sorted(month_data.values(), key=lambda x: x['sort_key'])
-        
-#         # ============================================================
-#         # Build response
-#         # ============================================================
-        
-#         response_data = {
-#             'success': True,
-#             'aggregation': 'monthly',
-#             'aggregation_label': 'Monthly',
-#             'date_range': {
-#                 'start': start_date_str,
-#                 'end': end_date_str
-#             },
-#             'provinces': provinces,
-#             'total_months': len(data),
-#             'data': data,
-#             'metadata': {
-#                 'source': 'database',
-#                 'exported_at': datetime.datetime.now().isoformat()
-#             }
-#         }
-        
-#         # ============================================================
-#         # Return as CSV if requested
-#         # ============================================================
-        
-#         if output_format == 'csv':
-#             return export_monthly_csv_optimized(response_data)
-        
-#         return JsonResponse(response_data, status=200)
-        
-#     except Exception as e:
-#         logger.error(f"Error in monthly rainfall aggregation: {str(e)}")
-#         return JsonResponse({'error': str(e)}, status=500)
-
-
-# def export_monthly_csv_optimized(response_data):
-#     """Export monthly aggregation data as CSV."""
-#     import csv
-#     from django.http import HttpResponse
-    
-#     data = response_data['data']
-#     provinces = response_data['provinces']
-    
-#     if not data:
-#         return JsonResponse({'error': 'No data to export'}, status=404)
-    
-#     csv_response = HttpResponse(content_type='text/csv')
-#     filename = f"rainfall_monthly_{response_data['date_range']['start']}_to_{response_data['date_range']['end']}.csv"
-#     csv_response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    
-#     writer = csv.writer(csv_response)
-    
-#     header = ['Year', 'Month', 'Month Name', 'Period'] + provinces
-#     writer.writerow(header)
-    
-#     for row in data:
-#         row_data = [
-#             row['year'],
-#             row['month'],
-#             row['month_name'],
-#             row['period']
-#         ]
-#         for province in provinces:
-#             row_data.append(row.get(province, 0.0))
-#         writer.writerow(row_data)
-    
-#     return csv_response
-# #
 ###############################################################################################
                 # =====================================================
                 # DEKADAL RAINFALL AGGREGATION VIEW (OPTIMIZED)
@@ -2455,9 +2138,12 @@ def export_dekadal_csv(response_data):
 #
 #########################################################################################################
 #
-################ ANNUAL & SEASONAL RAINFALL AGGREGATION VIEW  ########################
+################ Seasonal Rainfall Aggregation View  ########################
 #
 #########################################################################################################
+# =====================================================
+# ANNUAL & SEASONAL RAINFALL AGGREGATION VIEW (OPTIMIZED)
+# =====================================================
 
 import datetime
 import calendar

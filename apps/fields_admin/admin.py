@@ -29,6 +29,7 @@ class Admin2Admin(admin.ModelAdmin):
 @admin.register(Field)
 class FieldAdmin(GISModelAdmin):
     list_display = [
+        "id",
         "field_name",
         "user",
         "crop",

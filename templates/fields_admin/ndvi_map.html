@@ -241,7 +241,8 @@
     <script>
         var map, fieldLayer, ndviTileLayer = null;
         var fields = [];
-        
+        var tileCache = {};
+
         function initMap() {
             map = L.map('map').setView([-19.0, 29.5], 6);
             
@@ -303,15 +304,89 @@
                 },
                 onEachFeature: function(feature, layer) {
                     var p = feature.properties;
-                    layer.bindPopup(`
-                        <div style="min-width:180px;">
+                    var fieldId = p.id || p.field_id || p.pk || feature.id || Math.random().toString(36).substr(2, 9);
+
+                    // Popup content with Button
+                    var popupContent = `
+                        <div style="min-width:220px;">
                             <h4 style="margin:0 0 6px 0; color:#1a237e;">${p.field_name}</h4>
                             <div style="font-size:12px; line-height:1.5;">
                                 <strong>Crop:</strong> ${p.crop}<br>
-                                <strong>Area:</strong> ${p.area_ha} ha
+                                <strong>Area:</strong> ${p.area_ha} ha<br>
+                                <div id="ndvi-result-${fieldId}" style="margin-top:6px; font-size:12px; color:#555; min-height: 20px;">
+                                    <i class="fas fa-info-circle"></i> Select dates above, then click "Get NDVI"
+                                </div>
+                                <button class="fetch-ndvi-btn" data-id="${fieldId}" style="margin-top:8px; padding:4px 12px; background:#1a237e; color:white; border:none; border-radius:4px; cursor:pointer; font-size:12px;">
+                                    <i class="fas fa-chart-line"></i> Get NDVI
+                                </button>
                             </div>
                         </div>
-                    `, { maxWidth: 280 });
+                    `;
+                    
+                    layer.bindPopup(popupContent, { maxWidth: 350 });
+
+                    // Event listener for the button inside popup
+                    layer.on('popupopen', function(e) {
+                        var popup = e.popup;
+                        var container = popup.getElement();
+                        var btn = container.querySelector('.fetch-ndvi-btn');
+                        if (btn) {
+                            var newBtn = btn.cloneNode(true);
+                            btn.parentNode.replaceChild(newBtn, btn);
+                            
+                            newBtn.addEventListener('click', function(event) {
+                                event.stopPropagation();
+                                var id = this.getAttribute('data-id');
+                                
+                                // Show loading state
+                                var resultDiv = container.querySelector('#ndvi-result-' + id);
+                                resultDiv.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Fetching NDVI time-series...`;
+
+                                var startDate = document.getElementById('startDate').value;
+                                var endDate = document.getElementById('endDate').value;
+                                var cloudCover = document.getElementById('cloudCover').value;
+
+                                // Fetch the time-series API
+                                var url = '/api/fields/ndvi-single/?field_id=' + id + '&start_date=' + startDate + '&end_date=' + endDate + '&cloud_cover=' + cloudCover;
+
+                                fetch(url)
+                                    .then(function(response) { return response.json(); })
+                                    .then(function(data) {
+                                        if (data.success && data.data && data.data.length > 0) {
+                                            
+                                            // Build a table of dates and values
+                                            var rows = '<table style="width:100%; font-size:11px; margin-top:6px; border-collapse:collapse;">';
+                                            rows += '<tr><th style="text-align:left; border-bottom:1px solid #ddd; padding:4px 0;">Date</th><th style="text-align:right; border-bottom:1px solid #ddd; padding:4px 0;">NDVI</th></tr>';
+                                            
+                                            data.data.forEach(function(item) {
+                                                var val = item.ndvi;
+                                                var color = '#1a9850'; // Good
+                                                if (val < 0.2) color = '#d73027'; // Poor
+                                                else if (val < 0.4) color = '#fdae61'; // Moderate
+                                                
+                                                rows += `<tr>
+                                                    <td style="padding:3px 0; font-size:11px;">${item.date}</td>
+                                                    <td style="padding:3px 0; text-align:right;">
+                                                        <span style="background:${color}; color:white; padding:1px 8px; border-radius:10px; font-weight:bold; font-size:11px;">${val}</span>
+                                                    </td>
+                                                </tr>`;
+                                            });
+                                            rows += '</table>';
+                                            
+                                            resultDiv.innerHTML = rows;
+                                        } else if (data.success && data.data && data.data.length === 0) {
+                                            resultDiv.innerHTML = `<span style="color:#f39c12;"><i class="fas fa-exclamation-triangle"></i> No NDVI data found for this range (possible clouds).</span>`;
+                                        } else {
+                                            resultDiv.innerHTML = `<span style="color:#e74c3c;">Error: ${data.error || 'No data'}</span>`;
+                                        }
+                                    })
+                                    .catch(function(error) {
+                                        resultDiv.innerHTML = `<span style="color:#e74c3c;">Network error</span>`;
+                                        console.error(error);
+                                    });
+                            });
+                        }
+                    });
                 }
             }).addTo(map);
             
@@ -333,6 +408,14 @@
                 return;
             }
             
+            var cacheKey = startDate + '_' + endDate + '_' + cloudCover;
+            
+            if (tileCache[cacheKey]) {
+                console.log('Loading NDVI from cache:', cacheKey);
+                addNdviTile(tileCache[cacheKey]);
+                return;
+            }
+            
             showLoading('Loading NDVI raster...');
             
             if (ndviTileLayer) {
@@ -347,6 +430,7 @@
                 .then(function(data) {
                     if (data.success) {
                         if (data.tile_url) {
+                            tileCache[cacheKey] = data.tile_url;
                             addNdviTile(data.tile_url);
                         } else {
                             showError('No NDVI tile URL received');

@@ -24,7 +24,9 @@ urlpatterns = [
     # NDVI MAP - MAIN VIEW
     path('ndvi-map/', views.ndvi_map_view, name='ndvi_map'),
      # NDVI API - GET SINGLE TILE FOR ALL FIELDS
-     path('api/fields/ndvi-all/', views.api_ndvi_all_fields, name='api_ndvi_all_fields'),
+    path('api/fields/ndvi-all/', views.api_ndvi_all_fields, name='api_ndvi_all_fields'),
+    path('api/fields/ndvi-single/', views.api_ndvi_single_field, name='api_ndvi_single_field'),
+    
     
     # path('fields-map/', views.fields_map_view, name='fields_map'),
     # path('api/fields/<int:field_id>/ndvi-simple/', views.api_field_ndvi_simple, name='api_field_ndvi_simple'),

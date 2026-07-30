@@ -862,30 +862,8 @@ def ndvi_map_view(request):
 # 
 # 
 
-from django.shortcuts import render
-from django.contrib.auth.decorators import login_required
-from .models import Field
-
-@login_required
-def fields_map_view(request):
-    """
-    Simple view to display user's fields on a Leaflet map.
-    """
-    # Get all fields for the current user
-    fields = Field.objects.filter(user=request.user).select_related('adm1', 'adm2')
-    
-    context = {
-        'fields': fields,
-        'total_fields': fields.count(),
-    }
-    
-    return render(request, 'fields_admin/fields_map.html', context)
-
-
-# Add this to views.py
-
 # =====================================================
-# SIMPLE NDVI API FOR FIELD -LOOK BACK
+# SIMPLE NDVI API FOR FIELD - start and end date
 # =====================================================
 @login_required
 def api_ndvi_all_fields(request):
@@ -895,13 +873,13 @@ def api_ndvi_all_fields(request):
     Query parameters:
     - start_date: Start date (YYYY-MM-DD) (required)
     - end_date: End date (YYYY-MM-DD) (required)
-    - cloud_cover: Maximum cloud cover (default: 20)
+    - cloud_cover: Maximum cloud cover (default: 30)
     """
     try:
         # Get parameters
         start_date_str = request.GET.get('start_date')
         end_date_str = request.GET.get('end_date')
-        cloud_cover = int(request.GET.get('cloud_cover', 20))
+        cloud_cover = int(request.GET.get('cloud_cover', 30))
         
         # Validate dates
         if not start_date_str or not end_date_str:
@@ -1010,6 +988,515 @@ def api_ndvi_all_fields(request):
             'error': str(e)
         }, status=500)
 
+###########################################################################################################
+####            ####################### View NDVI ################################
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from .models import Field
+
+@login_required
+def fields_map_view(request):
+    """
+    Simple view to display user's fields on a Leaflet map.
+    """
+    # Get all fields for the current user
+    fields = Field.objects.filter(user=request.user).select_related('adm1', 'adm2')
+    
+    context = {
+        'fields': fields,
+        'total_fields': fields.count(),
+    }
+    
+    return render(request, 'fields_admin/fields_map.html', context)
+
+############################## API for zonal stats for single field start -end date #################################
+############################################################################################################
+############## Get NDVI for a single field over a selected period    ######################
+# REMOVED @login_required decorator for Postman testing
+def api_ndvi_single_field(request):
+    """
+    Get a TIME-SERIES of NDVI values for a SINGLE field within a date range.
+    """
+    try:
+        # Get parameters
+        field_id = request.GET.get('field_id')
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        cloud_cover = int(request.GET.get('cloud_cover', 30))
+        
+        if not field_id:
+            return JsonResponse({'success': False, 'error': 'field_id is required'}, status=400)
+        if not start_date_str or not end_date_str:
+            return JsonResponse({'success': False, 'error': 'start_date and end_date are required'}, status=400)
+        
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        if start_date > end_date:
+            return JsonResponse({'success': False, 'error': 'start_date must be before end_date'}, status=400)
+        
+        # 1. Get the field (REMOVED user ownership check for Postman testing)
+        try:
+            field = Field.objects.get(id=field_id)
+        except Field.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Field not found'}, status=404)
+        
+        if not field.geometry:
+            return JsonResponse({'success': False, 'error': 'Field has no geometry'}, status=400)
+        
+        geom_json = json.loads(field.geometry.geojson)
+        coords = geom_json.get('coordinates', [])
+        if not coords or len(coords) == 0:
+            return JsonResponse({'success': False, 'error': 'Invalid field geometry'}, status=400)
+        
+        ee_geom = ee.Geometry.Polygon(coords)
+        
+        # 2. Get Sentinel-2 collection
+        collection = (
+            ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+            .filterBounds(ee_geom)
+            .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+            .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_cover))
+        )
+        
+        # 3. Check if there are any images at all
+        collection_size = collection.size().getInfo()
+        if collection_size == 0:
+            return JsonResponse({
+                'success': False, 
+                'error': f'No Sentinel-2 images found for this date range ({start_date} to {end_date}) with {cloud_cover}% cloud cover.'
+            }, status=404)
+        
+        # 4. Calculate NDVI for the entire collection
+        def add_ndvi(img):
+            ndvi = img.normalizedDifference(['B8', 'B4']).rename('ndvi')
+            return img.addBands(ndvi)
+        
+        collection = collection.map(add_ndvi)
+        
+        # 5. Get ALL images with their Dates and NDVI in one go
+        def extract_ndvi(img):
+            ndvi_val = img.select('ndvi').reduceRegion(
+                reducer=ee.Reducer.mean(),
+                geometry=ee_geom,
+                scale=250,
+                maxPixels=1e9,
+                bestEffort=True
+            ).get('ndvi')
+            
+            return ee.Feature(None, {
+                'date': img.date().format('YYYY-MM-dd'),
+                'ndvi': ndvi_val
+            })
+
+        features = collection.map(extract_ndvi)
+        features = features.filter(ee.Filter.notNull(['ndvi']))
+        feature_list = features.getInfo()
+        
+        # 6. Parse into dictionary to remove duplicates (AGGREGATION LOGIC)
+        date_ndvi_dict = {}
+        for feature in feature_list['features']:
+            props = feature['properties']
+            date_str = props['date']
+            ndvi_val = props['ndvi']
+            
+            # If the date already exists in our dictionary, we average the values
+            if date_str in date_ndvi_dict:
+                # Sum the previous value and the new one, then divide by 2 
+                # (This works perfectly because we only have 2 images per day maximum)
+                existing_avg = date_ndvi_dict[date_str]
+                new_avg = (existing_avg + ndvi_val) / 2
+                date_ndvi_dict[date_str] = round(new_avg, 4)
+            else:
+                # First time seeing this date, just add it
+                date_ndvi_dict[date_str] = round(ndvi_val, 4)
+        
+        # Convert dictionary back to a sorted list for the JSON response
+        ndvi_time_series = []
+        for date_str, ndvi_val in date_ndvi_dict.items():
+            ndvi_time_series.append({
+                "date": date_str,
+                "ndvi": ndvi_val
+            })
+        
+        # Sort by date (oldest to newest)
+        ndvi_time_series.sort(key=lambda x: x['date'])
+        
+        return JsonResponse({
+            'success': True,
+            'field_id': int(field_id),
+            'field_name': field.field_name,
+            'date_range': {
+                'start': start_date.strftime('%Y-%m-%d'),
+                'end': end_date.strftime('%Y-%m-%d')
+            },
+            'data': ndvi_time_series
+        }, status=200)
+        
+    except Exception as e:
+        logger.error(f"Error in api_ndvi_single_field: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+#
+#
+#
+    """
+    Get a TIME-SERIES of NDVI values for a SINGLE field within a date range.
+    Skips dates with no satellite data.
+    """
+    try:
+        # Get parameters
+        field_id = request.GET.get('field_id')
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        cloud_cover = int(request.GET.get('cloud_cover', 30))
+        
+        if not field_id:
+            return JsonResponse({'success': False, 'error': 'field_id is required'}, status=400)
+        if not start_date_str or not end_date_str:
+            return JsonResponse({'success': False, 'error': 'start_date and end_date are required'}, status=400)
+        
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        if start_date > end_date:
+            return JsonResponse({'success': False, 'error': 'start_date must be before end_date'}, status=400)
+        
+        # 1. Get the field (Ensure user owns it)
+        try:
+            field = Field.objects.get(id=field_id, user=request.user)
+        except Field.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Field not found or access denied'}, status=404)
+        
+        if not field.geometry:
+            return JsonResponse({'success': False, 'error': 'Field has no geometry'}, status=400)
+        
+        geom_json = json.loads(field.geometry.geojson)
+        coords = geom_json.get('coordinates', [])
+        if not coords or len(coords) == 0:
+            return JsonResponse({'success': False, 'error': 'Invalid field geometry'}, status=400)
+        
+        ee_geom = ee.Geometry.Polygon(coords)
+        
+        # 2. Get Sentinel-2 collection (All images in the range)
+        collection = (
+            ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+            .filterBounds(ee_geom)
+            .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+            .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_cover))
+        )
+        
+        # 3. Check if there are ANY images at all
+        collection_size = collection.size().getInfo()
+        if collection_size == 0:
+            return JsonResponse({
+                'success': False, 
+                'error': f'No satellite images found for {start_date} to {end_date} with {cloud_cover}% cloud cover.'
+            }, status=404)
+        
+        # 4. Calculate NDVI for the entire collection
+        def add_ndvi(img):
+            ndvi = img.normalizedDifference(['B8', 'B4']).rename('ndvi')
+            return img.addBands(ndvi)
+        
+        collection = collection.map(add_ndvi)
+        
+        # 5. Get unique dates from the satellite images
+        unique_dates = collection.aggregate_array('system:time_start').getInfo()
+        
+        # 6. Loop through ONLY the dates that exist, and get NDVI
+        ndvi_time_series = []
+        for timestamp in unique_dates:
+            # Convert GEE timestamp to date string
+            date_obj = datetime.datetime.fromtimestamp(timestamp / 1000).date()
+            date_str = date_obj.strftime('%Y-%m-%d')
+            
+            # Filter collection for this specific date
+            daily_collection = collection.filterDate(date_str, date_str)
+            daily_size = daily_collection.size().getInfo()  # Check size manually
+            
+            # SAFETY CHECK: Only proceed if images exist for this day
+            if daily_size > 0:
+                daily_img = daily_collection.first()
+                
+                # Clip and reduce region
+                ndvi_clipped = daily_img.select('ndvi').clip(ee_geom)
+                
+                mean_ndvi = ndvi_clipped.reduceRegion(
+                    reducer=ee.Reducer.mean(),
+                    geometry=ee_geom,
+                    scale=250,
+                    maxPixels=1e9
+                ).get('ndvi')
+                
+                ndvi_value = mean_ndvi.getInfo()
+                
+                if ndvi_value is not None:
+                    ndvi_time_series.append({
+                        "date": date_str,
+                        "ndvi": round(ndvi_value, 4)
+                    })
+        
+        if len(ndvi_time_series) == 0:
+            return JsonResponse({
+                'success': False,
+                'error': 'Images found but all data was filtered out (possible heavy clouds).'
+            }, status=404)
+        
+        return JsonResponse({
+            'success': True,
+            'field_id': int(field_id),
+            'field_name': field.field_name,
+            'date_range': {
+                'start': start_date.strftime('%Y-%m-%d'),
+                'end': end_date.strftime('%Y-%m-%d')
+            },
+            'data': ndvi_time_series
+        }, status=200)
+        
+    except Exception as e:
+        logger.error(f"Error in api_ndvi_single_field: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+#######################
+
+    """
+    Get a TIME-SERIES of NDVI values for a SINGLE field within a date range.
+    """
+    try:
+        # Get parameters
+        field_id = request.GET.get('field_id')
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        cloud_cover = int(request.GET.get('cloud_cover', 30))
+        
+        if not field_id:
+            return JsonResponse({'success': False, 'error': 'field_id is required'}, status=400)
+        if not start_date_str or not end_date_str:
+            return JsonResponse({'success': False, 'error': 'start_date and end_date are required'}, status=400)
+        
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        if start_date > end_date:
+            return JsonResponse({'success': False, 'error': 'start_date must be before end_date'}, status=400)
+        
+        # 1. Get the field (Ensure user owns it)
+        try:
+            field = Field.objects.get(id=field_id, user=request.user)
+        except Field.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Field not found or access denied'}, status=404)
+        
+        if not field.geometry:
+            return JsonResponse({'success': False, 'error': 'Field has no geometry'}, status=400)
+        
+        geom_json = json.loads(field.geometry.geojson)
+        coords = geom_json.get('coordinates', [])
+        if not coords or len(coords) == 0:
+            return JsonResponse({'success': False, 'error': 'Invalid field geometry'}, status=400)
+        
+        ee_geom = ee.Geometry.Polygon(coords)
+        
+        # 2. Get Sentinel-2 collection
+        collection = (
+            ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+            .filterBounds(ee_geom)
+            .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+            .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_cover))
+        )
+        
+        # 3. Calculate NDVI for the entire collection
+        def add_ndvi(img):
+            ndvi = img.normalizedDifference(['B8', 'B4']).rename('ndvi')
+            return img.addBands(ndvi)
+        
+        collection = collection.map(add_ndvi)
+        
+        # 4. Get the list of image dates to iterate over
+        image_ids = collection.aggregate_array('system:time_start').getInfo()
+        if len(image_ids) == 0:
+            return JsonResponse({'success': False, 'error': f'No Sentinel-2 images found for the range {start_date} to {end_date}.'}, status=404)
+        
+        # 5. Loop through each image and get the NDVI for that specific date
+        ndvi_time_series = []
+        for timestamp in image_ids:
+            # Convert GEE timestamp to readable date
+            date_obj = datetime.datetime.fromtimestamp(timestamp / 1000).date()
+            date_str = date_obj.strftime('%Y-%m-%d')
+            
+            # Filter the collection to a 1-day window for this specific image
+            daily_img = collection.filterDate(date_str, date_str).first()
+            
+            # Clip and reduce region
+            ndvi_clipped = daily_img.select('ndvi').clip(ee_geom)
+            
+            mean_ndvi = ndvi_clipped.reduceRegion(
+                reducer=ee.Reducer.mean(),
+                geometry=ee_geom,
+                scale=250,          # Faster processing with 250m resolution
+                maxPixels=1e9
+            ).get('ndvi')
+            
+            ndvi_value = mean_ndvi.getInfo()
+            
+            # Only add to array if valid data exists (not null)
+            if ndvi_value is not None:
+                ndvi_time_series.append({
+                    "date": date_str,
+                    "ndvi": round(ndvi_value, 4)
+                })
+        
+        return JsonResponse({
+            'success': True,
+            'field_id': int(field_id),
+            'field_name': field.field_name,
+            'date_range': {
+                'start': start_date.strftime('%Y-%m-%d'),
+                'end': end_date.strftime('%Y-%m-%d')
+            },
+            'data': ndvi_time_series  # <--- This is your array of data!
+        }, status=200)
+        
+    except Exception as e:
+        logger.error(f"Error in api_ndvi_single_field: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+ 
+ ###
+ #
+ #
+ #
+# # Single val over sekected period
+# # REMOVED @login_required decorator
+# def api_ndvi_single_field(request):
+#     """
+#     Get the average NDVI value for a SINGLE specific user field.
+#     """
+#     try:
+#         # Get parameters
+#         field_id = request.GET.get('field_id')
+#         start_date_str = request.GET.get('start_date')
+#         end_date_str = request.GET.get('end_date')
+#         cloud_cover = int(request.GET.get('cloud_cover', 30))
+        
+#         # Validate inputs
+#         if not field_id:
+#             return JsonResponse({'success': False, 'error': 'field_id is required'}, status=400)
+#         if not start_date_str or not end_date_str:
+#             return JsonResponse({'success': False, 'error': 'start_date and end_date are required'}, status=400)
+        
+#         start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+#         end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+#         if start_date > end_date:
+#             return JsonResponse({'success': False, 'error': 'start_date must be before end_date'}, status=400)
+        
+#         # REMOVED: Authentication check for the user
+        
+#         # Get the specific field (REMOVED user ownership requirement)
+#         try:
+#             # REMOVED: user=request.user from this query
+#             field = Field.objects.get(id=field_id)
+#         except Field.DoesNotExist:
+#             return JsonResponse({'success': False, 'error': 'Field not found'}, status=404)
+        
+#         if not field.geometry:
+#             return JsonResponse({'success': False, 'error': 'Field has no geometry'}, status=400)
+        
+#         # Convert field geometry to Earth Engine format
+#         geom_json = json.loads(field.geometry.geojson)
+#         coords = geom_json.get('coordinates', [])
+        
+#         if not coords or len(coords) == 0:
+#             return JsonResponse({'success': False, 'error': 'Invalid field geometry'}, status=400)
+        
+#         ee_geom = ee.Geometry.Polygon(coords)
+        
+#         # Get Sentinel-2 collection
+#         collection = (
+#             ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+#             .filterBounds(ee_geom)
+#             .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+#             .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_cover))
+#         )
+        
+#         # Check if we found any images
+#         collection_size = collection.size().getInfo()
+#         if collection_size == 0:
+#             return JsonResponse({
+#                 'success': False, 
+#                 'error': f'No Sentinel-2 images found for this date range ({start_date} to {end_date}) with {cloud_cover}% cloud cover.'
+#             }, status=404)
+        
+#         # Calculate NDVI
+#         def add_ndvi(img):
+#             ndvi = img.normalizedDifference(['B8', 'B4']).rename('ndvi')
+#             return img.addBands(ndvi)
+        
+#         collection = collection.map(add_ndvi)
+        
+#         # Get median composite and select NDVI band
+#         composite = collection.median()
+#         ndvi_image = composite.select('ndvi')
+        
+#         # Clip to the specific field geometry
+#         ndvi_clipped = ndvi_image.clip(ee_geom)
+        
+#         # Calculate the MEAN NDVI value for this specific polygon
+#         mean_ndvi = ndvi_clipped.reduceRegion(
+#             reducer=ee.Reducer.mean(),
+#             geometry=ee_geom,
+#             scale=100,
+#             maxPixels=1e9
+#         ).get('ndvi')
+        
+#         ndvi_value = mean_ndvi.getInfo()
+        
+#         if ndvi_value is None:
+#             return JsonResponse({
+#                 'success': False,
+#                 'error': 'No valid NDVI data available for this field.'
+#             }, status=404)
+        
+#         ndvi_value = round(ndvi_value, 4)
+        
+#         return JsonResponse({
+#             'success': True,
+#             'ndvi': ndvi_value,
+#             'field_id': int(field_id),
+#             'field_name': field.field_name,
+#             'date_range': {
+#                 'start': start_date.strftime('%Y-%m-%d'),
+#                 'end': end_date.strftime('%Y-%m-%d')
+#             },
+#             'cloud_cover': cloud_cover
+#         }, status=200)
+        
+#     except Exception as e:
+#         logger.error(f"Error in api_ndvi_single_field: {str(e)}")
+#         return JsonResponse({
+#             'success': False,
+#             'error': str(e)
+#         }, status=500)
+# #
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
 #########################################################################################################
 #################################  Get Rainfall #########################################################
 ############################################################################################@@@@@@@@@@@@@

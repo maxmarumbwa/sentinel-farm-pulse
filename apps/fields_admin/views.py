@@ -837,6 +837,213 @@ def api_check_duplicates(request):
         logger.error(f"Error checking duplicates: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
+##################################################################################################
+
+######################################### Sentinel NDVI monitoring #######################################
+
+##################################################################################################
+@login_required
+def ndvi_map_view(request):
+    """
+    Display fields with NDVI overlay on a map.
+    """
+    fields = Field.objects.filter(user=request.user).select_related('adm1', 'adm2')
+    
+    context = {
+        'fields': fields,
+        'total_fields': fields.count(),
+    }
+    
+    return render(request, 'fields_admin/ndvi_map.html', context)
+#
+# 
+# 
+# 
+# 
+# 
+
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from .models import Field
+
+@login_required
+def fields_map_view(request):
+    """
+    Simple view to display user's fields on a Leaflet map.
+    """
+    # Get all fields for the current user
+    fields = Field.objects.filter(user=request.user).select_related('adm1', 'adm2')
+    
+    context = {
+        'fields': fields,
+        'total_fields': fields.count(),
+    }
+    
+    return render(request, 'fields_admin/fields_map.html', context)
+
+
+# Add this to views.py
+
+# =====================================================
+# SIMPLE NDVI API FOR FIELD -LOOK BACK
+# =====================================================
+@login_required
+def api_ndvi_all_fields(request):
+    """
+    Get a single NDVI raster tile covering all user's fields.
+    
+    Query parameters:
+    - start_date: Start date (YYYY-MM-DD) (required)
+    - end_date: End date (YYYY-MM-DD) (required)
+    - cloud_cover: Maximum cloud cover (default: 20)
+    """
+    try:
+        # Get parameters
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        cloud_cover = int(request.GET.get('cloud_cover', 20))
+        
+        # Validate dates
+        if not start_date_str or not end_date_str:
+            return JsonResponse({
+                'success': False,
+                'error': 'start_date and end_date are required (YYYY-MM-DD)'
+            }, status=400)
+        
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        if start_date > end_date:
+            return JsonResponse({
+                'success': False,
+                'error': 'start_date must be before end_date'
+            }, status=400)
+        
+        # Get all fields for the user
+        fields = Field.objects.filter(user=request.user)
+        
+        if not fields:
+            return JsonResponse({
+                'success': False,
+                'error': 'No fields found'
+            }, status=404)
+        
+        # Combine all field geometries
+        combined_geometry = None
+        
+        for field in fields:
+            if not field.geometry:
+                continue
+            
+            geom_json = json.loads(field.geometry.geojson)
+            coords = geom_json.get('coordinates', [])
+            
+            if not coords or len(coords) == 0:
+                continue
+            
+            ee_geom = ee.Geometry.Polygon(coords)
+            
+            if combined_geometry is None:
+                combined_geometry = ee_geom
+            else:
+                combined_geometry = combined_geometry.union(ee_geom)
+        
+        if combined_geometry is None:
+            return JsonResponse({
+                'success': False,
+                'error': 'No valid geometries found'
+            }, status=404)
+        
+        # Buffer slightly to ensure coverage
+        combined_geometry = combined_geometry.buffer(50)
+        
+        # Get Sentinel-2 collection
+        collection = (
+            ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+            .filterBounds(combined_geometry)
+            .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+            .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_cover))
+        )
+        
+        # Calculate NDVI
+        def add_ndvi(img):
+            ndvi = img.normalizedDifference(['B8', 'B4']).rename('ndvi')
+            return img.addBands(ndvi)
+        
+        collection = collection.map(add_ndvi)
+        
+        # Get median composite
+        composite = collection.median()
+        ndvi_image = composite.select('ndvi')
+        
+        # Clip to geometry
+        ndvi_clipped = ndvi_image.clip(combined_geometry)
+        
+        # Get tile URL
+        vis_params = {
+            'min': -0.2,
+            'max': 0.8,
+            'palette': [
+                '#d73027', '#f46d43', '#fdae61', '#fee08b',
+                '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850'
+            ]
+        }
+        
+        map_id = ndvi_clipped.getMapId(vis_params)
+        tile_url = map_id['tile_fetcher'].url_format
+        
+        return JsonResponse({
+            'success': True,
+            'tile_url': tile_url,
+            'field_count': fields.count(),
+            'date_range': {
+                'start': start_date.strftime('%Y-%m-%d'),
+                'end': end_date.strftime('%Y-%m-%d')
+            },
+            'cloud_cover': cloud_cover
+        }, status=200)
+        
+    except Exception as e:
+        logger.error(f"Error in api_ndvi_all_fields: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+#########################################################################################################
+#################################  Get Rainfall #########################################################
+############################################################################################@@@@@@@@@@@@@
+
+#from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from .models import Field
+
+
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+#
+
 
     
 ##################################################################################################
@@ -3554,6 +3761,23 @@ def test(request):
 def test_ndvi_view(request):
     """Test view for NDVI API"""
     return render(request, 'fields_admin/test_ndvi.html', {})
+
+def view_ndvi(request):
+    """Test view for Rainfall API"""
+    return render(request, 'fields_admin/fields_monitoring.html', {})
+
+def ndvi_lookback(request):
+    """Test view for Rainfall API"""
+    return render(request, 'fields_admin/ndvi_lookback.html', {})
+
+
+
+
+#
+#
+#
+
+
 
 def test_rainfall_view(request):
     """Test view for Rainfall API"""

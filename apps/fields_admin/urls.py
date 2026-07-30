@@ -19,6 +19,20 @@ urlpatterns = [
     path('api/fields/<int:field_id>/delete/', views.api_delete_field, name='api_delete_field'), 
     path('api/fields/check-duplicates/', views.api_check_duplicates, name='api_check_duplicates'),
     
+    
+    ################################### NDVI API URLs ##########################
+    # NDVI MAP - MAIN VIEW
+    path('ndvi-map/', views.ndvi_map_view, name='ndvi_map'),
+     # NDVI API - GET SINGLE TILE FOR ALL FIELDS
+     path('api/fields/ndvi-all/', views.api_ndvi_all_fields, name='api_ndvi_all_fields'),
+    
+    # path('fields-map/', views.fields_map_view, name='fields_map'),
+    # path('api/fields/<int:field_id>/ndvi-simple/', views.api_field_ndvi_simple, name='api_field_ndvi_simple'),
+    # path('view/ndvi_lookback/', views.ndvi_lookback, name='ndvi_lookback'),
+    # path('ndvi-map/', views.ndvi_map_view, name='ndvi_map'),
+    # path('api/fields/ndvi-all/', views.api_ndvi_all_fields, name='api_ndvi_all_fields'),
+    
+    
     ############################################## Rainfall API URLs ##############################################
     path('api/rainfall/provinces/', views.api_rainfall_all_provinces, name='api_rainfall_all_provinces'),
     path('api/rainfall/point/', views.api_rainfall_single_point, name='api_rainfall_single_point'),

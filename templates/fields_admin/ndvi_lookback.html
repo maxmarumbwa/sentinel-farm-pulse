@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Field NDVI Viewer</title>
+    <style>
+        .ndvi-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            max-width: 400px;
+            margin: 20px auto;
+        }
+        .ndvi-value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        .ndvi-good { color: #1a9850; }
+        .ndvi-moderate { color: #fdae61; }
+        .ndvi-poor { color: #d73027; }
+        .ndvi-no-data { color: #999; }
+        .ndvi-detail {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <div id="ndviContainer">
+        <div class="ndvi-card">
+            <h2 id="fieldName">Loading...</h2>
+            <div class="ndvi-value" id="ndviValue">-</div>
+            <div id="ndviStatus">Loading NDVI...</div>
+            <hr>
+            <div class="ndvi-detail">
+                <span>Min:</span>
+                <span id="ndviMin">-</span>
+            </div>
+            <div class="ndvi-detail">
+                <span>Max:</span>
+                <span id="ndviMax">-</span>
+            </div>
+            <div class="ndvi-detail">
+                <span>Std Dev:</span>
+                <span id="ndviStd">-</span>
+            </div>
+            <div class="ndvi-detail">
+                <span>Samples:</span>
+                <span id="ndviCount">-</span>
+            </div>
+            <div class="ndvi-detail">
+                <span>Date Range:</span>
+                <span id="ndviDate">-</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Field ID from URL parameter or hardcoded
+        const fieldId = 123;
+        
+        fetch(`/api/fields/${fieldId}/ndvi-simple/?days=30`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const field = data.field;
+                    const ndvi = data.ndvi;
+                    
+                    document.getElementById('fieldName').textContent = field.name;
+                    
+                    if (ndvi.mean !== null) {
+                        const valueElement = document.getElementById('ndviValue');
+                        valueElement.textContent = ndvi.mean.toFixed(4);
+                        
+                        // Set color based on NDVI
+                        if (ndvi.mean > 0.4) {
+                            valueElement.className = 'ndvi-value ndvi-good';
+                            document.getElementById('ndviStatus').textContent = '✅ Good Vegetation';
+                        } else if (ndvi.mean >= 0.2) {
+                            valueElement.className = 'ndvi-value ndvi-moderate';
+                            document.getElementById('ndviStatus').textContent = '🟡 Moderate Vegetation';
+                        } else {
+                            valueElement.className = 'ndvi-value ndvi-poor';
+                            document.getElementById('ndviStatus').textContent = '🔴 Poor Vegetation';
+                        }
+                    } else {
+                        document.getElementById('ndviValue').textContent = 'No Data';
+                        document.getElementById('ndviValue').className = 'ndvi-value ndvi-no-data';
+                        document.getElementById('ndviStatus').textContent = 'No NDVI data available';
+                    }
+                    
+                    document.getElementById('ndviMin').textContent = ndvi.min !== null ? ndvi.min.toFixed(4) : '-';
+                    document.getElementById('ndviMax').textContent = ndvi.max !== null ? ndvi.max.toFixed(4) : '-';
+                    document.getElementById('ndviStd').textContent = ndvi.std !== null ? ndvi.std.toFixed(4) : '-';
+                    document.getElementById('ndviCount').textContent = ndvi.count || 0;
+                    document.getElementById('ndviDate').textContent = data.date_range.start + ' to ' + data.date_range.end;
+                } else {
+                    document.getElementById('fieldName').textContent = 'Error';
+                    document.getElementById('ndviValue').textContent = '❌';
+                    document.getElementById('ndviStatus').textContent = data.error || 'Failed to load NDVI';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('fieldName').textContent = 'Error';
+                document.getElementById('ndviValue').textContent = '❌';
+                document.getElementById('ndviStatus').textContent = 'Failed to load NDVI data';
+            });
+    </script>
+</body>
+</html>

@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Fields Map</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+        }
+        
+        /* Header */
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 15px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            z-index: 1000;
+            position: relative;
+        }
+        
+        .header h1 {
+            font-size: 20px;
+        }
+        
+        .header h1 i {
+            margin-right: 10px;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .header-actions a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.15);
+            transition: 0.3s;
+            font-size: 14px;
+        }
+        
+        .header-actions a:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+        
+        .header-actions a i {
+            margin-right: 5px;
+        }
+        
+        /* Stats Bar */
+        .stats-bar {
+            background: white;
+            padding: 10px 25px;
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .stat-item .number {
+            font-size: 20px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .stat-item .label {
+            font-size: 13px;
+            color: #7f8c8d;
+        }
+        
+        /* Map Container */
+        #map-container {
+            height: calc(100vh - 120px);
+            width: 100%;
+            position: relative;
+        }
+        
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+        
+        /* Loading Overlay */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            font-size: 16px;
+            color: #2c3e50;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2c3e50;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin-right: 12px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Legend */
+        .map-legend {
+            position: absolute;
+            bottom: 20px;
+            right: 10px;
+            background: white;
+            padding: 12px 15px;
+            border-radius: 6px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+            min-width: 120px;
+        }
+        
+        .map-legend h4 {
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: #2c3e50;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 3px 0;
+        }
+        
+        .color-box {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            border: 1px solid #ddd;
+            flex-shrink: 0;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                align-items: stretch;
+                text-align: center;
+            }
+            
+            .header-actions {
+                justify-content: center;
+            }
+            
+            .stats-bar {
+                justify-content: center;
+            }
+            
+            #map-container {
+                height: calc(100vh - 180px);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <h1><i class="fas fa-map-marked-alt"></i> My Fields Map</h1>
+        <div class="header-actions">
+            <a href="{% url 'fields_admin:sentinel_truecolour' %}">
+                <i class="fas fa-plus-circle"></i> New Field
+            </a>
+            <a href="#">
+                <i class="fas fa-table"></i> Dashboard
+            </a>
+        </div>
+    </header>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <span class="number">{{ total_fields }}</span>
+            <span class="label">Total Fields</span>
+        </div>
+        <div class="stat-item">
+            <span class="number" id="visibleCount">0</span>
+            <span class="label">Visible on Map</span>
+        </div>
+    </div>
+
+    <!-- Map -->
+    <div id="map-container">
+        <div id="map"></div>
+        <div class="loading-overlay" id="mapLoading">
+            <div class="spinner"></div>
+            <span>Loading fields...</span>
+        </div>
+        
+        <div class="map-legend" id="mapLegend">
+            <h4>Crops</h4>
+            <div id="legendItems">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // =====================================================
+        // CROP COLORS
+        // =====================================================
+        var cropColors = {
+            'Maize': '#f1c40f',
+            'Groundnuts': '#e67e22',
+            'Soybeans': '#2ecc71',
+            'Cotton': '#ecf0f1',
+            'Tobacco': '#e74c3c',
+            'Sunflower': '#f39c12',
+            'Sorghum': '#d35400',
+            'Millet': '#f1c40f',
+            'Beans': '#27ae60',
+            'Potatoes': '#8e44ad',
+            'Tomatoes': '#e74c3c',
+            'Other': '#95a5a6'
+        };
+        var defaultColor = '#95a5a6';
+
+        // =====================================================
+        // INIT MAP
+        // =====================================================
+        function initMap() {
+            // Create map centered on Zimbabwe
+            var map = L.map('map').setView([-19.0, 29.5], 6);
+            
+            // Add base tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+            
+            // =====================================================
+            // LOAD FIELDS FROM DJANGO API
+            // =====================================================
+            fetch('/api/fields/list/')
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    var features = data.features || [];
+                    
+                    if (features.length === 0) {
+                        document.getElementById('mapLoading').innerHTML = `
+                            <div style="text-align:center;">
+                                <i class="fas fa-map-marked-alt" style="font-size:48px; color:#999; display:block; margin-bottom:15px;"></i>
+                                <p>No fields found. Create your first field!</p>
+                                <a href="{% url 'fields_admin:sentinel_truecolour' %}" style="display:inline-block; margin-top:10px; padding:8px 20px; background:#2c3e50; color:white; border-radius:4px; text-decoration:none;">
+                                    <i class="fas fa-plus"></i> Create Field
+                                </a>
+                            </div>
+                        `;
+                        document.getElementById('mapLoading').style.display = 'flex';
+                        return;
+                    }
+                    
+                    // Hide loading overlay
+                    document.getElementById('mapLoading').style.display = 'none';
+                    
+                    // Update visible count
+                    document.getElementById('visibleCount').textContent = features.length;
+                    
+                    // =====================================================
+                    // ADD FIELDS TO MAP
+                    // =====================================================
+                    var geojsonLayer = L.geoJSON(features, {
+                        style: function(feature) {
+                            var crop = feature.properties.crop || 'Other';
+                            var color = cropColors[crop] || defaultColor;
+                            return {
+                                color: color,
+                                weight: 2,
+                                opacity: 0.8,
+                                fillColor: color,
+                                fillOpacity: 0.35
+                            };
+                        },
+                        onEachFeature: function(feature, layer) {
+                            var p = feature.properties;
+                            var color = cropColors[p.crop] || defaultColor;
+                            
+                            // Create popup content
+                            var popupContent = `
+                                <div style="min-width:200px;">
+                                    <h4 style="margin:0 0 8px 0; color:#2c3e50;">${p.field_name}</h4>
+                                    <div style="font-size:13px; line-height:1.6;">
+                                        <strong>Crop:</strong> 
+                                        <span style="color:${color}; font-weight:bold;">${p.crop}</span><br>
+                                        <strong>Area:</strong> ${p.area_ha} ha<br>
+                                        <strong>Production:</strong> ${p.production_system}<br>
+                                        <strong>Province:</strong> ${p.province || '-'}<br>
+                                        <strong>District:</strong> ${p.district || '-'}<br>
+                                        <strong>Created:</strong> ${p.created_at}
+                                    </div>
+                                    <div style="margin-top:8px; padding-top:8px; border-top:1px solid #eee;">
+                                        <a href="{% url 'fields_admin:sentinel_truecolour' %}?edit=${p.id}" 
+                                           style="color:#3498db; text-decoration:none; font-size:12px;">
+                                            <i class="fas fa-edit"></i> Edit
+                                        </a>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            layer.bindPopup(popupContent, { maxWidth: 280 });
+                            
+                            // Add hover effect
+                            layer.on('mouseover', function() {
+                                this.setStyle({
+                                    weight: 4,
+                                    opacity: 1,
+                                    fillOpacity: 0.5
+                                });
+                            });
+                            
+                            layer.on('mouseout', function() {
+                                this.setStyle({
+                                    weight: 2,
+                                    opacity: 0.8,
+                                    fillOpacity: 0.35
+                                });
+                            });
+                        }
+                    }).addTo(map);
+                    
+                    // =====================================================
+                    // UPDATE LEGEND
+                    // =====================================================
+                    updateLegend(features);
+                    
+                    // =====================================================
+                    // FIT MAP TO BOUNDS
+                    // =====================================================
+                    try {
+                        var bounds = geojsonLayer.getBounds();
+                        if (bounds.isValid()) {
+                            map.fitBounds(bounds, { padding: [40, 40] });
+                        }
+                    } catch(e) {
+                        console.log('Could not fit bounds:', e);
+                    }
+                })
+                .catch(function(error) {
+                    console.error('Error loading fields:', error);
+                    document.getElementById('mapLoading').innerHTML = `
+                        <div style="text-align:center; color:#e74c3c;">
+                            <i class="fas fa-exclamation-triangle" style="font-size:48px; display:block; margin-bottom:15px;"></i>
+                            <p>Error loading fields: ${error.message}</p>
+                            <button onclick="location.reload()" style="margin-top:10px; padding:8px 20px; background:#2c3e50; color:white; border:none; border-radius:4px; cursor:pointer;">
+                                <i class="fas fa-sync"></i> Retry
+                            </button>
+                        </div>
+                    `;
+                    document.getElementById('mapLoading').style.display = 'flex';
+                });
+            
+            // =====================================================
+            // UPDATE LEGEND FUNCTION
+            // =====================================================
+            function updateLegend(features) {
+                var crops = {};
+                features.forEach(function(f) {
+                    var crop = f.properties.crop || 'Other';
+                    var color = cropColors[crop] || defaultColor;
+                    if (!crops[crop]) {
+                        crops[crop] = { count: 0, color: color };
+                    }
+                    crops[crop].count++;
+                });
+                
+                var html = '';
+                var sortedCrops = Object.keys(crops).sort();
+                sortedCrops.forEach(function(crop) {
+                    var info = crops[crop];
+                    html += `
+                        <div class="legend-item">
+                            <div class="color-box" style="background:${info.color};"></div>
+                            <span>${crop} (${info.count})</span>
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('legendItems').innerHTML = html || '<div class="legend-item">No fields</div>';
+            }
+            
+            // Handle window resize
+            window.addEventListener('resize', function() {
+                map.invalidateSize();
+            });
+        }
+
+        // =====================================================
+        // INIT ON PAGE LOAD
+        // =====================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+        });
+    </script>
+
+</body>
+</html>

@@ -1012,8 +1012,56 @@ def fields_map_view(request):
 ############################## API for zonal stats for single field start -end date #################################
 ############################################################################################################
 ############## Get NDVI for a single field over a selected period    ######################
-# REMOVED @login_required decorator for Postman testing
+from django.http import JsonResponse
+from .models import Field, FieldNDVI
+import datetime
+
 def api_ndvi_single_field(request):
+    """
+    Get a TIME-SERIES of NDVI values from the DATABASE only.
+    """
+    try:
+        field_id = request.GET.get('field_id')
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        
+        if not all([field_id, start_date_str, end_date_str]):
+            return JsonResponse({'success': False, 'error': 'Missing required parameters'}, status=400)
+        
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        try:
+            field = Field.objects.get(id=field_id)
+        except Field.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Field not found'}, status=404)
+        
+        # Query the database (Instant query!)
+        ndvi_records = FieldNDVI.objects.filter(
+            field=field,
+            date__gte=start_date,
+            date__lte=end_date
+        ).order_by('date')
+        
+        data = [{"date": r.date.strftime('%Y-%m-%d'), "ndvi": r.ndvi_value} for r in ndvi_records]
+        
+        return JsonResponse({
+            'success': True,
+            'field_id': int(field_id),
+            'field_name': field.field_name,
+            'date_range': {
+                'start': start_date.strftime('%Y-%m-%d'),
+                'end': end_date.strftime('%Y-%m-%d')
+            },
+            'data': data
+        }, status=200)
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+################# Works on the flier-################## 
+# REMOVED @login_required decorator for Postman testing
+# def api_ndvi_single_field(request):
     """
     Get a TIME-SERIES of NDVI values for a SINGLE field within a date range.
     """
@@ -1374,7 +1422,7 @@ def api_ndvi_single_field(request):
  #
  #
  #
-# # Single val over sekected period
+# ####################### Single val over selected period  ##################
 # # REMOVED @login_required decorator
 # def api_ndvi_single_field(request):
 #     """

@@ -102,3 +102,22 @@ class RainfallProvince(models.Model):
         
     def __str__(self):
         return f"{self.province} - {self.date} ({self.rainfall_mm}mm)"
+    
+# Model for saving ndvi for fields
+# =====================================================
+# FIELD NDVI DATA MODEL
+# =====================================================
+
+class FieldNDVI(models.Model):
+    field = models.ForeignKey(Field, on_delete=models.CASCADE, related_name='ndvi_records')
+    date = models.DateField()
+    ndvi_value = models.FloatField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['field', 'date']  # Prevents duplicate dates
+        ordering = ['-date']
+        verbose_name_plural = "Field NDVI Records"
+    
+    def __str__(self):
+        return f"{self.field.field_name} - {self.date} ({self.ndvi_value})"

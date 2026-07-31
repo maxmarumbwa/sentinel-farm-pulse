@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.gis.admin import GISModelAdmin
-from .models import Admin1, Admin2, Field
+from .models import Admin1, Admin2, Field, FieldNDVI
 
 
 @admin.register(Admin1)
@@ -76,3 +76,13 @@ class RainfallProvinceAdmin(admin.ModelAdmin):
         if obj:  # editing an existing object
             return ['province', 'date', 'source', 'lat', 'lng', 'created_at']
         return ['created_at']
+    
+    
+@admin.register(FieldNDVI)
+class FieldNDVIAdmin(admin.ModelAdmin):
+    list_display = ['field', 'date', 'ndvi_value', 'created_at']
+    list_filter = ['date', 'field__crop']
+    search_fields = ['field__field_name']
+    ordering = ['-date']
+    date_hierarchy = 'date'
+    list_select_related = ['field']

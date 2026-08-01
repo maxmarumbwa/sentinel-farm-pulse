@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Field NDVI Analytics</title>
+    <title>FAO Sentinel Field Dashboard</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -14,253 +14,365 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    
     <style>
+        /* --- RESET & TYPOGRAPHY --- */
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; }
-        
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
+            background: #f8fafc; 
+            color: #1e293b;
+            overflow: hidden; /* Prevents scrollbar on the whole page */
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- HEADER --- */
         .header {
-            background: #1a237e;
-            color: white;
-            padding: 12px 20px;
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 12px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
-            gap: 8px;
+            height: 64px;
+            flex-shrink: 0;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
         }
-        .header h1 { font-size: 18px; }
-        .header h1 i { margin-right: 8px; }
-        .header-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        .header h1 { 
+            font-size: 18px; 
+            font-weight: 600; 
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .header h1 i { color: #2d6a4f; }
+        .header .badge {
+            background: #e8f5e9;
+            color: #2d6a4f;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .header-actions { display: flex; gap: 10px; }
         .header-actions a {
-            color: white;
+            color: #475569;
             text-decoration: none;
-            padding: 6px 14px;
-            border-radius: 4px;
-            background: rgba(255,255,255,0.15);
-            transition: 0.3s;
-            font-size: 13px;
-        }
-        .header-actions a:hover { background: rgba(255,255,255,0.25); }
-        
-        .controls-bar {
-            background: white;
-            padding: 10px 20px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            align-items: center;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        .control-group { display: flex; align-items: center; gap: 8px; }
-        .control-group label { font-size: 13px; color: #555; font-weight: 500; }
-        .control-group input[type="date"] {
-            padding: 5px 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 13px;
-        }
-        .btn-primary {
-            background: #1a237e;
-            color: white;
-            border: none;
-            padding: 6px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 13px;
-        }
-        .btn-primary:hover { background: #0d1560; }
-        
-        .stats-bar {
-            background: #f8f9fa;
-            padding: 8px 20px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: center;
-            border-bottom: 1px solid #e0e0e0;
-            font-size: 13px;
-        }
-        
-        /* --- Flex layout to keep stats and message on the same line --- */
-        .stats-wrapper {
-            display: flex;
-            align-items: center;
-            flex: 1;
-            gap: 20px;
-        }
-        
-        .stat-item { display: flex; align-items: center; gap: 6px; }
-        .stat-item .number { font-weight: bold; color: #1a237e; }
-        
-        .instruction-message {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: #e3f2fd;
-            color: #0d47a1;
-            padding: 4px 12px;
-            border-radius: 20px;
+            padding: 8px 14px;
+            border-radius: 6px;
             font-size: 13px;
             font-weight: 500;
+            transition: 0.2s;
         }
-        .instruction-message i { margin-right: 4px; }
-        .instruction-message .close-btn {
-            cursor: pointer;
-            font-weight: bold;
-            color: #888;
-            font-size: 16px;
-            line-height: 1;
-            transition: 0.3s;
-        }
-        .instruction-message .close-btn:hover { color: #d32f2f; }
-        .instruction-message.hidden { display: none; }
-        /* ---------------------------------------------------------- */
-        
-        .app-container {
+        .header-actions a:hover { background: #f1f5f9; color: #0f172a; }
+
+        /* --- LAYOUT: SIDEBAR & MAP --- */
+        .app-layout {
             display: flex;
-            flex-wrap: wrap;
-            height: calc(100vh - 180px);
-        }
-        
-        #map-container {
             flex: 1;
-            min-width: 300px;
-            height: 100%;
-            position: relative;
+            height: calc(100vh - 64px);
+            overflow: hidden;
         }
-        #map { height: 100%; width: 100%; }
-        
-        #analytics-panel {
+
+        /* --- LEFT SIDEBAR (Command Center) --- */
+        #sidebar {
             width: 400px;
-            background: white;
-            padding: 20px;
-            border-left: 1px solid #e0e0e0;
-            overflow-y: auto;
-            height: 100%;
-        }
-        
-        .loading-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255,255,255,0.85);
+            background: #ffffff;
+            border-right: 1px solid #e2e8f0;
             display: flex;
             flex-direction: column;
+            padding: 20px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+        #sidebar::-webkit-scrollbar { width: 4px; }
+        #sidebar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+        /* Controls Section */
+        .control-section { margin-bottom: 24px; }
+        .control-section h3 { font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+        
+        .control-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+        .control-group { display: flex; flex-direction: column; flex: 1; gap: 4px; }
+        .control-group label { font-size: 11px; font-weight: 600; color: #475569; }
+        .control-group input[type="date"], .control-group select {
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 13px;
+            background: #f8fafc;
+            font-family: 'Inter', sans-serif;
+            color: #1e293b;
+            transition: 0.2s;
+        }
+        .control-group input[type="date"]:focus, .control-group select:focus {
+            border-color: #2d6a4f;
+            outline: none;
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.1);
+        }
+        
+        .btn-primary {
+            background: #2d6a4f;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            transition: 0.2s;
+            flex-shrink: 0;
+        }
+        .btn-primary:hover { background: #1b4332; }
+        .btn-outline {
+            background: transparent;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            transition: 0.2s;
+        }
+        .btn-outline:hover { background: #f1f5f9; }
+
+        /* Field Info Cards */
+        .field-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+        }
+        .field-card h4 { font-size: 14px; font-weight: 600; margin: 0; color: #0f172a; }
+        .field-card .meta { font-size: 12px; color: #64748b; margin-top: 4px; }
+        .field-card .meta i { width: 16px; margin-right: 6px; }
+
+        /* --- HEALTH INDICATOR GAUGE --- */
+        .health-gauge {
+            display: flex;
             align-items: center;
-            justify-content: center;
-            z-index: 999;
-            font-size: 16px;
-            color: #1a237e;
+            gap: 16px;
+            padding: 12px 16px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 16px;
+        }
+        .gauge-ring {
+            width: 48px; height: 48px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 14px;
+            color: white; flex-shrink: 0;
+        }
+        .gauge-ring.healthy { background: #2d6a4f; }
+        .gauge-ring.moderate { background: #f59e0b; }
+        .gauge-ring.stressed { background: #ef4444; }
+        .gauge-text h5 { font-size: 13px; font-weight: 600; margin: 0; }
+        .gauge-text p { font-size: 12px; color: #64748b; margin: 0; }
+
+        /* --- CHART SECTION --- */
+        .chart-wrapper {
+            flex: 1;
+            min-height: 250px;
+            position: relative;
+            margin-top: 10px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            padding: 16px;
+        }
+        .chart-wrapper canvas { width: 100% !important; height: 100% !important; }
+        .chart-status {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #94a3b8; font-size: 14px; text-align: center;
+            pointer-events: none;
+        }
+        .chart-status i { display: block; font-size: 32px; margin-bottom: 10px; color: #cbd5e1; }
+
+        /* Time Slider Controls */
+        .slider-controls {
+            display: flex; align-items: center; gap: 12px;
+            margin-top: 12px;
+            padding: 8px 12px;
+            background: #f8fafc;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+        .slider-controls input[type="range"] {
+            flex: 1;
+            height: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #e2e8f0;
+            border-radius: 2px;
+            outline: none;
+        }
+        .slider-controls input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            background: #2d6a4f;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .slider-controls span { font-size: 12px; font-weight: 500; color: #475569; min-width: 90px; }
+        .slider-controls .play-btn {
+            background: #2d6a4f; color: white; border: none;
+            width: 28px; height: 28px; border-radius: 50%;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: 0.2s;
+        }
+        .slider-controls .play-btn:hover { background: #1b4332; }
+
+        /* --- MAP CONTAINER --- */
+        #map-container { flex: 1; position: relative; background: #e2e8f0; }
+        #map { height: 100%; width: 100%; }
+
+        .loading-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.85); backdrop-filter: blur(4px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 999; font-size: 14px; color: #1e293b;
         }
         .loading-overlay.hidden { display: none; }
         .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #1a237e;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 12px;
+            border: 3px solid #f3f3f3; border-top: 3px solid #2d6a4f;
+            border-radius: 50%; width: 32px; height: 32px;
+            animation: spin 1s linear infinite; margin-bottom: 12px;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        .chart-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            #sidebar { width: 340px; padding: 16px; }
         }
-        
-        .chart-header h2 { font-size: 18px; color: #1a237e; }
-        
-        .chart-container {
-            position: relative;
-            height: 300px;
-            width: 100%;
-        }
-        
-        .field-info {
-            margin-bottom: 15px;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 6px;
-        }
-        .field-info p { margin: 4px 0; font-size: 14px; }
-        
-        /* --- REMOVED .click-prompt completely --- */
-        
         @media (max-width: 768px) {
-            .app-container { flex-direction: column; height: auto; }
-            #map-container { height: 50vh; min-height: 300px; }
-            #analytics-panel { width: 100%; height: auto; border-left: none; border-top: 1px solid #e0e0e0; }
+            .app-layout { flex-direction: column; height: auto; overflow-y: auto; }
+            #sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid #e2e8f0; max-height: 50vh; }
+            #map-container { height: 50vh; min-height: 400px; }
         }
     </style>
 </head>
 <body>
 
     <header class="header">
-        <h1><i class="fas fa-chart-line"></i> Field NDVI Analytics</h1>
+        <h1>
+            <i class="fas fa-satellite-dish"></i> Sentinel Field Pulse
+            <span class="badge">FAO DSS</span>
+        </h1>
         <div class="header-actions">
-            <a href="#">
-                <i class="fas fa-map"></i> Back to Map
-            </a>
+            <a href="#"><i class="fas fa-file-csv"></i> Export</a>
+            <a href="#"><i class="fas fa-map"></i> Overview</a>
         </div>
     </header>
 
-    <div class="controls-bar">
-        <div class="control-group">
-            <label><i class="fas fa-calendar-alt"></i> Start:</label>
-            <input type="date" id="startDate" value="2025-01-01">
-        </div>
-        <div class="control-group">
-            <label>End:</label>
-            <input type="date" id="endDate" value="2026-07-31">
-        </div>
-        <button class="btn-primary" onclick="refreshAnalytics()">
-            <i class="fas fa-sync"></i> Refresh Graph
-        </button>
-    </div>
-
-    <!-- Stats Bar + Instruction Message on the SAME line -->
-    <div class="stats-bar">
-        <div class="stats-wrapper">
-            <div class="stat-item"><span class="number" id="totalFields">0</span><span>Total Fields</span></div>
-            <div class="stat-item" id="selectedFieldInfo" style="color:#888;">No field selected</div>
-        </div>
+    <div class="app-layout">
         
-        <!-- New inline message with close button -->
-        <div class="instruction-message" id="instructionMessage">
-            <span><i class="fas fa-hand-pointer"></i> Click on any field on the map</span>
-            <span class="close-btn" onclick="dismissMessage()">&times;</span>
-        </div>
-    </div>
+        <!-- --- LEFT SIDEBAR CONTROLS --- -->
+        <div id="sidebar">
+            
+            <div class="control-section">
+                <h3>Date & Data Source</h3>
+                <div class="control-row">
+                    <div class="control-group">
+                        <label>Start</label>
+                        <input type="date" id="startDate" value="2025-01-01">
+                    </div>
+                    <div class="control-group">
+                        <label>End</label>
+                        <input type="date" id="endDate" value="2026-07-31">
+                    </div>
+                </div>
+                <div class="control-row">
+                    <div class="control-group">
+                        <label>Cloud Cover Limit</label>
+                        <select id="cloudCover">
+                            <option value="10">10%</option>
+                            <option value="20" selected>20%</option>
+                            <option value="30">30%</option>
+                            <option value="50">50%</option>
+                        </select>
+                    </div>
+                    <button class="btn-primary" onclick="refreshAnalytics()">
+                        <i class="fas fa-sync-alt"></i> Update
+                    </button>
+                </div>
+            </div>
 
-    <div class="app-container">
+            <!-- Field Info (Shows when selected) -->
+            <div id="fieldInfoContainer" style="display: none;">
+                <div class="control-section">
+                    <h3>Selected Field</h3>
+                    <div class="field-card">
+                        <h4 id="sidebarFieldName">-</h4>
+                        <div class="meta" id="sidebarFieldLocation"><i class="fas fa-map-pin"></i> District, Province</div>
+                        <div class="meta"><i class="fas fa-seedling"></i> <span id="sidebarCrop">-</span> <span style="margin-left:12px;"><i class="fas fa-ruler-combined"></i> <span id="sidebarArea">-</span> ha</span></div>
+                    </div>
+                </div>
+
+                <!-- Health Gauge -->
+                <div class="control-section">
+                    <h3>Crop Health Status</h3>
+                    <div class="health-gauge" id="healthGaugeContainer">
+                        <div class="gauge-ring healthy" id="healthGaugeRing">--</div>
+                        <div class="gauge-text">
+                            <h5 id="healthLabel">Awaiting data</h5>
+                            <p id="healthDescription">Click a field on the map</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart -->
+                <div class="control-section" style="flex:1; display: flex; flex-direction: column;">
+                    <h3>NDVI Time-Series</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="ndviChart"></canvas>
+                        <div class="chart-status" id="chartStatus">
+                            <i class="fas fa-hand-pointer"></i>
+                            Click a field to load NDVI
+                        </div>
+                    </div>
+                    
+                    <!-- Time Slider -->
+                    <div class="slider-controls" id="sliderControls" style="display: none;">
+                        <button class="play-btn" id="playBtn"><i class="fas fa-play"></i></button>
+                        <input type="range" id="timeSlider" min="0" max="100" value="100">
+                        <span id="sliderDateLabel">Latest</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty State Message -->
+            <div id="emptyState" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#94a3b8; text-align:center; padding:20px;">
+                <i class="fas fa-map-marked-alt" style="font-size:48px; margin-bottom:16px; color:#cbd5e1;"></i>
+                <h4 style="font-weight:500; color:#64748b;">Select a Field</h4>
+                <p style="font-size:13px; max-width:260px;">Click on any polygon on the map to generate a detailed NDVI report.</p>
+            </div>
+
+        </div>
+
+        <!-- --- MAP CONTAINER --- -->
         <div id="map-container">
             <div id="map"></div>
             <div class="loading-overlay hidden" id="mapLoading">
                 <div class="spinner"></div>
-                <span id="loadingText">Loading fields...</span>
-            </div>
-        </div>
-        
-        <div id="analytics-panel">
-            <div class="chart-header">
-                <h2 id="fieldTitle">Select a Field</h2>
-                <span id="fieldIdDisplay" style="font-size:12px; color:#888;"></span>
-            </div>
-            
-            <div class="field-info" id="fieldInfo">
-                <p><strong>Crop:</strong> <span id="cropDisplay">-</span></p>
-                <p><strong>Area:</strong> <span id="areaDisplay">-</span> ha</p>
-            </div>
-            
-            <div class="chart-container" id="chartContainer" style="display:none;">
-                <canvas id="ndviChart"></canvas>
+                <span>Loading farm boundaries...</span>
             </div>
         </div>
     </div>
@@ -271,30 +383,21 @@
         var map, fieldLayer = null;
         var chartInstance = null;
         var fields = [];
+        var currentData = null;
+        var animationInterval = null;
+        var isPlaying = false;
 
         function initMap() {
             map = L.map('map').setView([-19.0, 29.5], 6);
-            
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap',
                 maxZoom: 19
             }).addTo(map);
-            
             loadFields();
             window.addEventListener('resize', function() { map.invalidateSize(); });
         }
-
-        function dismissMessage() {
-            document.getElementById('instructionMessage').classList.add('hidden');
-            localStorage.setItem('ndvi_instruction_closed', 'true');
-        }
         
         function loadFields() {
-            // Check if user previously closed the message
-            if (localStorage.getItem('ndvi_instruction_closed') === 'true') {
-                document.getElementById('instructionMessage').classList.add('hidden');
-            }
-
             var overlay = document.getElementById('mapLoading');
             overlay.classList.remove('hidden');
             
@@ -302,14 +405,8 @@
                 .then(function(response) { return response.json(); })
                 .then(function(data) {
                     if (data.error) throw new Error(data.error);
-                    
                     fields = data.features || [];
-                    document.getElementById('totalFields').textContent = fields.length;
-                    
-                    if (fields.length > 0) {
-                        drawFields(fields);
-                    }
-                    
+                    if (fields.length > 0) { drawFields(fields); }
                     overlay.classList.add('hidden');
                 })
                 .catch(function(error) {
@@ -321,37 +418,12 @@
         
         function drawFields(features) {
             if (fieldLayer) { map.removeLayer(fieldLayer); }
-            
             fieldLayer = L.geoJSON(features, {
-                style: function() {
-                    return { 
-                        color: '#1a237e', 
-                        weight: 2, 
-                        opacity: 0.8, 
-                        fillColor: '#1a237e',
-                        fillOpacity: 0.1 
-                    };
-                },
+                style: function() { return { color: '#2d6a4f', weight: 2, opacity: 0.8, fillColor: '#2d6a4f', fillOpacity: 0.1 }; },
                 onEachFeature: function(feature, layer) {
                     var p = feature.properties;
                     var fieldId = p.id || p.field_id || p.pk || feature.id;
-                    
-                    layer.bindPopup(`
-                        <div style="min-width:150px;">
-                            <h4 style="margin:0 0 4px 0; color:#1a237e;">${p.field_name}</h4>
-                            <div style="font-size:12px;">
-                                <strong>Crop:</strong> ${p.crop}<br>
-                                <strong>Area:</strong> ${p.area_ha} ha
-                            </div>
-                            <div style="margin-top:6px; font-size:11px; color:#1a237e;">
-                                <i class="fas fa-chart-line"></i> Click to view profile
-                            </div>
-                        </div>
-                    `, { maxWidth: 250 });
-                    
-                    layer.on('click', function() {
-                        loadAnalytics(fieldId);
-                    });
+                    layer.on('click', function() { loadAnalytics(fieldId); });
                 }
             }).addTo(map);
             
@@ -362,51 +434,79 @@
         }
         
         function loadAnalytics(fieldId) {
-            document.getElementById('selectedFieldInfo').innerHTML = `<i class="fas fa-spinner fa-spin"></i> Loading NDVI...`;
-            document.getElementById('chartContainer').style.display = 'block';
+            // UI setup
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('fieldInfoContainer').style.display = 'block';
+            document.getElementById('chartStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading data...';
             
             var startDate = document.getElementById('startDate').value;
             var endDate = document.getElementById('endDate').value;
-            
-            var url = '/api/fields/ndvi-single/?field_id=' + fieldId + '&start_date=' + startDate + '&end_date=' + endDate + '&cloud_cover=30';
+            var cloudCover = document.getElementById('cloudCover').value;
+            var url = '/api/fields/ndvi-single/?field_id=' + fieldId + '&start_date=' + startDate + '&end_date=' + endDate + '&cloud_cover=' + cloudCover;
             
             fetch(url)
                 .then(function(response) { return response.json(); })
                 .then(function(data) {
                     if (data.success && data.data.length > 0) {
-                        renderChart(data, fieldId);
-                        updateFieldInfo(data);
+                        renderDashboard(data, fieldId);
                     } else {
-                        document.getElementById('selectedFieldInfo').innerHTML = `<span style="color:#e74c3c;">Error: ${data.error || 'No data'}</span>`;
+                        document.getElementById('chartStatus').innerHTML = `<span style="color:#ef4444;">${data.error || 'No data'}</span>`;
                     }
                 })
                 .catch(function(error) {
-                    document.getElementById('selectedFieldInfo').innerHTML = `<span style="color:#e74c3c;">Network error</span>`;
-                    console.error(error);
+                    document.getElementById('chartStatus').innerHTML = `<span style="color:#ef4444;">Network error</span>`;
                 });
         }
         
-        function renderChart(data, fieldId) {
-            var labels = [];
-            var values = [];
+        function renderDashboard(data, fieldId) {
+            currentData = data;
+            var labels = []; var values = [];
+            data.data.forEach(function(item) { labels.push(item.date); values.push(item.ndvi); });
             
-            data.data.forEach(function(item) {
-                labels.push(item.date);
-                values.push(item.ndvi);
-            });
-            
-            document.getElementById('fieldTitle').textContent = data.field_name || 'Field ' + fieldId;
-            document.getElementById('fieldIdDisplay').textContent = 'ID: ' + fieldId;
-            
-            if (chartInstance) {
-                chartInstance.destroy();
+            // Update Sidebar Info
+            var fieldObj = fields.find(function(f) { return f.id === data.field_id || f.properties.id === data.field_id; });
+            document.getElementById('sidebarFieldName').textContent = data.field_name || 'Field ' + fieldId;
+            if (fieldObj) {
+                var p = fieldObj.properties;
+                document.getElementById('sidebarFieldLocation').innerHTML = `<i class="fas fa-map-pin"></i> ${p.district || 'Unknown District'}, ${p.province || 'Unknown Province'}`;
+                document.getElementById('sidebarCrop').textContent = p.crop || '-';
+                document.getElementById('sidebarArea').textContent = p.area_ha || '-';
+            } else {
+                document.getElementById('sidebarFieldLocation').innerHTML = `<i class="fas fa-map-pin"></i> District, Province`;
             }
+
+            // Update Health Gauge
+            var latestVal = values[values.length - 1];
+            var avgVal = values.reduce((a,b) => a + b, 0) / values.length;
+            
+            var gaugeRing = document.getElementById('healthGaugeRing');
+            var healthLabel = document.getElementById('healthLabel');
+            var healthDesc = document.getElementById('healthDescription');
+            
+            gaugeRing.textContent = (latestVal * 100).toFixed(0) + '%';
+            if (latestVal >= 0.5) {
+                gaugeRing.className = 'gauge-ring healthy';
+                healthLabel.textContent = 'Healthy Crop';
+                healthDesc.textContent = 'Excellent biomass, no stress detected.';
+            } else if (latestVal >= 0.3) {
+                gaugeRing.className = 'gauge-ring moderate';
+                healthLabel.textContent = 'Moderate Condition';
+                healthDesc.textContent = 'Monitor closely for water/nutrient stress.';
+            } else {
+                gaugeRing.className = 'gauge-ring stressed';
+                healthLabel.textContent = 'Stressed / Dying';
+                healthDesc.textContent = 'Immediate attention required.';
+            }
+
+            // Render Chart
+            document.getElementById('chartStatus').style.display = 'none';
+            document.getElementById('sliderControls').style.display = 'flex';
+            if (chartInstance) { chartInstance.destroy(); }
             
             var ctx = document.getElementById('ndviChart').getContext('2d');
-            
-            var gradient = ctx.createLinearGradient(0, 0, 0, 300);
-            gradient.addColorStop(0, 'rgba(26, 35, 126, 0.5)');
-            gradient.addColorStop(1, 'rgba(26, 35, 126, 0.05)');
+            var gradient = ctx.createLinearGradient(0, 0, 0, 250);
+            gradient.addColorStop(0, '#2d6a4f');
+            gradient.addColorStop(1, 'rgba(45, 106, 79, 0.05)');
             
             chartInstance = new Chart(ctx, {
                 type: 'line',
@@ -415,17 +515,13 @@
                     datasets: [{
                         label: 'NDVI',
                         data: values,
-                        borderColor: '#1a237e',
+                        borderColor: '#1b4332',
                         backgroundColor: gradient,
                         borderWidth: 2,
-                        pointRadius: 3,
-                        pointBackgroundColor: values.map(function(v) {
-                            if (v >= 0.4) return '#1a9850';
-                            if (v >= 0.2) return '#fdae61';
-                            return '#d73027';
-                        }),
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
                         fill: true,
-                        tension: 0.3
+                        tension: 0.4
                     }]
                 },
                 options: {
@@ -433,55 +529,86 @@
                     maintainAspectRatio: false,
                     plugins: {
                         legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return 'NDVI: ' + context.parsed.y.toFixed(3);
-                                }
-                            }
+                        tooltip: { 
+                            callbacks: { label: function(context) { return 'NDVI: ' + context.parsed.y.toFixed(3); } }
                         }
                     },
                     scales: {
-                        x: {
-                            ticks: { maxTicksLimit: 15, font: { size: 10 } },
+                        x: { 
+                            ticks: { maxTicksLimit: 8, font: { size: 10 } },
                             grid: { display: false }
                         },
-                        y: {
-                            min: -0.2, max: 0.8,
-                            ticks: { font: { size: 10 } }
+                        y: { 
+                            min: 0, max: 1,
+                            ticks: { font: { size: 10 }, stepSize: 0.2 },
+                            grid: { color: 'rgba(0,0,0,0.05)' }
                         }
-                    }
+                    },
+                    interaction: { intersect: false, mode: 'index' }
                 }
             });
-            
-            document.getElementById('selectedFieldInfo').innerHTML = `<span style="color:#1a237e; font-weight:bold;">${data.field_name}</span> (${data.data.length} records)`;
+
+            // Setup Slider
+            setupSlider(labels.length - 1);
         }
-        
-        function updateFieldInfo(data) {
-            var fieldObj = fields.find(function(f) {
-                return f.id === data.field_id || f.properties.id === data.field_id;
+
+        function setupSlider(maxIndex) {
+            var slider = document.getElementById('timeSlider');
+            var dateLabel = document.getElementById('sliderDateLabel');
+            slider.max = maxIndex;
+            slider.value = maxIndex;
+            
+            // Remove old listeners
+            var newSlider = slider.cloneNode(true);
+            slider.parentNode.replaceChild(newSlider, slider);
+            
+            newSlider.addEventListener('input', function() {
+                var idx = parseInt(this.value);
+                var date = currentData.data[idx].date;
+                var val = currentData.data[idx].ndvi;
+                dateLabel.textContent = date;
+                // Highlight point on chart (advanced custom logic could go here)
             });
+
+            // Play Button
+            var playBtn = document.getElementById('playBtn');
+            var newPlayBtn = playBtn.cloneNode(true);
+            playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
             
-            if (fieldObj) {
-                var p = fieldObj.properties;
-                document.getElementById('cropDisplay').textContent = p.crop || '-';
-                document.getElementById('areaDisplay').textContent = p.area_ha || '-';
-            } else {
-                document.getElementById('cropDisplay').textContent = '-';
-                document.getElementById('areaDisplay').textContent = '-';
-            }
+            newPlayBtn.addEventListener('click', function() {
+                if (isPlaying) {
+                    clearInterval(animationInterval);
+                    isPlaying = false;
+                    this.innerHTML = '<i class="fas fa-play"></i>';
+                } else {
+                    isPlaying = true;
+                    this.innerHTML = '<i class="fas fa-pause"></i>';
+                    var currentIdx = parseInt(newSlider.value);
+                    animationInterval = setInterval(function() {
+                        currentIdx++;
+                        if (currentIdx > maxIndex) {
+                            clearInterval(animationInterval);
+                            isPlaying = false;
+                            newPlayBtn.innerHTML = '<i class="fas fa-play"></i>';
+                            return;
+                        }
+                        newSlider.value = currentIdx;
+                        var date = currentData.data[currentIdx].date;
+                        dateLabel.textContent = date;
+                    }, 300);
+                }
+            });
         }
-        
+
         function refreshAnalytics() {
-            var fieldId = document.getElementById('fieldIdDisplay').textContent.replace('ID: ', '');
-            if (fieldId && fieldId !== '') {
-                loadAnalytics(parseInt(fieldId));
+            var fieldName = document.getElementById('sidebarFieldName').textContent;
+            if (fieldName && fieldName !== '-') {
+                var fieldObj = fields.find(function(f) { return f.properties.field_name === fieldName; });
+                if (fieldObj) { loadAnalytics(fieldObj.properties.id || fieldObj.id); }
             }
         }
         
-        document.addEventListener('DOMContentLoaded', function() {
-            initMap();
-        });
+        document.addEventListener('DOMContentLoaded', function() { initMap(); });
     </script>
 
 </body>

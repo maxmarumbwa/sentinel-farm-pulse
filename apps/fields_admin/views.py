@@ -582,8 +582,7 @@ def field_dashboard(request):
 # =====================================================
 # API: FIELD LIST WITH FILTERS
 # =====================================================
-
-@login_required
+# Removed @login_required
 def api_field_list(request):
     """API endpoint to get fields as GeoJSON with filters"""
     try:
@@ -593,8 +592,15 @@ def api_field_list(request):
         production_system = request.GET.get('production_system')
         search = request.GET.get('search')
         
-        # Base queryset
-        fields = Field.objects.filter(user=request.user).select_related('adm1', 'adm2')
+        # ✅ FIX: Only try to filter by user if they are actually logged in
+        if request.user.is_authenticated:
+            fields = Field.objects.filter(user=request.user).select_related('adm1', 'adm2')
+        else:
+            # If Postman or an AnonymousUser calls it, return empty list safely
+            return JsonResponse({
+                'type': 'FeatureCollection',
+                'features': []
+            })
         
         # Apply filters
         if province:
@@ -655,7 +661,6 @@ def api_field_list(request):
     except Exception as e:
         logger.error(f"Error in api_field_list: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
 
 # =====================================================
 # API: FIELD STATISTICS

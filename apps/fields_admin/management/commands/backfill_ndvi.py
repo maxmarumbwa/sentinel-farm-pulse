@@ -1,3 +1,4 @@
+# python manage.py backfill_ndvi --start_date 2015-01-01 --end_date 2026-07-31
 from django.core.management.base import BaseCommand
 from apps.fields_admin.models import Field, FieldNDVI
 import datetime

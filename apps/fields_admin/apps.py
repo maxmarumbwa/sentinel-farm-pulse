@@ -42,8 +42,8 @@ class FieldsAdminConfig(AppConfig):
             # Schedule it to run every day at 9:00 PM GMT+2 (19:00 UTC)
             scheduler.add_job(
                 run_backfill_job,
-                #trigger=CronTrigger(hour=19, minute=0),  # 19:00 UTC = 21:00 GMT+2
-                trigger='interval', seconds=10,
+                trigger=CronTrigger(hour=22, minute=47),  # 19:00 UTC = 21:00 GMT+2
+                #trigger='interval', seconds=10,
                 id='daily_ndvi_backfill',
                 replace_existing=True
             )

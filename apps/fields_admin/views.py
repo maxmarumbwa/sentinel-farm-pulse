@@ -4305,7 +4305,8 @@ def ndvi_lookback(request):
     """Test view for Rainfall API"""
     return render(request, 'fields_admin/ndvi_lookback.html', {})
 
-
+def field_analytics_view(request):
+    return render(request, 'fields_admin/field_ndvi_graph.html')
 
 
 #

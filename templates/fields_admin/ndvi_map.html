@@ -150,6 +150,26 @@
         }
         .layer-control label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
         .layer-control input[type="checkbox"] { cursor: pointer; }
+
+        /* --- NEW CSS FOR SCROLLABLE NDVI LIST --- */
+        .ndvi-scroll-container {
+            max-height: 180px;       /* Limits height to 180px */
+            overflow-y: auto;        /* Adds a scrollbar when content exceeds height */
+            margin-top: 6px;
+            border-top: 1px solid #eee;
+            padding-top: 4px;
+        }
+        .ndvi-scroll-container::-webkit-scrollbar {
+            width: 6px;              /* Thin scrollbar */
+        }
+        .ndvi-scroll-container::-webkit-scrollbar-thumb {
+            background: #1a237e;     /* Blue scrollbar handle */
+            border-radius: 10px;
+        }
+        .ndvi-scroll-container::-webkit-scrollbar-track {
+            background: #f1f1f1;     /* Light gray track */
+        }
+        /* ---------------------------------------- */
         
         @media (max-width: 768px) {
             .header { flex-direction: column; align-items: stretch; text-align: center; }
@@ -308,7 +328,7 @@
 
                     // Popup content with Button
                     var popupContent = `
-                        <div style="min-width:220px;">
+                        <div style="min-width:180px;">
                             <h4 style="margin:0 0 6px 0; color:#1a237e;">${p.field_name}</h4>
                             <div style="font-size:12px; line-height:1.5;">
                                 <strong>Crop:</strong> ${p.crop}<br>
@@ -323,7 +343,7 @@
                         </div>
                     `;
                     
-                    layer.bindPopup(popupContent, { maxWidth: 350 });
+                    layer.bindPopup(popupContent, { maxWidth: 300 });
 
                     // Event listener for the button inside popup
                     layer.on('popupopen', function(e) {
@@ -340,22 +360,21 @@
                                 
                                 // Show loading state
                                 var resultDiv = container.querySelector('#ndvi-result-' + id);
-                                resultDiv.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Fetching NDVI time-series...`;
+                                resultDiv.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Fetching NDVI...`;
 
                                 var startDate = document.getElementById('startDate').value;
                                 var endDate = document.getElementById('endDate').value;
                                 var cloudCover = document.getElementById('cloudCover').value;
 
-                                // Fetch the time-series API
+                                // Fetch the specific single-field API
                                 var url = '/api/fields/ndvi-single/?field_id=' + id + '&start_date=' + startDate + '&end_date=' + endDate + '&cloud_cover=' + cloudCover;
 
                                 fetch(url)
                                     .then(function(response) { return response.json(); })
                                     .then(function(data) {
-                                        if (data.success && data.data && data.data.length > 0) {
-                                            
-                                            // Build a table of dates and values
-                                            var rows = '<table style="width:100%; font-size:11px; margin-top:6px; border-collapse:collapse;">';
+                                        if (data.success) {
+                                            // --- UPDATED: SCROLLABLE LIST LOGIC ---
+                                            var rows = '<div class="ndvi-scroll-container"><table style="width:100%; font-size:11px; border-collapse:collapse;">';
                                             rows += '<tr><th style="text-align:left; border-bottom:1px solid #ddd; padding:4px 0;">Date</th><th style="text-align:right; border-bottom:1px solid #ddd; padding:4px 0;">NDVI</th></tr>';
                                             
                                             data.data.forEach(function(item) {
@@ -371,11 +390,10 @@
                                                     </td>
                                                 </tr>`;
                                             });
-                                            rows += '</table>';
+                                            rows += '</table></div>';
                                             
                                             resultDiv.innerHTML = rows;
-                                        } else if (data.success && data.data && data.data.length === 0) {
-                                            resultDiv.innerHTML = `<span style="color:#f39c12;"><i class="fas fa-exclamation-triangle"></i> No NDVI data found for this range (possible clouds).</span>`;
+                                            // ---------------------------------------
                                         } else {
                                             resultDiv.innerHTML = `<span style="color:#e74c3c;">Error: ${data.error || 'No data'}</span>`;
                                         }

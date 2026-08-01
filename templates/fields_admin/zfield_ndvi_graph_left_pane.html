@@ -24,7 +24,7 @@
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
             background: #f8fafc; 
             color: #1e293b;
-            overflow: hidden;
+            overflow: hidden; /* Prevents scrollbar on the whole page */
             height: 100vh;
             display: flex;
             flex-direction: column;
@@ -40,7 +40,7 @@
             align-items: center;
             height: 64px;
             flex-shrink: 0;
-            z-index: 10;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
         }
         .header h1 { 
             font-size: 18px; 
@@ -81,9 +81,9 @@
             overflow: hidden;
         }
 
-        /* --- LEFT SIDEBAR (Wider = 550px) --- */
+        /* --- LEFT SIDEBAR (Command Center) --- */
         #sidebar {
-            width: 550px;
+            width: 400px;
             background: #ffffff;
             border-right: 1px solid #e2e8f0;
             display: flex;
@@ -91,13 +91,12 @@
             padding: 20px;
             overflow-y: auto;
             flex-shrink: 0;
-            z-index: 5;
         }
         #sidebar::-webkit-scrollbar { width: 4px; }
         #sidebar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 
         /* Controls Section */
-        .control-section { margin-bottom: 20px; }
+        .control-section { margin-bottom: 24px; }
         .control-section h3 { font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
         
         .control-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
@@ -184,7 +183,7 @@
         .gauge-text h5 { font-size: 13px; font-weight: 600; margin: 0; }
         .gauge-text p { font-size: 12px; color: #64748b; margin: 0; }
 
-        /* --- UPDATED CHART SECTION with Top Header --- */
+        /* --- CHART SECTION --- */
         .chart-wrapper {
             flex: 1;
             min-height: 250px;
@@ -193,42 +192,9 @@
             background: #f8fafc;
             border-radius: 8px;
             border: 1px solid #e2e8f0;
-            padding: 12px 16px 16px;
-            display: flex;
-            flex-direction: column;
+            padding: 16px;
         }
-
-        #chart-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #e2e8f0;
-            margin-bottom: 10px;
-        }
-        #chart-header .field-title {
-            display: flex;
-            flex-direction: column;
-        }
-        #chart-header .field-title h4 {
-            font-size: 15px;
-            font-weight: 600;
-            color: #0f172a;
-            margin: 0;
-        }
-        #chart-header .field-title p {
-            font-size: 12px;
-            color: #64748b;
-            margin: 2px 0 0 0;
-        }
-        #chart-header .field-title p i { margin-right: 4px; color: #2d6a4f; }
-        
-        .chart-canvas-wrapper {
-            flex: 1;
-            position: relative;
-            min-height: 180px;
-        }
-        .chart-canvas-wrapper canvas { width: 100% !important; height: 100% !important; }
+        .chart-wrapper canvas { width: 100% !important; height: 100% !important; }
         .chart-status {
             position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
@@ -237,8 +203,45 @@
         }
         .chart-status i { display: block; font-size: 32px; margin-bottom: 10px; color: #cbd5e1; }
 
+        /* Time Slider Controls */
+        .slider-controls {
+            display: flex; align-items: center; gap: 12px;
+            margin-top: 12px;
+            padding: 8px 12px;
+            background: #f8fafc;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+        .slider-controls input[type="range"] {
+            flex: 1;
+            height: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #e2e8f0;
+            border-radius: 2px;
+            outline: none;
+        }
+        .slider-controls input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            background: #2d6a4f;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .slider-controls span { font-size: 12px; font-weight: 500; color: #475569; min-width: 90px; }
+        .slider-controls .play-btn {
+            background: #2d6a4f; color: white; border: none;
+            width: 28px; height: 28px; border-radius: 50%;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: 0.2s;
+        }
+        .slider-controls .play-btn:hover { background: #1b4332; }
+
         /* --- MAP CONTAINER --- */
-        #map-container { flex: 1; position: relative; background: #e2e8f0; z-index: 1; }
+        #map-container { flex: 1; position: relative; background: #e2e8f0; }
         #map { height: 100%; width: 100%; }
 
         .loading-overlay {
@@ -255,83 +258,14 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* --- BOTTOM DATA TABLE (OUTSIDE SIDEBAR) --- */
-        #bottom-data-container {
-            position: absolute;
-            bottom: 20px;
-            left: 0px;
-            right: 20px;
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(6px);
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            border: 1px solid rgba(255,255,255,0.6);
-            padding: 16px 20px;
-            display: none; /* Hidden until data loads */
-            max-height: 220px;
-            flex-direction: column;
-        }
-        .bottom-table-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        .bottom-table-header h4 { font-size: 14px; font-weight: 600; color: #0f172a; }
-        .btn-export {
-            background: transparent;
-            border: 1px solid #2d6a4f;
-            color: #2d6a4f;
-            padding: 4px 14px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 500;
-            font-family: 'Inter', sans-serif;
-            transition: 0.2s;
-        }
-        .btn-export:hover { background: #2d6a4f; color: white; }
-
-        .bottom-table-scroll {
-            max-height: 150px;
-            overflow-y: auto;
-        }
-        .bottom-table-scroll::-webkit-scrollbar { width: 4px; }
-        .bottom-table-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-
-        .bottom-table-scroll table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-        .bottom-table-scroll th {
-            position: sticky;
-            top: 0;
-            background: #f8fafc;
-            font-weight: 600;
-            color: #1e293b;
-            text-align: left;
-            padding: 6px 12px;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        .bottom-table-scroll td {
-            padding: 5px 12px;
-            border-bottom: 1px solid #f1f5f9;
-            color: #475569;
-        }
-        .bottom-table-scroll tr:last-child td { border-bottom: none; }
-
         /* Responsive */
         @media (max-width: 1024px) {
-            #sidebar { width: 420px; padding: 16px; }
-            #bottom-data-container { left: 440px; }
+            #sidebar { width: 340px; padding: 16px; }
         }
         @media (max-width: 768px) {
             .app-layout { flex-direction: column; height: auto; overflow-y: auto; }
             #sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid #e2e8f0; max-height: 50vh; }
-            #map-container { height: 40vh; min-height: 300px; }
-            #bottom-data-container { left: 10px; right: 10px; bottom: 10px; }
+            #map-container { height: 50vh; min-height: 400px; }
         }
     </style>
 </head>
@@ -343,7 +277,7 @@
             <span class="badge">FAO DSS</span>
         </h1>
         <div class="header-actions">
-            <a href="#"><i class="fas fa-file-csv"></i> Export Report</a>
+            <a href="#"><i class="fas fa-file-csv"></i> Export</a>
             <a href="#"><i class="fas fa-map"></i> Overview</a>
         </div>
     </header>
@@ -404,26 +338,22 @@
                     </div>
                 </div>
 
-                <!-- Updated Chart with Top Header -->
+                <!-- Chart -->
                 <div class="control-section" style="flex:1; display: flex; flex-direction: column;">
                     <h3>NDVI Time-Series</h3>
                     <div class="chart-wrapper">
-                        
-                        <!-- New Chart Header (Field Name / District / Province) -->
-                        <div id="chart-header">
-                            <div class="field-title">
-                                <h4 id="chartFieldName">Select a field</h4>
-                                <p id="chartFieldLocation"><i class="fas fa-map-pin"></i> District, Province</p>
-                            </div>
+                        <canvas id="ndviChart"></canvas>
+                        <div class="chart-status" id="chartStatus">
+                            <i class="fas fa-hand-pointer"></i>
+                            Click a field to load NDVI
                         </div>
-
-                        <div class="chart-canvas-wrapper">
-                            <canvas id="ndviChart"></canvas>
-                            <div class="chart-status" id="chartStatus">
-                                <i class="fas fa-hand-pointer"></i>
-                                Click a field to load NDVI
-                            </div>
-                        </div>
+                    </div>
+                    
+                    <!-- Time Slider -->
+                    <div class="slider-controls" id="sliderControls" style="display: none;">
+                        <button class="play-btn" id="playBtn"><i class="fas fa-play"></i></button>
+                        <input type="range" id="timeSlider" min="0" max="100" value="100">
+                        <span id="sliderDateLabel">Latest</span>
                     </div>
                 </div>
             </div>
@@ -444,29 +374,6 @@
                 <div class="spinner"></div>
                 <span>Loading farm boundaries...</span>
             </div>
-
-            <!-- --- BOTTOM DATA TABLE (Outside sidebar) --- -->
-            <div id="bottom-data-container">
-                <div class="bottom-table-header">
-                    <h4><i class="fas fa-table"></i> Raw NDVI Data</h4>
-                    <button class="btn-export" onclick="exportTableToCSV()">
-                        <i class="fas fa-download"></i> Export CSV
-                    </button>
-                </div>
-                <div class="bottom-table-scroll">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th style="text-align: right;">NDVI Value</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dataTableBody">
-                            <!-- Data populates here via JS -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -477,6 +384,8 @@
         var chartInstance = null;
         var fields = [];
         var currentData = null;
+        var animationInterval = null;
+        var isPlaying = false;
 
         function initMap() {
             map = L.map('map').setView([-19.0, 29.5], 6);
@@ -528,7 +437,6 @@
             // UI setup
             document.getElementById('emptyState').style.display = 'none';
             document.getElementById('fieldInfoContainer').style.display = 'block';
-            document.getElementById('bottom-data-container').style.display = 'none';
             document.getElementById('chartStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading data...';
             
             var startDate = document.getElementById('startDate').value;
@@ -569,6 +477,8 @@
 
             // Update Health Gauge
             var latestVal = values[values.length - 1];
+            var avgVal = values.reduce((a,b) => a + b, 0) / values.length;
+            
             var gaugeRing = document.getElementById('healthGaugeRing');
             var healthLabel = document.getElementById('healthLabel');
             var healthDesc = document.getElementById('healthDescription');
@@ -588,17 +498,9 @@
                 healthDesc.textContent = 'Immediate attention required.';
             }
 
-            // Update Chart Header
-            document.getElementById('chartFieldName').textContent = data.field_name || 'Field ' + fieldId;
-            if (fieldObj) {
-                var p = fieldObj.properties;
-                document.getElementById('chartFieldLocation').innerHTML = `<i class="fas fa-map-pin"></i> ${p.district || 'Unknown District'}, ${p.province || 'Unknown Province'}`;
-            } else {
-                document.getElementById('chartFieldLocation').innerHTML = `<i class="fas fa-map-pin"></i> District, Province`;
-            }
-
             // Render Chart
             document.getElementById('chartStatus').style.display = 'none';
+            document.getElementById('sliderControls').style.display = 'flex';
             if (chartInstance) { chartInstance.destroy(); }
             
             var ctx = document.getElementById('ndviChart').getContext('2d');
@@ -646,28 +548,56 @@
                 }
             });
 
-            // --- POPULATE BOTTOM SCROLLABLE RAW DATA TABLE ---
-            var tableBody = document.getElementById('dataTableBody');
-            tableBody.innerHTML = '';
-            data.data.forEach(function(item) {
-                var row = `<tr><td>${item.date}</td><td style="text-align: right;">${item.ndvi.toFixed(4)}</td></tr>`;
-                tableBody.innerHTML += row;
-            });
-            document.getElementById('bottom-data-container').style.display = 'flex';
+            // Setup Slider
+            setupSlider(labels.length - 1);
         }
 
-        // --- EXPORT FUNCTION ---
-        function exportTableToCSV() {
-            if (!currentData) return;
-            var csv = "Date,NDVI\n";
-            currentData.data.forEach(function(row) {
-                csv += row.date + "," + row.ndvi + "\n";
+        function setupSlider(maxIndex) {
+            var slider = document.getElementById('timeSlider');
+            var dateLabel = document.getElementById('sliderDateLabel');
+            slider.max = maxIndex;
+            slider.value = maxIndex;
+            
+            // Remove old listeners
+            var newSlider = slider.cloneNode(true);
+            slider.parentNode.replaceChild(newSlider, slider);
+            
+            newSlider.addEventListener('input', function() {
+                var idx = parseInt(this.value);
+                var date = currentData.data[idx].date;
+                var val = currentData.data[idx].ndvi;
+                dateLabel.textContent = date;
+                // Highlight point on chart (advanced custom logic could go here)
             });
-            var blob = new Blob([csv], { type: 'text/csv' });
-            var link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = (currentData.field_name || 'field') + '_NDVI.csv';
-            link.click();
+
+            // Play Button
+            var playBtn = document.getElementById('playBtn');
+            var newPlayBtn = playBtn.cloneNode(true);
+            playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
+            
+            newPlayBtn.addEventListener('click', function() {
+                if (isPlaying) {
+                    clearInterval(animationInterval);
+                    isPlaying = false;
+                    this.innerHTML = '<i class="fas fa-play"></i>';
+                } else {
+                    isPlaying = true;
+                    this.innerHTML = '<i class="fas fa-pause"></i>';
+                    var currentIdx = parseInt(newSlider.value);
+                    animationInterval = setInterval(function() {
+                        currentIdx++;
+                        if (currentIdx > maxIndex) {
+                            clearInterval(animationInterval);
+                            isPlaying = false;
+                            newPlayBtn.innerHTML = '<i class="fas fa-play"></i>';
+                            return;
+                        }
+                        newSlider.value = currentIdx;
+                        var date = currentData.data[currentIdx].date;
+                        dateLabel.textContent = date;
+                    }, 300);
+                }
+            });
         }
 
         function refreshAnalytics() {

@@ -409,6 +409,43 @@
         }
         #conclusion-box p i { color: #f59e0b; margin-right: 6px; }
 
+        /* --- TOGGLE SEARCH CARD --- */
+        #searchToggle {
+            color: #2d6a4f;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: underline;
+            font-size: 13px;
+            display: inline-block;
+            margin-top: 6px;
+            transition: 0.2s;
+        }
+        #searchToggle:hover { color: #1b4332; }
+
+        #searchCard {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 12px;
+            display: none; /* Hidden by default */
+            box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+        }
+        #searchCard .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        #searchCard .card-header h4 { font-size: 14px; font-weight: 600; color: #0f172a; margin: 0; }
+        #searchCard .card-header .close-card {
+            background: transparent; border: none; cursor: pointer;
+            color: #64748b; font-size: 14px; transition: 0.2s;
+        }
+        #searchCard .card-header .close-card:hover { color: #d32f2f; }
+        #searchCard .control-row { margin-bottom: 8px; }
+        #searchCard .control-row:last-child { margin-bottom: 0; }
+
         /* Responsive */
         @media (max-width: 1024px) {
             #sidebar { width: 420px; padding: 16px; }
@@ -505,8 +542,48 @@
             <div id="emptyState" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#94a3b8; text-align:center; padding:20px;">
                 <i class="fas fa-map-marked-alt" style="font-size:48px; margin-bottom:16px; color:#cbd5e1;"></i>
                 <h4 style="font-weight:500; color:#64748b;">Select Fields to Compare</h4>
-                <p style="font-size:13px; max-width:260px;">Click on up to 5 polygons on the map. Their NDVI graphs will overlay on the chart.</p>
+                <p style="font-size:13px; max-width:260px;">
+                    Click on up to 5 polygons on the map. Their NDVI graphs will overlay on the chart.
+                    <br>
+                    <span id="searchToggle" onclick="toggleSearchCard()">Or select from field lists</span>
+                </p>
             </div>
+
+            <!-- --- COLLAPSIBLE SEARCH CARD --- -->
+            <div id="searchCard">
+                <div class="card-header">
+                    <h4><i class="fas fa-search"></i> Quick Search</h4>
+                    <button class="close-card" onclick="toggleSearchCard()"><i class="fas fa-times"></i></button>
+                </div>
+                
+                <div class="control-row">
+                    <div class="control-group">
+                        <label>Province (Admin 1)</label>
+                        <select id="admin1Filter" onchange="updateAdmin2Filter()">
+                            <option value="">All Provinces</option>
+                        </select>
+                    </div>
+                    <div class="control-group" id="admin2Group" style="display: none;">
+                        <label>District (Admin 2)</label>
+                        <select id="admin2Filter" onchange="updateFieldList()">
+                            <option value="">All Districts</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="control-row" style="flex-direction: column; align-items: stretch; gap: 4px;">
+                    <div class="control-group">
+                        <label>Field Name</label>
+                        <select id="fieldSelector" onchange="addFieldFromSelector()">
+                            <option value="">-- Select a field --</option>
+                        </select>
+                    </div>
+                    <button class="btn-primary" style="background:#f59e0b; width: 100%;" onclick="addFieldFromSelector()">
+                        <i class="fas fa-plus"></i> Add to Comparison
+                    </button>
+                </div>
+            </div>
+            <!-- ------------------------------------- -->
 
         </div>
 
@@ -589,6 +666,20 @@
             loadFields();
             window.addEventListener('resize', function() { map.invalidateSize(); });
         }
+
+        // --- TOGGLE SEARCH CARD ---
+        function toggleSearchCard() {
+            var card = document.getElementById('searchCard');
+            if (card.style.display === 'none' || card.style.display === '') {
+                card.style.display = 'block';
+                document.getElementById('searchToggle').textContent = 'Close field list';
+                document.getElementById('searchToggle').style.textDecoration = 'none';
+            } else {
+                card.style.display = 'none';
+                document.getElementById('searchToggle').textContent = 'Or select from field lists';
+                document.getElementById('searchToggle').style.textDecoration = 'underline';
+            }
+        }
         
         function loadFields() {
             var overlay = document.getElementById('mapLoading');
@@ -599,7 +690,10 @@
                 .then(function(data) {
                     if (data.error) throw new Error(data.error);
                     fields = data.features || [];
-                    if (fields.length > 0) { drawFields(fields); }
+                    if (fields.length > 0) { 
+                        drawFields(fields); 
+                        populateFilters(fields); 
+                    }
                     overlay.classList.add('hidden');
                 })
                 .catch(function(error) {
@@ -608,6 +702,96 @@
                     alert('Failed to load fields.');
                 });
         }
+
+        // ==========================================
+        // --- DROPDOWN FILTER LOGIC ---
+        // ==========================================
+        function populateFilters(features) {
+            // 1. Populate Provinces (Admin 1)
+            var admin1Set = new Set();
+            features.forEach(f => {
+                if (f.properties.province) admin1Set.add(f.properties.province);
+            });
+            var admin1Select = document.getElementById('admin1Filter');
+            admin1Set.forEach(p => {
+                var opt = document.createElement('option');
+                opt.value = p;
+                opt.text = p;
+                admin1Select.appendChild(opt);
+            });
+        }
+
+        function updateAdmin2Filter() {
+            var admin1Val = document.getElementById('admin1Filter').value;
+            var admin2Group = document.getElementById('admin2Group');
+            var admin2Select = document.getElementById('admin2Filter');
+            
+            // Clear current Admin2 options
+            admin2Select.innerHTML = '<option value="">All Districts</option>';
+
+            if (admin1Val === '') {
+                admin2Group.style.display = 'none';
+                updateFieldList();
+                return;
+            }
+
+            admin2Group.style.display = 'block';
+            
+            // Get unique Admin2 for the selected Admin1
+            var admin2Set = new Set();
+            fields.forEach(f => {
+                if (f.properties.province === admin1Val && f.properties.district) {
+                    admin2Set.add(f.properties.district);
+                }
+            });
+
+            admin2Set.forEach(d => {
+                var opt = document.createElement('option');
+                opt.value = d;
+                opt.text = d;
+                admin2Select.appendChild(opt);
+            });
+
+            updateFieldList();
+        }
+
+        function updateFieldList() {
+            var admin1Val = document.getElementById('admin1Filter').value;
+            var admin2Val = document.getElementById('admin2Filter').value;
+            var fieldSelect = document.getElementById('fieldSelector');
+            
+            fieldSelect.innerHTML = '<option value="">-- Select a field --</option>';
+
+            // Filter fields by Admin1 and Admin2
+            var filtered = fields.filter(f => {
+                var p = f.properties;
+                if (admin1Val !== '' && p.province !== admin1Val) return false;
+                if (admin2Val !== '' && p.district !== admin2Val) return false;
+                return true;
+            });
+
+            // Exclude fields that are already selected in the comparison
+            var selectedIds = selectedFields.map(sf => sf.id);
+            filtered = filtered.filter(f => !selectedIds.includes(f.properties.id || f.id));
+
+            filtered.forEach(f => {
+                var opt = document.createElement('option');
+                opt.value = f.properties.id || f.id;
+                opt.text = f.properties.field_name;
+                fieldSelect.appendChild(opt);
+            });
+        }
+
+        function addFieldFromSelector() {
+            var fieldSelect = document.getElementById('fieldSelector');
+            var fieldId = fieldSelect.value;
+            if (fieldId) {
+                toggleFieldSelection(parseInt(fieldId));
+                fieldSelect.value = ''; // Reset selection after adding
+                updateFieldList();      // Refresh the dropdown list
+            }
+        }
+        // ==========================================
         
         function drawFields(features) {
             if (fieldLayer) { map.removeLayer(fieldLayer); }
@@ -633,6 +817,7 @@
                 // If already selected, remove it (toggle off)
                 selectedFields.splice(existingIndex, 1);
                 updateComparisonUI();
+                updateFieldList(); // Refresh dropdown
                 return;
             }
 
@@ -665,8 +850,9 @@
                     });
                     
                     updateComparisonUI();
+                    updateFieldList(); // Refresh dropdown
                 } else {
-                    // Simply log to console, NO POPUP for the user
+                    // ✅ FIXED: Silent console warning instead of annoying popup
                     console.warn(`No NDVI data found for field ID ${fieldId}.`);
                 }
             });
@@ -734,11 +920,13 @@
         function removeField(index) {
             selectedFields.splice(index, 1);
             updateComparisonUI();
+            updateFieldList(); // Refresh dropdown
         }
 
         function clearAllSelections() {
             selectedFields = [];
             updateComparisonUI();
+            updateFieldList(); // Refresh dropdown
         }
 
         function renderComparisonChart() {
@@ -825,7 +1013,9 @@
                 tbody.innerHTML += `<tr>${row}</tr>`;
             }
 
-            // 3. Render Summary Stats (Showing ALL selected fields)
+            // ==========================================
+            // ✅ FIX: Loop through ALL selected fields
+            // ==========================================
             var summaryBody = document.getElementById('summaryTableBody');
             summaryBody.innerHTML = '';
             
@@ -898,6 +1088,7 @@
                         
                         if (selectedFields.length === ids.length) {
                             updateComparisonUI();
+                            updateFieldList();
                         }
                     }
                 });

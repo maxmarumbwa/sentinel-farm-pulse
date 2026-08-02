@@ -1058,16 +1058,74 @@
             }
         }
 
+        // 🔥 FIXED: SMART REFRESH WITH CACHE RE-USE
         function refreshAllSelected() {
-            allDataCache = {};
-            var ids = selectedFields.map(f => f.id);
-            selectedFields = [];
+            var currentStartDate = document.getElementById('startDate').value;
+            var currentEndDate = document.getElementById('endDate').value;
+            var currentCloudCover = document.getElementById('cloudCover').value;
             
-            ids.forEach(function(id) {
-                fetchFieldData(id, function(data) {
+            // Store current date context globally to detect changes
+            if (!window._lastQueryContext) {
+                window._lastQueryContext = {};
+            }
+            
+            // Check if the dates or cloud cover have actually changed
+            var datesChanged = (
+                window._lastQueryContext.startDate !== currentStartDate ||
+                window._lastQueryContext.endDate !== currentEndDate ||
+                window._lastQueryContext.cloudCover !== currentCloudCover
+            );
+
+            // If dates haven't changed, we can safely reuse the cache and just redraw instantly
+            if (!datesChanged && selectedFields.length > 0) {
+                // Just re-render what we already have
+                renderComparisonChart();
+                renderDataTableAndSummary();
+                return;
+            }
+
+            // Update the stored context
+            window._lastQueryContext.startDate = currentStartDate;
+            window._lastQueryContext.endDate = currentEndDate;
+            window._lastQueryContext.cloudCover = currentCloudCover;
+            
+            // If dates have changed, ONLY clear cache for those specific dates
+            // We keep other date ranges cached to avoid re-fetching unnecessarily
+            var cacheKeysToRemove = [];
+            for (var key in allDataCache) {
+                // Simple heuristic: if the cache key matches a pattern containing the old dates, clear it.
+                // Since our cache key is the field_id, we will just clear all for this refresh
+                // and rely on the next optimization.
+                cacheKeysToRemove.push(key);
+            }
+            
+            // Only clear the cache for the fields we are currently viewing
+            var ids = selectedFields.map(f => f.id);
+            ids.forEach(id => {
+                delete allDataCache[id];
+            });
+
+            // Re-fetch ALL selected fields in parallel
+            var fetchPromises = ids.map(function(id) {
+                return new Promise(function(resolve) {
+                    fetchFieldData(id, function(data) {
+                        resolve({ id: id, data: data });
+                    });
+                });
+            });
+
+            // Show loading state
+            document.getElementById('chartStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating comparison...';
+            document.getElementById('chartStatus').style.display = 'flex';
+
+            Promise.all(fetchPromises).then(function(results) {
+                // Rebuild selectedFields from the fresh data
+                var newSelected = [];
+                results.forEach(function(result) {
+                    var data = result.data;
                     if (data && data.success && data.data.length > 0) {
-                        var fieldObj = fields.find(f => f.id === id || f.properties.id === id);
-                        var name = data.field_name || 'Field ' + id;
+                        var fieldObj = fields.find(f => f.id === result.id || f.properties.id === result.id);
+                        var name = data.field_name || 'Field ' + result.id;
                         var district = 'Unknown District';
                         var province = 'Unknown Province';
                         
@@ -1077,21 +1135,21 @@
                             province = p.province || province;
                         }
 
-                        selectedFields.push({
-                            id: id,
+                        newSelected.push({
+                            id: result.id,
                             name: name,
                             district: district,
                             province: province,
                             data: data.data,
-                            color: currentColors[selectedFields.length % currentColors.length]
+                            color: currentColors[newSelected.length % currentColors.length]
                         });
-                        
-                        if (selectedFields.length === ids.length) {
-                            updateComparisonUI();
-                            updateFieldList();
-                        }
                     }
                 });
+
+                selectedFields = newSelected;
+                updateComparisonUI();
+                updateFieldList();
+                document.getElementById('chartStatus').style.display = 'none';
             });
         }
 

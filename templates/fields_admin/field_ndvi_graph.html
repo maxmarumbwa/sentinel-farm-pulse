@@ -744,17 +744,15 @@
 
             <!-- NOTIFICATIONS & SETTINGS -->
             <div class="alert-wrapper">
-                <!-- ⚙️ SETTINGS GEAR (No badge) -->
+                <!-- ⚙️ SETTINGS GEAR -->
                 <button id="settingsBtn" onclick="toggleSettingsDropdown()">
                     <i class="fas fa-cog"></i>
                 </button>
-                <!-- 🔔 BELL ICON WITH RED BADGE (Number goes here) -->
+                <!-- 🔔 BELL ICON -->
                 <button id="alertBell" onclick="toggleAlertDropdown()">
                     <i class="fas fa-bell"></i>
                 </button>
                 <span class="alert-badge" id="alertBadge">0</span>
-
-
 
                 <div class="dropdown-box" id="settingsDropdown">
                     <div class="settings-item">
@@ -968,6 +966,10 @@
         // --- Time-Lapse Variables ---
         var animationInterval = null;
         var isPlaying = false;
+        
+        // --- Modal State ---
+        var modalActiveFieldId = null;
+        var modalElement = null; // Will be created dynamically
 
         function initMap() {
             map = L.map('map').setView([-19.0, 29.5], 6);
@@ -1037,12 +1039,10 @@
                 });
         }
 
-        // --- UPDATED TO HANDLE NEW JSON STRUCTURE ---
         function checkInitialAlerts(allFieldsData) {
             globalAlerts = [];
             
             allFieldsData.forEach(function(item) {
-                // Access latest_ndvi from the nested 'latest' object
                 var latestVal = item.latest && item.latest.ndvi !== undefined ? parseFloat(item.latest.ndvi) : null;
                 
                 if (latestVal !== null && !isNaN(latestVal) && latestVal < ndviAlertThreshold) {
@@ -1052,8 +1052,8 @@
                         district: item.district,
                         province: item.province,
                         ndvi: latestVal,
-                        date: item.latest.date, // Access date from nested object
-                        history: item.history || [], // Store history for modal
+                        date: item.latest.date,
+                        history: item.history || [],
                         trend: item.trend || 'stable',
                         status: item.status || 'Moderate'
                     });
@@ -1680,7 +1680,7 @@
             alerts.forEach(function(alert) {
                 var locString = (alert.district ? alert.district + ', ' : '') + alert.province;
                 html += `
-                    <div class="alert-item" onclick="zoomToFieldById(${alert.id})">
+                    <div class="alert-item" onclick="openDetailModal(${alert.id})">
                         <div class="field-info">
                             <span class="field-name">⚠️ ${alert.name}</span>
                             <span class="field-loc">${locString}</span>
@@ -1693,13 +1693,165 @@
             dropdown.innerHTML = html;
         }
 
-        function zoomToFieldById(fieldId) {
-            document.getElementById('alertDropdown').classList.remove('open');
+        // ==========================================
+        // --- DYNAMIC MODAL LOGIC (No DOM element until click) ---
+        // ==========================================
+        
+        function openDetailModal(fieldId) {
+            // Find the alert data
+            var alertData = globalAlerts.find(a => a.id === fieldId);
+            if (!alertData) return;
+            
+            modalActiveFieldId = fieldId;
 
+            // 1. Create the modal HTML string (Wider: 420px, Taller: 550px)
+            var modalHTML = `
+                <div id="detailModalOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3);" onclick="closeModal(event)">
+                    <div id="detailModal" style="width: 420px; max-height: 550px; overflow-y: auto; padding: 20px; border-radius: 12px; background: #ffffff; box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative; cursor: default;" onclick="event.stopPropagation();">
+                        <button class="modal-close" onclick="closeModal()" style="position: absolute; top: 12px; right: 16px; background: transparent; border: none; font-size: 20px; cursor: pointer; color: #64748b; transition: 0.2s;">&times;</button>
+                        
+                        <div style="margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; padding-right: 24px;">
+                            <h2 id="modalFieldName" style="font-size: 18px; font-weight: 600; margin: 0;">${alertData.name}</h2>
+                            <div id="modalFieldLoc" style="font-size: 12px; color: #64748b; margin-top: 2px;">${alertData.district ? alertData.district + ', ' : ''}${alertData.province}</div>
+                        </div>
+
+                        <div style="margin-bottom: 12px;">
+                            <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Latest NDVI</div>
+                            <div style="background: #f8fafc; padding: 10px 14px; border-radius: 6px; border-left: 4px solid #ef4444; display: flex; align-items: center; justify-content: space-between;">
+                                <span style="font-size: 20px; font-weight: 700;">${alertData.ndvi.toFixed(2)}</span>
+                                <span style="font-size: 12px; color: #64748b;">as of ${alertData.date}</span>
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 12px;">
+                            <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Last 3 Readings</div>
+                            <div id="modalHistoryList" style="display: flex; flex-direction: column; gap: 6px;">
+                                ${generateHistoryHTML(alertData.history)}
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 12px;">
+                            <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Mini Trend</div>
+                            <div id="modalTrendGraph" style="display: flex; justify-content: space-between; align-items: flex-end; height: 60px; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
+                                ${generateTrendHTML(alertData.history, alertData.trend)}
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 12px;">
+                            <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Status & Trend</div>
+                            <div style="display:flex; gap: 8px; flex-wrap:wrap;">
+                                <span id="modalStatusBadge" style="display:inline-block; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform:uppercase; background: ${getStatusColor(alertData.status)}; color: #ffffff;">${alertData.status}</span>
+                                <span id="modalTrendBadge" style="display:inline-block; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform:uppercase; background: ${getTrendColor(alertData.trend)}20; color: ${getTrendColor(alertData.trend)};">${getTrendIcon(alertData.trend)} ${alertData.trend}</span>
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 14px;">
+                            <div style="font-weight:600; font-size: 12px; color:#0f172a; margin-bottom: 4px;">🌱 Recommendations</div>
+                            <ul style="margin: 0; font-size: 12px; color: #475569; padding-left: 20px;">
+                                ${generateRecommendations(alertData.status, alertData.trend)}
+                            </ul>
+                        </div>
+
+                        <div style="display: flex; gap: 8px; margin-top: 4px;">
+                            <button onclick="closeModal()" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-weight: 500; font-size: 12px; cursor: pointer; font-family: 'Inter', sans-serif; border: 1px solid #e2e8f0; background: #f1f5f9; color: #0f172a; transition: 0.2s;">Close</button>
+                            <button id="modalZoomBtn" onclick="zoomToFieldById(${modalActiveFieldId}); closeModal();" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-weight: 500; font-size: 12px; cursor: pointer; font-family: 'Inter', sans-serif; border: none; background: #2d6a4f; color: white; transition: 0.2s;">📍 Zoom to Field</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // 2. Inject the modal into the body
+            var modalWrapper = document.createElement('div');
+            modalWrapper.innerHTML = modalHTML;
+            document.body.appendChild(modalWrapper.firstElementChild);
+        }
+
+        // Helper functions for the modal
+        function generateHistoryHTML(history) {
+            var latestThree = history.slice(-3).reverse(); 
+            if (latestThree.length === 0) {
+                return '<div style="color:#94a3b8; font-size:12px;">No historical data available.</div>';
+            }
+            var maxVal = Math.max(...latestThree.map(h => h.ndvi), 0.5);
+            var html = '';
+            latestThree.forEach(function(h) {
+                var pct = Math.max((h.ndvi / maxVal) * 100, 10);
+                html += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 4px 0;">
+                        <span>${h.date}</span>
+                        <div style="flex: 1; margin: 0 12px; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+                            <div style="height: 100%; background: #2d6a4f; border-radius: 3px; width:${pct}%;"></div>
+                        </div>
+                        <span style="font-weight:500;">${h.ndvi.toFixed(2)}</span>
+                    </div>
+                `;
+            });
+            return html;
+        }
+
+        function generateTrendHTML(history, trend) {
+            var trendData = history.slice(-4);
+            if (trendData.length > 1) {
+                var maxTrend = Math.max(...trendData.map(h => h.ndvi), 0.5);
+                var sortedTrend = [...trendData].sort((a,b) => new Date(a.date) - new Date(b.date));
+                var html = '';
+                sortedTrend.forEach(function(h) {
+                    var pct = Math.max((h.ndvi / maxTrend) * 100, 10);
+                    var isDeclining = trend === 'declining';
+                    html += `<div style="width: 20px; background: ${isDeclining ? '#ef4444' : '#2d6a4f'}; border-radius: 3px; height:${pct}px;"></div>`;
+                });
+                return html;
+            } else {
+                return '<div style="color:#94a3b8; font-size:12px;">Insufficient trend data</div>';
+            }
+        }
+
+        function getStatusColor(status) {
+            if (status === 'Stressed') return '#ef4444';
+            if (status === 'Moderate') return '#f59e0b';
+            return '#2d6a4f';
+        }
+
+        function getTrendColor(trend) {
+            if (trend === 'declining') return '#ef4444';
+            if (trend === 'improving') return '#2d6a4f';
+            return '#64748b';
+        }
+
+        function getTrendIcon(trend) {
+            if (trend === 'declining') return '▼';
+            if (trend === 'improving') return '▲';
+            return '●';
+        }
+
+        function generateRecommendations(status, trend) {
+            var recs = [];
+            if (status === 'Stressed' || trend === 'declining') {
+                recs.push('Inspect for water or pest stress.');
+                recs.push('Check irrigation system functionality.');
+                recs.push('Monitor again within 5 days.');
+            } else if (status === 'Moderate') {
+                recs.push('Monitor soil moisture levels.');
+                recs.push('Maintain current irrigation schedule.');
+                recs.push('Re-evaluate in 7 days.');
+            } else {
+                recs.push('Crop appears healthy.');
+                recs.push('Maintain standard agronomic practices.');
+            }
+            return recs.map(r => `<li>${r}</li>`).join('');
+        }
+
+        function closeModal(e) {
+            var overlay = document.getElementById('detailModalOverlay');
+            if (e && e.target && e.target !== overlay) return; // Clicking inside modal ignores
+            if (overlay) overlay.remove();
+            modalActiveFieldId = null;
+        }
+
+        function zoomToFieldById(fieldId) {
             var feature = fields.find(function(f) {
                 return f.properties.id === fieldId || f.id === fieldId;
             });
-
             if (feature) {
                 zoomToField(feature);
             }

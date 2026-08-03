@@ -1542,9 +1542,36 @@ def api_ndvi_single_field(request):
 # #
 #
 #
+###########################################################################################################
+######################################### Get latest NDVI ##########################################
 #
-#
-#
+## views.py
+def api_fields_latest_health(request):
+    """
+    Returns a lightweight list of every field and its latest NDVI record.
+    """
+    try:
+        # Get all fields for the user
+        fields = Field.objects.filter(user=request.user)
+        
+        data = []
+        for field in fields:
+            # Get the latest NDVI record from your FieldNDVI table
+            latest_record = FieldNDVI.objects.filter(field=field).order_by('-date').first()
+            
+            if latest_record:
+                data.append({
+                    "id": field.id,
+                    "name": field.field_name,
+                    "province": field.adm1.name if field.adm1 else "Unknown",
+                    "district": field.adm2.name if field.adm2 else "Unknown",
+                    "latest_ndvi": latest_record.ndvi_value,
+                    "date": latest_record.date.strftime('%Y-%m-%d')
+                })
+        
+        return JsonResponse(data, safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 #
 #
 #

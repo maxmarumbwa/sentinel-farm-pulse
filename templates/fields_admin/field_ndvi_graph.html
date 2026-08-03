@@ -199,6 +199,133 @@
             border-bottom: none;
         }
 
+        /* --- NOTIFICATION & SETTINGS STYLES --- */
+        .alert-wrapper {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 4px;
+        }
+        .alert-wrapper button {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: #64748b;
+            transition: 0.2s;
+            padding: 4px;
+        }
+        .alert-wrapper button:hover { color: #0f172a; }
+        .alert-wrapper button.has-alerts { color: #ef4444; animation: alertPulse 2s infinite; }
+        
+        @keyframes alertPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .alert-badge {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            background: #ef4444;
+            color: white;
+            font-size: 8px;
+            font-weight: 700;
+            border-radius: 50%;
+            width: 14px;
+            height: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            display: none;
+        }
+        .alert-badge.show { display: flex; }
+
+        .dropdown-box {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            width: 320px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            padding: 8px 0;
+            margin-top: 8px;
+            display: none;
+            z-index: 30;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+        .dropdown-box.open { display: block; }
+
+        .alert-item {
+            padding: 8px 14px;
+            font-size: 12px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .alert-item:hover { background: #f1f5f9; }
+        .alert-item:last-child { border-bottom: none; }
+        .alert-item .field-info { display: flex; flex-direction: column; }
+        .alert-item .field-name { font-weight: 600; color: #0f172a; }
+        .alert-item .field-loc { font-size: 10px; color: #64748b; }
+        .alert-item .ndvi-val { color: #ef4444; font-weight: 700; }
+        .alert-empty {
+            padding: 16px 14px;
+            font-size: 12px;
+            color: #94a3b8;
+            text-align: center;
+        }
+
+        .settings-item {
+            padding: 12px 14px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .settings-item:last-child { border-bottom: none; }
+        .settings-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+            display: block;
+        }
+        .settings-input-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .settings-input-group input[type="number"] {
+            width: 80px;
+            padding: 4px 8px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: 'Inter', sans-serif;
+        }
+        .settings-input-group span {
+            font-size: 12px;
+            color: #64748b;
+        }
+        .settings-input-group button {
+            background: #2d6a4f;
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-family: 'Inter', sans-serif;
+            transition: 0.2s;
+        }
+        .settings-input-group button:hover { background: #1b4332; }
+
         /* --- LAYOUT: SIDEBAR & MAP --- */
         .app-layout {
             display: flex;
@@ -601,27 +728,53 @@
         
         <div class="header-tools">
             
-            <!-- TIME-LAPSE CONTROLS (Always visible, disabled when no fields selected) -->
+            <!-- TIME-LAPSE CONTROLS -->
             <div id="timeLapseSection" class="tl-controls disabled">
                 <button class="play-btn" id="playBtn"><i class="fas fa-play"></i></button>
                 <input type="range" id="timeSlider" min="0" max="100" value="0">
                 <span id="sliderDateLabel">Select a field</span>
             </div>
-            <!-- --------------------------- -->
 
-            <!-- SEARCH MY FIELD IN HEADER -->
+            <!-- SEARCH MY FIELD -->
             <div class="header-search-wrapper">
                 <i class="fas fa-search"></i>
                 <input type="text" id="headerSearchInput" placeholder="Search field..." autocomplete="off">
                 <div id="headerSearchResults"></div>
             </div>
-            <!-- --------------------------- -->
+
+            <!-- NOTIFICATIONS & SETTINGS -->
+            <div class="alert-wrapper">
+                <!-- ⚙️ SETTINGS GEAR (No badge) -->
+                <button id="settingsBtn" onclick="toggleSettingsDropdown()">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <!-- 🔔 BELL ICON WITH RED BADGE (Number goes here) -->
+                <button id="alertBell" onclick="toggleAlertDropdown()">
+                    <i class="fas fa-bell"></i>
+                </button>
+                <span class="alert-badge" id="alertBadge">0</span>
+
+
+
+                <div class="dropdown-box" id="settingsDropdown">
+                    <div class="settings-item">
+                        <label class="settings-label">NDVI Alert Threshold</label>
+                        <div class="settings-input-group">
+                            <span>Alert if NDVI &lt;</span>
+                            <input type="number" id="thresholdInput" value="0.60" step="0.05" min="0" max="1">
+                            <button onclick="updateThreshold()">Apply</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dropdown-box" id="alertDropdown">
+                    <div class="alert-empty">No alerts detected.</div>
+                </div>
+            </div>
 
             <a href="#" onclick="clearAllSelections()"><i class="fas fa-undo-alt"></i> Clear All</a>
             <a href="#" id="exportBtn"><i class="fas fa-file-csv"></i> Export Report</a>
 
-            <!-- ADD FUTURE TOOLS BELOW THIS LINE -->
-            
         </div>
     </header>
 
@@ -808,6 +961,10 @@
         var currentColors = ['#2d6a4f', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'];
         var allDataCache = {}; 
 
+        // --- Global Alert State ---
+        var globalAlerts = [];
+        var ndviAlertThreshold = 0.60;
+
         // --- Time-Lapse Variables ---
         var animationInterval = null;
         var isPlaying = false;
@@ -818,7 +975,10 @@
                 attribution: '© OpenStreetMap',
                 maxZoom: 19
             }).addTo(map);
+            
             loadFields();
+            loadLatestHealthData(); // Load alerts on page load
+            
             window.addEventListener('resize', function() { map.invalidateSize(); });
         }
 
@@ -857,6 +1017,46 @@
                     alert('Failed to load fields.');
                 });
         }
+
+        // ==========================================
+        // --- LOAD LATEST HEALTH DATA (API) ---
+        // ==========================================
+        function loadLatestHealthData() {
+            fetch('/api/fields/latest-health/')
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (data.error) {
+                        console.error('Health API Error:', data.error);
+                        return;
+                    }
+                    // Check initial alerts based on all fields
+                    checkInitialAlerts(data);
+                })
+                .catch(function(error) {
+                    console.error('Failed to load health data:', error);
+                });
+        }
+
+        function checkInitialAlerts(allFieldsData) {
+            globalAlerts = [];
+            
+            allFieldsData.forEach(function(item) {
+                var latestVal = parseFloat(item.latest_ndvi);
+                if (!isNaN(latestVal) && latestVal < ndviAlertThreshold) {
+                    globalAlerts.push({
+                        id: item.id,
+                        name: item.name,
+                        district: item.district,
+                        province: item.province,
+                        ndvi: latestVal,
+                        date: item.date
+                    });
+                }
+            });
+            
+            updateAlertUI(globalAlerts);
+        }
+        // ==========================================
 
         // ==========================================
         // --- DROPDOWN FILTER LOGIC ---
@@ -1038,10 +1238,12 @@
                 document.getElementById('chartStatus').style.display = 'flex';
                 document.getElementById('bottom-data-container').style.display = 'none';
                 
-                // Keep visible but disable
                 timeSection.classList.add('disabled');
                 document.getElementById('sliderDateLabel').textContent = 'Select a field';
                 if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+                
+                // ✅ Keep global alerts visible
+                updateAlertUI(globalAlerts);
                 return;
             }
 
@@ -1050,7 +1252,6 @@
             document.getElementById('chartStatus').style.display = 'none';
             document.getElementById('bottom-data-container').style.display = 'flex';
             
-            // Enable and prepare
             timeSection.classList.remove('disabled');
             document.getElementById('sliderDateLabel').textContent = 'Start → End';
 
@@ -1070,7 +1271,10 @@
 
             renderComparisonChart();
             renderDataTableAndSummary();
-            setupTimeLapse(); // Setup slider after data loads
+            setupTimeLapse(); 
+            
+            // ✅ Keep global alerts visible
+            updateAlertUI(globalAlerts);
         }
 
         function removeField(index) {
@@ -1214,7 +1418,6 @@
         // --- TIME-LAPSE LOGIC ---
         // ==========================================
         function setupTimeLapse() {
-            // Stop any existing animation
             if (animationInterval) {
                 clearInterval(animationInterval);
                 isPlaying = false;
@@ -1223,31 +1426,24 @@
 
             if (selectedFields.length === 0) return;
 
-            // Prepare combined data structure for the slider
-            // We use the first field's data as the timeline
             var firstFieldData = selectedFields[0].data;
             
             var slider = document.getElementById('timeSlider');
             var dateLabel = document.getElementById('sliderDateLabel');
             
-            // Set max to the last index
             var maxIndex = firstFieldData.length - 1;
             slider.max = maxIndex;
             
-            // Reset to start
             slider.value = 0;
             var startDate = firstFieldData[0].date;
             var endDate = firstFieldData[maxIndex].date;
             dateLabel.textContent = startDate + ' → ' + endDate;
             
-            // Immediately update map colors to the start date
             updateMapColors(0);
 
-            // Remove old listeners to prevent duplicates
             var newSlider = slider.cloneNode(true);
             slider.parentNode.replaceChild(newSlider, slider);
             
-            // Add new input listener (for manual dragging)
             newSlider.addEventListener('input', function() {
                 var idx = parseInt(this.value);
                 var dateStr = firstFieldData[idx].date;
@@ -1256,7 +1452,6 @@
                 updateMapColors(idx);
             });
 
-            // Play Button Logic
             var playBtn = document.getElementById('playBtn');
             var newPlayBtn = playBtn.cloneNode(true);
             playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
@@ -1270,7 +1465,6 @@
                     isPlaying = true;
                     this.innerHTML = '<i class="fas fa-pause"></i>';
                     
-                    // Start from the CURRENT slider position
                     var currentIdx = parseInt(newSlider.value);
                     
                     animationInterval = setInterval(function() {
@@ -1280,7 +1474,6 @@
                             isPlaying = false;
                             newPlayBtn.innerHTML = '<i class="fas fa-play"></i>';
                             
-                            // Reset to start when animation finishes
                             newSlider.value = 0;
                             var startDateStr = firstFieldData[0].date;
                             var endDateStr = firstFieldData[maxIndex].date;
@@ -1293,7 +1486,7 @@
                         var endDateStr = firstFieldData[maxIndex].date;
                         dateLabel.textContent = dateStr + ' → ' + endDateStr;
                         updateMapColors(currentIdx);
-                    }, 300); // 300ms per frame
+                    }, 300);
                 }
             });
         }
@@ -1301,29 +1494,23 @@
         function updateMapColors(index) {
             if (!fieldLayer) return;
 
-            // Get the date string for the specific index
             var dateStr = selectedFields[0].data[index].date;
 
-            // Loop through each layer (field) in the fieldLayer
             fieldLayer.eachLayer(function(layer) {
                 var feature = layer.feature;
                 var fieldId = feature.properties.id || feature.properties.field_id || feature.id;
                 
-                // Find the selected field object that matches this ID
                 var selectedField = selectedFields.find(f => f.id === fieldId);
                 
                 if (selectedField) {
-                    // Find the NDVI value for this specific date
                     var point = selectedField.data.find(d => d.date === dateStr);
                     
                     if (point) {
                         var val = point.ndvi;
-                        // Determine color based on NDVI threshold
-                        var color = '#1a9850'; // Good (Green)
-                        if (val < 0.2) color = '#d73027'; // Poor (Red)
-                        else if (val < 0.4) color = '#fdae61'; // Moderate (Orange)
+                        var color = '#1a9850'; 
+                        if (val < 0.2) color = '#d73027'; 
+                        else if (val < 0.4) color = '#fdae61'; 
                         
-                        // Update the layer style
                         layer.setStyle({
                             color: color,
                             fillColor: color,
@@ -1351,7 +1538,6 @@
                     return;
                 }
 
-                // Find matching fields
                 var matches = fields.filter(function(f) {
                     var name = f.properties.field_name || '';
                     return name.toLowerCase().includes(query);
@@ -1383,7 +1569,6 @@
                 });
             });
 
-            // Close dropdown when clicking outside
             document.addEventListener('click', function(e) {
                 if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
                     resultsContainer.style.display = 'none';
@@ -1394,14 +1579,12 @@
         function zoomToField(feature) {
             if (!feature.geometry) return;
             
-            // Get bounds of the polygon
             var layer = L.geoJSON(feature);
             var bounds = layer.getBounds();
             
             if (bounds.isValid()) {
                 map.fitBounds(bounds, { padding: [30, 30] });
                 
-                // Highlight the field temporarily
                 var highlightLayer = L.geoJSON(feature, {
                     style: {
                         color: '#f59e0b',
@@ -1412,10 +1595,107 @@
                     }
                 }).addTo(map);
                 
-                // Remove highlight after 2 seconds
                 setTimeout(function() {
                     map.removeLayer(highlightLayer);
                 }, 2000);
+            }
+        }
+        // ==========================================
+
+        // ==========================================
+        // --- SETTINGS & ALERTS LOGIC ---
+        // ==========================================
+        function toggleSettingsDropdown() {
+            var settingsDropdown = document.getElementById('settingsDropdown');
+            document.getElementById('alertDropdown').classList.remove('open');
+            
+            if (settingsDropdown.classList.contains('open')) {
+                settingsDropdown.classList.remove('open');
+            } else {
+                settingsDropdown.classList.add('open');
+            }
+        }
+
+        function toggleAlertDropdown() {
+            var settingsDropdown = document.getElementById('settingsDropdown');
+            var alertDropdown = document.getElementById('alertDropdown');
+            
+            settingsDropdown.classList.remove('open');
+            
+            if (alertDropdown.classList.contains('open')) {
+                alertDropdown.classList.remove('open');
+            } else {
+                alertDropdown.classList.add('open');
+            }
+        }
+
+        function updateThreshold() {
+            var inputVal = document.getElementById('thresholdInput').value;
+            ndviAlertThreshold = parseFloat(inputVal);
+            if (isNaN(ndviAlertThreshold) || ndviAlertThreshold < 0) {
+                ndviAlertThreshold = 0.60;
+                document.getElementById('thresholdInput').value = 0.60;
+            }
+            
+            document.getElementById('settingsDropdown').classList.remove('open');
+            checkCurrentAlerts();
+        }
+
+        function checkCurrentAlerts() {
+            // Re-run alert check on the existing global alerts data with new threshold
+            if (globalAlerts.length > 0) {
+                var newAlerts = globalAlerts.filter(function(a) {
+                    return a.ndvi < ndviAlertThreshold;
+                });
+                updateAlertUI(newAlerts);
+            } else {
+                // If no alerts, just refresh UI
+                updateAlertUI(globalAlerts);
+            }
+        }
+
+        function updateAlertUI(alerts) {
+            var bellIcon = document.getElementById('alertBell');
+            var badge = document.getElementById('alertBadge');
+            var dropdown = document.getElementById('alertDropdown');
+
+            if (alerts.length === 0) {
+                bellIcon.className = '';
+                badge.className = 'alert-badge';
+                dropdown.innerHTML = `<div class="alert-empty">All fields are healthy (NDVI ≥ ${ndviAlertThreshold.toFixed(2)}).</div>`;
+                return;
+            }
+
+            bellIcon.className = 'has-alerts';
+            badge.className = 'alert-badge show';
+            badge.textContent = alerts.length;
+
+            var html = '';
+            alerts.forEach(function(alert) {
+                var locString = (alert.district ? alert.district + ', ' : '') + alert.province;
+                html += `
+                    <div class="alert-item" onclick="zoomToFieldById(${alert.id})">
+                        <div class="field-info">
+                            <span class="field-name">⚠️ ${alert.name}</span>
+                            <span class="field-loc">${locString}</span>
+                            <span class="field-loc">Last reading: ${alert.date}</span>
+                        </div>
+                        <div class="ndvi-val">${alert.ndvi.toFixed(3)}</div>
+                    </div>
+                `;
+            });
+            dropdown.innerHTML = html;
+        }
+
+        function zoomToFieldById(fieldId) {
+            document.getElementById('alertDropdown').classList.remove('open');
+
+            var feature = fields.find(function(f) {
+                return f.properties.id === fieldId || f.id === fieldId;
+            });
+
+            if (feature) {
+                zoomToField(feature);
             }
         }
         // ==========================================
@@ -1524,7 +1804,7 @@
         
         document.addEventListener('DOMContentLoaded', function() {
             initMap();
-            setupHeaderSearch(); // Initialize header search bar
+            setupHeaderSearch();
         });
     </script>
 

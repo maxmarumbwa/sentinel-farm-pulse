@@ -1575,13 +1575,13 @@ def api_ndvi_single_field(request):
 #
 #
 ### Get latest ndvi, plus prev deks and trends
-from django.http import JsonResponse
-from django.contrib.auth.decorators import login_required
-from django.db.models import Max
-from .models import Field, FieldNDVI
-import datetime
+# from django.http import JsonResponse
+# from django.contrib.auth.decorators import login_required
+# from django.db.models import Max
+# from .models import Field, FieldNDVI
+# import datetime
 
-#removed @login_required
+# #removed @login_required
 def api_fields_latest_health(request):
     """
     Returns a detailed list of every field including:
@@ -1656,8 +1656,8 @@ def api_fields_latest_health(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 #
-#
-#
+
+
 #########################################################################################################
 #################################  Get Rainfall #########################################################
 ############################################################################################@@@@@@@@@@@@@

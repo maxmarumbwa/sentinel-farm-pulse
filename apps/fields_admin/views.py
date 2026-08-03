@@ -1545,35 +1545,116 @@ def api_ndvi_single_field(request):
 ###########################################################################################################
 ######################################### Get latest NDVI ##########################################
 #
-## views.py
+## Get the latest ndviv from database
+# def api_fields_latest_health(request):
+#     """
+#     Returns a lightweight list of every field and its latest NDVI record.
+#     """
+#     try:
+#         # Get all fields for the user
+#         fields = Field.objects.filter(user=request.user)
+        
+#         data = []
+#         for field in fields:
+#             # Get the latest NDVI record from your FieldNDVI table
+#             latest_record = FieldNDVI.objects.filter(field=field).order_by('-date').first()
+            
+#             if latest_record:
+#                 data.append({
+#                     "id": field.id,
+#                     "name": field.field_name,
+#                     "province": field.adm1.name if field.adm1 else "Unknown",
+#                     "district": field.adm2.name if field.adm2 else "Unknown",
+#                     "latest_ndvi": latest_record.ndvi_value,
+#                     "date": latest_record.date.strftime('%Y-%m-%d')
+#                 })
+        
+#         return JsonResponse(data, safe=False)
+#     except Exception as e:
+#         return JsonResponse({'error': str(e)}, status=500)
+#
+#
+### Get latest ndvi, plus prev deks and trends
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from django.db.models import Max
+from .models import Field, FieldNDVI
+import datetime
+
+#removed @login_required
 def api_fields_latest_health(request):
     """
-    Returns a lightweight list of every field and its latest NDVI record.
+    Returns a detailed list of every field including:
+    - Latest NDVI (date + value)
+    - Last 3 historical readings
+    - Calculated trend (declining / improving / stable)
+    - Health status (Stressed / Moderate / Healthy)
     """
     try:
-        # Get all fields for the user
         fields = Field.objects.filter(user=request.user)
-        
         data = []
+
         for field in fields:
-            # Get the latest NDVI record from your FieldNDVI table
-            latest_record = FieldNDVI.objects.filter(field=field).order_by('-date').first()
+            # 1. Get ALL records for this field, ordered by date descending
+            records = FieldNDVI.objects.filter(field=field).order_by('-date')
             
-            if latest_record:
-                data.append({
-                    "id": field.id,
-                    "name": field.field_name,
-                    "province": field.adm1.name if field.adm1 else "Unknown",
-                    "district": field.adm2.name if field.adm2 else "Unknown",
-                    "latest_ndvi": latest_record.ndvi_value,
-                    "date": latest_record.date.strftime('%Y-%m-%d')
+            if not records.exists():
+                continue
+            
+            # 2. Latest Record
+            latest = records.first()
+            latest_data = {
+                "date": latest.date.strftime('%Y-%m-%d'),
+                "ndvi": latest.ndvi_value
+            }
+
+            # 3. History (Up to 3 previous readings, excluding the latest)
+            history = []
+            for rec in records[1:4]:  # Skip latest, take next 3
+                history.append({
+                    "date": rec.date.strftime('%Y-%m-%d'),
+                    "ndvi": rec.ndvi_value
                 })
+
+            # 4. Calculate Trend
+            # Compare latest to the average of the previous 3 records
+            if len(history) >= 2:
+                avg_prev = sum([h['ndvi'] for h in history]) / len(history)
+                diff = latest.ndvi_value - avg_prev
+                
+                if diff > 0.05:
+                    trend = "improving"
+                elif diff < -0.05:
+                    trend = "declining"
+                else:
+                    trend = "stable"
+            else:
+                trend = "stable"  # Default if not enough data
+
+            # 5. Calculate Status based on latest value
+            if latest.ndvi_value < 0.3:
+                status = "Stressed"
+            elif latest.ndvi_value < 0.5:
+                status = "Moderate"
+            else:
+                status = "Healthy"
+
+            # 6. Build the full object
+            data.append({
+                "id": field.id,
+                "name": field.field_name,
+                "province": field.adm1.name if field.adm1 else "Unknown",
+                "district": field.adm2.name if field.adm2 else "Unknown",
+                "latest": latest_data,
+                "history": history,
+                "trend": trend,
+                "status": status
+            })
         
         return JsonResponse(data, safe=False)
+    
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-#
-#
 #
 #
 #

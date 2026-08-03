@@ -38,9 +38,12 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            height: 64px;
+            height: auto;
+            min-height: 64px;
             flex-shrink: 0;
             z-index: 10;
+            flex-wrap: wrap;
+            gap: 12px;
         }
         .header-left {
             display: flex;
@@ -66,13 +69,16 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        .header-actions { 
-            display: flex; 
-            gap: 10px; 
+
+        /* --- HEADER TOOLS CONTAINER --- */
+        .header-tools {
+            display: flex;
             align-items: center;
+            gap: 12px;
             flex-wrap: wrap;
         }
-        .header-actions a, .header-actions button {
+        
+        .header-tools a, .header-tools button {
             color: #475569;
             text-decoration: none;
             padding: 6px 12px;
@@ -88,7 +94,7 @@
             align-items: center;
             gap: 6px;
         }
-        .header-actions a:hover, .header-actions button:hover { background: #f1f5f9; color: #0f172a; }
+        .header-tools a:hover, .header-tools button:hover { background: #f1f5f9; color: #0f172a; }
         
         /* Time-Lapse Specific Header Styles */
         .tl-controls {
@@ -99,6 +105,11 @@
             padding: 4px 8px;
             border-radius: 6px;
             border: 1px solid #e2e8f0;
+            transition: opacity 0.3s ease;
+        }
+        .tl-controls.disabled {
+            opacity: 0.5;
+            pointer-events: none; /* Prevents clicks when disabled */
         }
         .tl-controls span { font-size: 11px; font-weight: 500; color: #475569; min-width: 110px; text-align: right; }
         .tl-controls input[type="range"] { 
@@ -127,6 +138,66 @@
             transition: 0.2s; font-size: 12px;
         }
         .tl-controls .play-btn:hover { background: #1b4332; }
+
+        /* --- SEARCH INPUT IN HEADER --- */
+        .header-search-wrapper {
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+        .header-search-wrapper i {
+            position: absolute;
+            left: 10px;
+            color: #94a3b8;
+            font-size: 13px;
+        }
+        #headerSearchInput {
+            padding: 6px 12px 6px 32px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 12px;
+            background: #f8fafc;
+            font-family: 'Inter', sans-serif;
+            color: #1e293b;
+            width: 200px;
+            transition: 0.2s;
+        }
+        #headerSearchInput:focus {
+            border-color: #2d6a4f;
+            outline: none;
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.1);
+            width: 260px;
+        }
+        #headerSearchResults {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+            z-index: 20;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        #headerSearchResults div {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            border-bottom: 1px solid #f1f5f9;
+            transition: 0.2s;
+        }
+        #headerSearchResults div:hover {
+            background: #f1f5f9;
+            color: #1e3a2f;
+        }
+        #headerSearchResults div:last-child {
+            border-bottom: none;
+        }
 
         /* --- LAYOUT: SIDEBAR & MAP --- */
         .app-layout {
@@ -513,6 +584,8 @@
             #bottom-data-container { left: 10px; right: 10px; bottom: 10px; }
             .tl-controls span { min-width: 70px; font-size: 10px; }
             .tl-controls input[type="range"] { width: 50px; }
+            #headerSearchInput { width: 140px; }
+            #headerSearchInput:focus { width: 180px; }
         }
     </style>
 </head>
@@ -526,17 +599,29 @@
             </h1>
         </div>
         
-        <div class="header-actions">
-            <!-- TIME-LAPSE CONTROLS IN HEADER -->
-            <div id="timeLapseSection" class="tl-controls" style="display: none;">
+        <div class="header-tools">
+            
+            <!-- TIME-LAPSE CONTROLS (Always visible, disabled when no fields selected) -->
+            <div id="timeLapseSection" class="tl-controls disabled">
                 <button class="play-btn" id="playBtn"><i class="fas fa-play"></i></button>
                 <input type="range" id="timeSlider" min="0" max="100" value="0">
-                <span id="sliderDateLabel">Start → End</span>
+                <span id="sliderDateLabel">Select a field</span>
+            </div>
+            <!-- --------------------------- -->
+
+            <!-- SEARCH MY FIELD IN HEADER -->
+            <div class="header-search-wrapper">
+                <i class="fas fa-search"></i>
+                <input type="text" id="headerSearchInput" placeholder="Search field..." autocomplete="off">
+                <div id="headerSearchResults"></div>
             </div>
             <!-- --------------------------- -->
 
             <a href="#" onclick="clearAllSelections()"><i class="fas fa-undo-alt"></i> Clear All</a>
             <a href="#" id="exportBtn"><i class="fas fa-file-csv"></i> Export Report</a>
+
+            <!-- ADD FUTURE TOOLS BELOW THIS LINE -->
+            
         </div>
     </header>
 
@@ -884,7 +969,7 @@
                 return;
             }
 
-            if (selectedFields.length >= 15) {
+            if (selectedFields.length >= 5) {
                 alert("You can compare a maximum of 5 fields at a time.");
                 return;
             }
@@ -952,7 +1037,10 @@
                 document.getElementById('emptyState').style.display = 'flex';
                 document.getElementById('chartStatus').style.display = 'flex';
                 document.getElementById('bottom-data-container').style.display = 'none';
-                timeSection.style.display = 'none';
+                
+                // Keep visible but disable
+                timeSection.classList.add('disabled');
+                document.getElementById('sliderDateLabel').textContent = 'Select a field';
                 if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
                 return;
             }
@@ -961,7 +1049,10 @@
             document.getElementById('fieldInfoContainer').style.display = 'block';
             document.getElementById('chartStatus').style.display = 'none';
             document.getElementById('bottom-data-container').style.display = 'flex';
-            timeSection.style.display = 'flex';
+            
+            // Enable and prepare
+            timeSection.classList.remove('disabled');
+            document.getElementById('sliderDateLabel').textContent = 'Start → End';
 
             countSpan.textContent = `(${selectedFields.length}/5)`;
             container.innerHTML = '';
@@ -1244,6 +1335,91 @@
         }
         // ==========================================
 
+        // ==========================================
+        // --- HEADER SEARCH LOGIC ---
+        // ==========================================
+        function setupHeaderSearch() {
+            var searchInput = document.getElementById('headerSearchInput');
+            var resultsContainer = document.getElementById('headerSearchResults');
+
+            searchInput.addEventListener('input', function() {
+                var query = this.value.toLowerCase().trim();
+                resultsContainer.innerHTML = '';
+                
+                if (query.length === 0) {
+                    resultsContainer.style.display = 'none';
+                    return;
+                }
+
+                // Find matching fields
+                var matches = fields.filter(function(f) {
+                    var name = f.properties.field_name || '';
+                    return name.toLowerCase().includes(query);
+                });
+
+                if (matches.length === 0) {
+                    resultsContainer.style.display = 'block';
+                    var noRes = document.createElement('div');
+                    noRes.textContent = 'No fields found';
+                    noRes.style.color = '#94a3b8';
+                    noRes.style.cursor = 'default';
+                    resultsContainer.appendChild(noRes);
+                    return;
+                }
+
+                resultsContainer.style.display = 'block';
+                matches.forEach(function(f) {
+                    var item = document.createElement('div');
+                    var p = f.properties;
+                    var location = (p.district ? p.district + ', ' : '') + (p.province || '');
+                    item.innerHTML = `<strong>${p.field_name}</strong> <span style="color:#94a3b8; font-size:11px;">${location}</span>`;
+                    
+                    item.addEventListener('click', function() {
+                        zoomToField(f);
+                        resultsContainer.style.display = 'none';
+                        searchInput.value = p.field_name;
+                    });
+                    resultsContainer.appendChild(item);
+                });
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+                    resultsContainer.style.display = 'none';
+                }
+            });
+        }
+
+        function zoomToField(feature) {
+            if (!feature.geometry) return;
+            
+            // Get bounds of the polygon
+            var layer = L.geoJSON(feature);
+            var bounds = layer.getBounds();
+            
+            if (bounds.isValid()) {
+                map.fitBounds(bounds, { padding: [30, 30] });
+                
+                // Highlight the field temporarily
+                var highlightLayer = L.geoJSON(feature, {
+                    style: {
+                        color: '#f59e0b',
+                        weight: 4,
+                        opacity: 1,
+                        fillColor: '#f59e0b',
+                        fillOpacity: 0.3
+                    }
+                }).addTo(map);
+                
+                // Remove highlight after 2 seconds
+                setTimeout(function() {
+                    map.removeLayer(highlightLayer);
+                }, 2000);
+            }
+        }
+        // ==========================================
+
         function refreshAllSelected() {
             var currentStartDate = document.getElementById('startDate').value;
             var currentEndDate = document.getElementById('endDate').value;
@@ -1346,7 +1522,10 @@
             link.click();
         }
         
-        document.addEventListener('DOMContentLoaded', function() { initMap(); });
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+            setupHeaderSearch(); // Initialize header search bar
+        });
     </script>
 
 </body>

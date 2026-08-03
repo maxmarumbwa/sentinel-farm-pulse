@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FAO Sentinel Field Dashboard - Multi-Field Comparison</title>
+    <title>FAO Sentinel Field Dashboard - Time-Lapse</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -42,6 +42,11 @@
             flex-shrink: 0;
             z-index: 10;
         }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
         .header h1 { 
             font-size: 18px; 
             font-weight: 600; 
@@ -61,17 +66,67 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        .header-actions { display: flex; gap: 10px; }
-        .header-actions a {
+        .header-actions { 
+            display: flex; 
+            gap: 10px; 
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .header-actions a, .header-actions button {
             color: #475569;
             text-decoration: none;
-            padding: 8px 14px;
+            padding: 6px 12px;
             border-radius: 6px;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 500;
+            background: transparent;
+            border: 1px solid transparent;
             transition: 0.2s;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
-        .header-actions a:hover { background: #f1f5f9; color: #0f172a; }
+        .header-actions a:hover, .header-actions button:hover { background: #f1f5f9; color: #0f172a; }
+        
+        /* Time-Lapse Specific Header Styles */
+        .tl-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #f8fafc;
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+        .tl-controls span { font-size: 11px; font-weight: 500; color: #475569; min-width: 110px; text-align: right; }
+        .tl-controls input[type="range"] { 
+            width: 80px; 
+            height: 4px; 
+            -webkit-appearance: none; 
+            appearance: none; 
+            background: #e2e8f0; 
+            border-radius: 2px; 
+            outline: none; 
+        }
+        .tl-controls input[type="range"]::-webkit-slider-thumb { 
+            -webkit-appearance: none; 
+            appearance: none; 
+            width: 12px; height: 12px; 
+            border-radius: 50%; 
+            background: #2d6a4f; 
+            cursor: pointer; 
+            border: 2px solid white; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+        }
+        .tl-controls .play-btn { 
+            background: #2d6a4f; color: white; border: none; 
+            width: 24px; height: 24px; border-radius: 50%; 
+            cursor: pointer; display: flex; align-items: center; justify-content: center; 
+            transition: 0.2s; font-size: 12px;
+        }
+        .tl-controls .play-btn:hover { background: #1b4332; }
 
         /* --- LAYOUT: SIDEBAR & MAP --- */
         .app-layout {
@@ -446,7 +501,6 @@
         #searchCard .control-row { margin-bottom: 8px; }
         #searchCard .control-row:last-child { margin-bottom: 0; }
 
-        /* Responsive */
         @media (max-width: 1024px) {
             #sidebar { width: 420px; padding: 16px; }
             #bottom-data-container { left: 440px; }
@@ -457,19 +511,32 @@
             #sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid #e2e8f0; max-height: 50vh; }
             #map-container { height: 40vh; min-height: 300px; }
             #bottom-data-container { left: 10px; right: 10px; bottom: 10px; }
+            .tl-controls span { min-width: 70px; font-size: 10px; }
+            .tl-controls input[type="range"] { width: 50px; }
         }
     </style>
 </head>
 <body>
 
     <header class="header">
-        <h1>
-            <i class="fas fa-satellite-dish"></i> Sentinel Field Pulse
-            <span class="badge">FAO DSS | Multi-Field Compare</span>
-        </h1>
+        <div class="header-left">
+            <h1>
+                <i class="fas fa-satellite-dish"></i> Sentinel Field Pulse
+                <span class="badge">FAO DSS | Time-Lapse</span>
+            </h1>
+        </div>
+        
         <div class="header-actions">
+            <!-- TIME-LAPSE CONTROLS IN HEADER -->
+            <div id="timeLapseSection" class="tl-controls" style="display: none;">
+                <button class="play-btn" id="playBtn"><i class="fas fa-play"></i></button>
+                <input type="range" id="timeSlider" min="0" max="100" value="0">
+                <span id="sliderDateLabel">Start → End</span>
+            </div>
+            <!-- --------------------------- -->
+
             <a href="#" onclick="clearAllSelections()"><i class="fas fa-undo-alt"></i> Clear All</a>
-            <a href="#"><i class="fas fa-file-csv"></i> Export Report</a>
+            <a href="#" id="exportBtn"><i class="fas fa-file-csv"></i> Export Report</a>
         </div>
     </header>
 
@@ -583,7 +650,6 @@
                     </button>
                 </div>
             </div>
-            <!-- ------------------------------------- -->
 
         </div>
 
@@ -653,9 +719,13 @@
         var map, fieldLayer = null;
         var chartInstance = null;
         var fields = [];
-        var selectedFields = []; // Stores objects {id, name, district, province, data, color}
+        var selectedFields = []; 
         var currentColors = ['#2d6a4f', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'];
-        var allDataCache = {}; // Cache API data to avoid refetching
+        var allDataCache = {}; 
+
+        // --- Time-Lapse Variables ---
+        var animationInterval = null;
+        var isPlaying = false;
 
         function initMap() {
             map = L.map('map').setView([-19.0, 29.5], 6);
@@ -707,7 +777,6 @@
         // --- DROPDOWN FILTER LOGIC ---
         // ==========================================
         function populateFilters(features) {
-            // 1. Populate Provinces (Admin 1)
             var admin1Set = new Set();
             features.forEach(f => {
                 if (f.properties.province) admin1Set.add(f.properties.province);
@@ -726,7 +795,6 @@
             var admin2Group = document.getElementById('admin2Group');
             var admin2Select = document.getElementById('admin2Filter');
             
-            // Clear current Admin2 options
             admin2Select.innerHTML = '<option value="">All Districts</option>';
 
             if (admin1Val === '') {
@@ -737,7 +805,6 @@
 
             admin2Group.style.display = 'block';
             
-            // Get unique Admin2 for the selected Admin1
             var admin2Set = new Set();
             fields.forEach(f => {
                 if (f.properties.province === admin1Val && f.properties.district) {
@@ -762,7 +829,6 @@
             
             fieldSelect.innerHTML = '<option value="">-- Select a field --</option>';
 
-            // Filter fields by Admin1 and Admin2
             var filtered = fields.filter(f => {
                 var p = f.properties;
                 if (admin1Val !== '' && p.province !== admin1Val) return false;
@@ -770,7 +836,6 @@
                 return true;
             });
 
-            // Exclude fields that are already selected in the comparison
             var selectedIds = selectedFields.map(sf => sf.id);
             filtered = filtered.filter(f => !selectedIds.includes(f.properties.id || f.id));
 
@@ -787,8 +852,8 @@
             var fieldId = fieldSelect.value;
             if (fieldId) {
                 toggleFieldSelection(parseInt(fieldId));
-                fieldSelect.value = ''; // Reset selection after adding
-                updateFieldList();      // Refresh the dropdown list
+                fieldSelect.value = ''; 
+                updateFieldList();      
             }
         }
         // ==========================================
@@ -811,22 +876,19 @@
         }
         
         function toggleFieldSelection(fieldId) {
-            // Check if already selected
             var existingIndex = selectedFields.findIndex(f => f.id === fieldId);
             if (existingIndex !== -1) {
-                // If already selected, remove it (toggle off)
                 selectedFields.splice(existingIndex, 1);
                 updateComparisonUI();
-                updateFieldList(); // Refresh dropdown
+                updateFieldList(); 
                 return;
             }
 
-            if (selectedFields.length >= 5) {
+            if (selectedFields.length >= 15) {
                 alert("You can compare a maximum of 5 fields at a time.");
                 return;
             }
 
-            // Fetch data for the field
             fetchFieldData(fieldId, function(data) {
                 if (data && data.success && data.data.length > 0) {
                     var fieldObj = fields.find(f => f.id === fieldId || f.properties.id === fieldId);
@@ -850,9 +912,8 @@
                     });
                     
                     updateComparisonUI();
-                    updateFieldList(); // Refresh dropdown
+                    updateFieldList(); 
                 } else {
-                    // ✅ FIXED: Silent console warning instead of annoying popup
                     console.warn(`No NDVI data found for field ID ${fieldId}.`);
                 }
             });
@@ -884,12 +945,14 @@
         function updateComparisonUI() {
             var container = document.getElementById('selection-container');
             var countSpan = document.getElementById('selectedCount');
+            var timeSection = document.getElementById('timeLapseSection');
             
             if (selectedFields.length === 0) {
                 document.getElementById('fieldInfoContainer').style.display = 'none';
                 document.getElementById('emptyState').style.display = 'flex';
                 document.getElementById('chartStatus').style.display = 'flex';
                 document.getElementById('bottom-data-container').style.display = 'none';
+                timeSection.style.display = 'none';
                 if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
                 return;
             }
@@ -898,6 +961,7 @@
             document.getElementById('fieldInfoContainer').style.display = 'block';
             document.getElementById('chartStatus').style.display = 'none';
             document.getElementById('bottom-data-container').style.display = 'flex';
+            timeSection.style.display = 'flex';
 
             countSpan.textContent = `(${selectedFields.length}/5)`;
             container.innerHTML = '';
@@ -915,18 +979,19 @@
 
             renderComparisonChart();
             renderDataTableAndSummary();
+            setupTimeLapse(); // Setup slider after data loads
         }
 
         function removeField(index) {
             selectedFields.splice(index, 1);
             updateComparisonUI();
-            updateFieldList(); // Refresh dropdown
+            updateFieldList(); 
         }
 
         function clearAllSelections() {
             selectedFields = [];
             updateComparisonUI();
-            updateFieldList(); // Refresh dropdown
+            updateFieldList(); 
         }
 
         function renderComparisonChart() {
@@ -995,7 +1060,6 @@
         }
 
         function renderDataTableAndSummary() {
-            // 1. Render Multi-Column Header
             var thead = document.getElementById('dataTableHeader');
             var tbody = document.getElementById('dataTableBody');
             
@@ -1003,7 +1067,6 @@
             selectedFields.forEach(f => { headerRow += `<th style="color:${f.color};">${f.name}</th>`; });
             thead.innerHTML = headerRow;
 
-            // 2. Render Rows
             tbody.innerHTML = '';
             for (var i = 0; i < selectedFields[0].data.length; i++) {
                 var row = `<td>${selectedFields[0].data[i].date}</td>`;
@@ -1013,11 +1076,8 @@
                 tbody.innerHTML += `<tr>${row}</tr>`;
             }
 
-            // ==========================================
-            // ✅ FIX: Loop through ALL selected fields
-            // ==========================================
             var summaryBody = document.getElementById('summaryTableBody');
-            summaryBody.innerHTML = '';
+            var rowsHtml = [];
             
             var bestField = null;
             var bestAvg = -1;
@@ -1036,17 +1096,18 @@
                     bestField = f;
                 }
 
-                summaryBody.innerHTML += `
+                rowsHtml.push(`
                     <tr>
                         <td style="font-weight:500; color:${f.color};">${f.name}</td>
                         <td>${avg.toFixed(3)}</td>
                         <td>${latest.toFixed(3)}</td>
                         <td><span class="status-badge ${status}">${statusLabel}</span></td>
                     </tr>
-                `;
+                `);
             });
 
-            // 4. Render Conclusion
+            summaryBody.innerHTML = rowsHtml.join('');
+
             var conclusionText = document.getElementById('conclusionText');
             if (bestField) {
                 conclusionText.innerHTML = `
@@ -1058,54 +1119,167 @@
             }
         }
 
-        // 🔥 FIXED: SMART REFRESH WITH CACHE RE-USE
+        // ==========================================
+        // --- TIME-LAPSE LOGIC ---
+        // ==========================================
+        function setupTimeLapse() {
+            // Stop any existing animation
+            if (animationInterval) {
+                clearInterval(animationInterval);
+                isPlaying = false;
+                document.getElementById('playBtn').innerHTML = '<i class="fas fa-play"></i>';
+            }
+
+            if (selectedFields.length === 0) return;
+
+            // Prepare combined data structure for the slider
+            // We use the first field's data as the timeline
+            var firstFieldData = selectedFields[0].data;
+            
+            var slider = document.getElementById('timeSlider');
+            var dateLabel = document.getElementById('sliderDateLabel');
+            
+            // Set max to the last index
+            var maxIndex = firstFieldData.length - 1;
+            slider.max = maxIndex;
+            
+            // Reset to start
+            slider.value = 0;
+            var startDate = firstFieldData[0].date;
+            var endDate = firstFieldData[maxIndex].date;
+            dateLabel.textContent = startDate + ' → ' + endDate;
+            
+            // Immediately update map colors to the start date
+            updateMapColors(0);
+
+            // Remove old listeners to prevent duplicates
+            var newSlider = slider.cloneNode(true);
+            slider.parentNode.replaceChild(newSlider, slider);
+            
+            // Add new input listener (for manual dragging)
+            newSlider.addEventListener('input', function() {
+                var idx = parseInt(this.value);
+                var dateStr = firstFieldData[idx].date;
+                var endDateStr = firstFieldData[maxIndex].date;
+                dateLabel.textContent = dateStr + ' → ' + endDateStr;
+                updateMapColors(idx);
+            });
+
+            // Play Button Logic
+            var playBtn = document.getElementById('playBtn');
+            var newPlayBtn = playBtn.cloneNode(true);
+            playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
+            
+            newPlayBtn.addEventListener('click', function() {
+                if (isPlaying) {
+                    clearInterval(animationInterval);
+                    isPlaying = false;
+                    this.innerHTML = '<i class="fas fa-play"></i>';
+                } else {
+                    isPlaying = true;
+                    this.innerHTML = '<i class="fas fa-pause"></i>';
+                    
+                    // Start from the CURRENT slider position
+                    var currentIdx = parseInt(newSlider.value);
+                    
+                    animationInterval = setInterval(function() {
+                        currentIdx++;
+                        if (currentIdx > maxIndex) {
+                            clearInterval(animationInterval);
+                            isPlaying = false;
+                            newPlayBtn.innerHTML = '<i class="fas fa-play"></i>';
+                            
+                            // Reset to start when animation finishes
+                            newSlider.value = 0;
+                            var startDateStr = firstFieldData[0].date;
+                            var endDateStr = firstFieldData[maxIndex].date;
+                            dateLabel.textContent = startDateStr + ' → ' + endDateStr;
+                            updateMapColors(0);
+                            return;
+                        }
+                        newSlider.value = currentIdx;
+                        var dateStr = firstFieldData[currentIdx].date;
+                        var endDateStr = firstFieldData[maxIndex].date;
+                        dateLabel.textContent = dateStr + ' → ' + endDateStr;
+                        updateMapColors(currentIdx);
+                    }, 300); // 300ms per frame
+                }
+            });
+        }
+
+        function updateMapColors(index) {
+            if (!fieldLayer) return;
+
+            // Get the date string for the specific index
+            var dateStr = selectedFields[0].data[index].date;
+
+            // Loop through each layer (field) in the fieldLayer
+            fieldLayer.eachLayer(function(layer) {
+                var feature = layer.feature;
+                var fieldId = feature.properties.id || feature.properties.field_id || feature.id;
+                
+                // Find the selected field object that matches this ID
+                var selectedField = selectedFields.find(f => f.id === fieldId);
+                
+                if (selectedField) {
+                    // Find the NDVI value for this specific date
+                    var point = selectedField.data.find(d => d.date === dateStr);
+                    
+                    if (point) {
+                        var val = point.ndvi;
+                        // Determine color based on NDVI threshold
+                        var color = '#1a9850'; // Good (Green)
+                        if (val < 0.2) color = '#d73027'; // Poor (Red)
+                        else if (val < 0.4) color = '#fdae61'; // Moderate (Orange)
+                        
+                        // Update the layer style
+                        layer.setStyle({
+                            color: color,
+                            fillColor: color,
+                            fillOpacity: 0.5
+                        });
+                    }
+                }
+            });
+        }
+        // ==========================================
+
         function refreshAllSelected() {
             var currentStartDate = document.getElementById('startDate').value;
             var currentEndDate = document.getElementById('endDate').value;
             var currentCloudCover = document.getElementById('cloudCover').value;
             
-            // Store current date context globally to detect changes
             if (!window._lastQueryContext) {
                 window._lastQueryContext = {};
             }
             
-            // Check if the dates or cloud cover have actually changed
             var datesChanged = (
                 window._lastQueryContext.startDate !== currentStartDate ||
                 window._lastQueryContext.endDate !== currentEndDate ||
                 window._lastQueryContext.cloudCover !== currentCloudCover
             );
 
-            // If dates haven't changed, we can safely reuse the cache and just redraw instantly
             if (!datesChanged && selectedFields.length > 0) {
-                // Just re-render what we already have
                 renderComparisonChart();
                 renderDataTableAndSummary();
+                setupTimeLapse();
                 return;
             }
 
-            // Update the stored context
             window._lastQueryContext.startDate = currentStartDate;
             window._lastQueryContext.endDate = currentEndDate;
             window._lastQueryContext.cloudCover = currentCloudCover;
             
-            // If dates have changed, ONLY clear cache for those specific dates
-            // We keep other date ranges cached to avoid re-fetching unnecessarily
             var cacheKeysToRemove = [];
             for (var key in allDataCache) {
-                // Simple heuristic: if the cache key matches a pattern containing the old dates, clear it.
-                // Since our cache key is the field_id, we will just clear all for this refresh
-                // and rely on the next optimization.
                 cacheKeysToRemove.push(key);
             }
             
-            // Only clear the cache for the fields we are currently viewing
             var ids = selectedFields.map(f => f.id);
             ids.forEach(id => {
                 delete allDataCache[id];
             });
 
-            // Re-fetch ALL selected fields in parallel
             var fetchPromises = ids.map(function(id) {
                 return new Promise(function(resolve) {
                     fetchFieldData(id, function(data) {
@@ -1114,12 +1288,10 @@
                 });
             });
 
-            // Show loading state
             document.getElementById('chartStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating comparison...';
             document.getElementById('chartStatus').style.display = 'flex';
 
             Promise.all(fetchPromises).then(function(results) {
-                // Rebuild selectedFields from the fresh data
                 var newSelected = [];
                 results.forEach(function(result) {
                     var data = result.data;

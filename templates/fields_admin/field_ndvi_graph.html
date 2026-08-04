@@ -96,19 +96,19 @@
         }
         .header-tools a:hover, .header-tools button:hover { background: #f1f5f9; color: #0f172a; }
         
-        /* Pixel Info Tool Button - Special Styling */
-        .pixel-info-btn {
+        /* Climate Intel Tool Button - Special Styling */
+        .climate-intel-btn {
             background: #2d6a4f !important;
             color: white !important;
             border: none !important;
             padding: 6px 14px !important;
             border-radius: 6px !important;
         }
-        .pixel-info-btn:hover {
+        .climate-intel-btn:hover {
             background: #1b4332 !important;
             color: white !important;
         }
-        .pixel-info-btn.active {
+        .climate-intel-btn.active {
             background: #ef4444 !important;
             animation: pulse 1.5s ease-in-out infinite;
         }
@@ -222,8 +222,8 @@
             border-bottom: none;
         }
 
-        /* Pixel Info Popup */
-        #pixelInfoPopup {
+        /* Climate Intel Popup */
+        #climateIntelPopup {
             position: fixed;
             bottom: 100px;
             right: 30px;
@@ -235,10 +235,10 @@
             padding: 20px;
             z-index: 9999;
             display: none;
-            max-height: 520px;
+            max-height: 620px;
             overflow-y: auto;
         }
-        #pixelInfoPopup.open {
+        #climateIntelPopup.open {
             display: block;
             animation: slideUp 0.3s ease;
         }
@@ -246,7 +246,7 @@
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        #pixelInfoPopup .popup-header {
+        #climateIntelPopup .popup-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -254,17 +254,17 @@
             padding-bottom: 10px;
             border-bottom: 1px solid #e2e8f0;
         }
-        #pixelInfoPopup .popup-header h3 {
+        #climateIntelPopup .popup-header h3 {
             font-size: 14px;
             font-weight: 600;
             color: #0f172a;
             margin: 0;
         }
-        #pixelInfoPopup .popup-header h3 i {
+        #climateIntelPopup .popup-header h3 i {
             color: #2d6a4f;
             margin-right: 8px;
         }
-        #pixelInfoPopup .close-popup {
+        #climateIntelPopup .close-popup {
             background: transparent;
             border: none;
             cursor: pointer;
@@ -272,61 +272,218 @@
             font-size: 18px;
             transition: 0.2s;
         }
-        #pixelInfoPopup .close-popup:hover { color: #d32f2f; }
-        #pixelInfoPopup .info-grid {
+        #climateIntelPopup .close-popup:hover { color: #d32f2f; }
+        
+        /* Coordinate Search in Popup */
+        #climateIntelPopup .coord-search {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        #climateIntelPopup .coord-search .label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        #climateIntelPopup .coord-search .label-row label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+        }
+        #climateIntelPopup .coord-search .label-row .current-coords {
+            font-size: 11px;
+            color: #2d6a4f;
+            font-weight: 600;
+        }
+        #climateIntelPopup .coord-search .input-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        #climateIntelPopup .coord-search .input-group {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            gap: 2px;
+        }
+        #climateIntelPopup .coord-search .input-group label {
+            font-size: 9px;
+            text-transform: uppercase;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+        #climateIntelPopup .coord-search .input-group input {
+            padding: 6px 8px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'Inter', sans-serif;
+            background: #ffffff;
+            color: #1e293b;
+            width: 100%;
+        }
+        #climateIntelPopup .coord-search .input-group input:focus {
+            border-color: #2d6a4f;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.1);
+        }
+        #climateIntelPopup .coord-search .go-btn {
+            background: #2d6a4f;
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            transition: 0.2s;
+            white-space: nowrap;
+            align-self: flex-end;
+            margin-bottom: 2px;
+        }
+        #climateIntelPopup .coord-search .go-btn:hover {
+            background: #1b4332;
+        }
+
+        /* Buffer Settings in Popup */
+        #climateIntelPopup .buffer-settings {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        #climateIntelPopup .buffer-settings .label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        #climateIntelPopup .buffer-settings .label-row label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+        }
+        #climateIntelPopup .buffer-settings .label-row .current-buffer {
+            font-size: 11px;
+            color: #2d6a4f;
+            font-weight: 600;
+        }
+        #climateIntelPopup .buffer-settings .input-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        #climateIntelPopup .buffer-settings .input-group input[type="number"] {
+            flex: 1;
+            padding: 6px 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'Inter', sans-serif;
+            background: #ffffff;
+            color: #1e293b;
+            width: 100px;
+        }
+        #climateIntelPopup .buffer-settings .input-group input[type="number"]:focus {
+            border-color: #2d6a4f;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.1);
+        }
+        #climateIntelPopup .buffer-settings .input-group .unit-label {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+        #climateIntelPopup .buffer-settings .apply-btn {
+            background: #2d6a4f;
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            transition: 0.2s;
+            white-space: nowrap;
+        }
+        #climateIntelPopup .buffer-settings .apply-btn:hover {
+            background: #1b4332;
+        }
+        #climateIntelPopup .buffer-settings .reset-btn {
+            background: transparent;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            transition: 0.2s;
+        }
+        #climateIntelPopup .buffer-settings .reset-btn:hover {
+            background: #f1f5f9;
+        }
+
+        #climateIntelPopup .info-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 8px;
         }
-        #pixelInfoPopup .info-item {
+        #climateIntelPopup .info-item {
             background: #f8fafc;
             border-radius: 6px;
             padding: 10px 12px;
             text-align: center;
         }
-        #pixelInfoPopup .info-item .label {
+        #climateIntelPopup .info-item .label {
             font-size: 9px;
             text-transform: uppercase;
             color: #94a3b8;
             font-weight: 600;
             letter-spacing: 0.5px;
         }
-        #pixelInfoPopup .info-item .value {
+        #climateIntelPopup .info-item .value {
             font-size: 18px;
             font-weight: 700;
             color: #0f172a;
             margin-top: 2px;
         }
-        #pixelInfoPopup .info-item .value.high { color: #2d6a4f; }
-        #pixelInfoPopup .info-item .value.medium { color: #f59e0b; }
-        #pixelInfoPopup .info-item .value.low { color: #ef4444; }
-        #pixelInfoPopup .info-item .date-label {
+        #climateIntelPopup .info-item .value.high { color: #2d6a4f; }
+        #climateIntelPopup .info-item .value.medium { color: #f59e0b; }
+        #climateIntelPopup .info-item .value.low { color: #ef4444; }
+        #climateIntelPopup .info-item .date-label {
             font-size: 9px;
             color: #94a3b8;
             margin-top: 4px;
             font-weight: 400;
         }
-        #pixelInfoPopup .info-item .date-label i {
+        #climateIntelPopup .info-item .date-label i {
             margin-right: 3px;
             font-size: 8px;
         }
-        #pixelInfoPopup .info-item .sub-value {
+        #climateIntelPopup .info-item .sub-value {
             font-size: 10px;
             color: #94a3b8;
             margin-top: 2px;
         }
-        #pixelInfoPopup .loading-spinner {
+        #climateIntelPopup .loading-spinner {
             text-align: center;
             padding: 20px;
             color: #94a3b8;
         }
-        #pixelInfoPopup .loading-spinner i {
+        #climateIntelPopup .loading-spinner i {
             font-size: 32px;
             display: block;
             margin-bottom: 10px;
             color: #2d6a4f;
         }
-        #pixelInfoPopup .error-message {
+        #climateIntelPopup .error-message {
             color: #ef4444;
             text-align: center;
             padding: 20px;
@@ -846,7 +1003,7 @@
             .tl-controls input[type="range"] { width: 50px; }
             #headerSearchInput { width: 140px; }
             #headerSearchInput:focus { width: 180px; }
-            #pixelInfoPopup { width: 90%; right: 5%; bottom: 80px; }
+            #climateIntelPopup { width: 90%; right: 5%; bottom: 80px; }
         }
     </style>
 </head>
@@ -904,9 +1061,9 @@
                 </div>
             </div>
 
-            <!-- ✅ PIXEL INFO TOOL -->
-            <button class="pixel-info-btn" id="pixelInfoBtn" onclick="togglePixelInfo()">
-                <i class="fas fa-crosshairs"></i> Pixel Info
+            <!-- ✅ CLIMATE INTEL TOOL -->
+            <button class="climate-intel-btn" id="climateIntelBtn" onclick="toggleClimateIntel()">
+                <i class="fas fa-cloud-sun"></i> Climate Intel
             </button>
 
             <a href="#" onclick="clearAllSelections()"><i class="fas fa-undo-alt"></i> Clear All</a>
@@ -1088,16 +1245,50 @@
         </div>
     </div>
 
-    <!-- --- PIXEL INFO POPUP --- -->
-    <div id="pixelInfoPopup">
+    <!-- --- CLIMATE INTEL POPUP --- -->
+    <div id="climateIntelPopup">
         <div class="popup-header">
-            <h3><i class="fas fa-crosshairs"></i> Pixel Intelligence</h3>
-            <button class="close-popup" onclick="closePixelInfo()">&times;</button>
+            <h3><i class="fas fa-cloud-sun"></i> Climate Intel</h3>
+            <button class="close-popup" onclick="closeClimateIntel()">&times;</button>
         </div>
-        <div id="pixelInfoContent">
+        
+        <!-- Coordinate Search -->
+        <div class="coord-search">
+            <div class="label-row">
+                <label><i class="fas fa-map-pin"></i> Search by Coordinates</label>
+                <span class="current-coords" id="currentCoordsDisplay">Lat: -17.8252, Lon: 31.0335</span>
+            </div>
+            <div class="input-row">
+                <div class="input-group">
+                    <label>Latitude</label>
+                    <input type="number" id="searchLat" value="-17.8252" step="0.0001" placeholder="-17.8252">
+                </div>
+                <div class="input-group">
+                    <label>Longitude</label>
+                    <input type="number" id="searchLon" value="31.0335" step="0.0001" placeholder="31.0335">
+                </div>
+                <button class="go-btn" onclick="searchCoords()"><i class="fas fa-search"></i> Go</button>
+            </div>
+        </div>
+        
+        <!-- Buffer Settings -->
+        <div class="buffer-settings">
+            <div class="label-row">
+                <label for="climateBufferInput"><i class="fas fa-expand"></i> Buffer Zone</label>
+                <span class="current-buffer" id="currentBufferDisplay">0 m</span>
+            </div>
+            <div class="input-group">
+                <input type="number" id="climateBufferInput" value="0" min="0" step="10" placeholder="Buffer (m)">
+                <span class="unit-label">meters</span>
+                <button class="apply-btn" onclick="applyClimateBuffer()"><i class="fas fa-check"></i> Apply</button>
+                <button class="reset-btn" onclick="resetClimateBuffer()"><i class="fas fa-undo"></i></button>
+            </div>
+        </div>
+        
+        <div id="climateIntelContent">
             <div class="loading-spinner">
                 <i class="fas fa-hand-pointer" style="color:#2d6a4f;"></i>
-                Click anywhere on the map to get pixel data.
+                Click on the map or search coordinates to get climatic and environmental data.
             </div>
         </div>
     </div>
@@ -1112,9 +1303,14 @@
         var currentColors = ['#2d6a4f', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'];
         var allDataCache = {};
 
-        // --- Pixel Info State ---
-        var pixelInfoActive = false;
-        var pixelMarker = null;
+        // --- Climate Intel State ---
+        var climateIntelActive = false;
+        var climateMarker = null;
+        var climateBuffer = 0; // Default buffer in meters
+        
+        // Default coordinates: Harare, Zimbabwe
+        var DEFAULT_LAT = -17.8252;
+        var DEFAULT_LON = 31.0335;
 
         // --- Global Alert State ---
         var globalAlerts = [];
@@ -1125,7 +1321,7 @@
         var isPlaying = false;
 
         function initMap() {
-            map = L.map('map').setView([-19.0, 29.5], 6);
+            map = L.map('map').setView([DEFAULT_LAT, DEFAULT_LON], 6);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap',
                 maxZoom: 19
@@ -1138,21 +1334,21 @@
         }
 
         // ==========================================
-        // PIXEL INFO TOOL FUNCTIONS
+        // CLIMATE INTEL TOOL FUNCTIONS
         // ==========================================
-        function togglePixelInfo() {
-            pixelInfoActive = !pixelInfoActive;
-            var btn = document.getElementById('pixelInfoBtn');
-            var popup = document.getElementById('pixelInfoPopup');
+        function toggleClimateIntel() {
+            climateIntelActive = !climateIntelActive;
+            var btn = document.getElementById('climateIntelBtn');
+            var popup = document.getElementById('climateIntelPopup');
             
-            if (pixelInfoActive) {
+            if (climateIntelActive) {
                 btn.classList.add('active');
-                btn.innerHTML = '<i class="fas fa-crosshairs"></i> Click Map';
+                btn.innerHTML = '<i class="fas fa-cloud-sun"></i> Click Map';
                 popup.classList.add('open');
-                document.getElementById('pixelInfoContent').innerHTML = `
+                document.getElementById('climateIntelContent').innerHTML = `
                     <div class="loading-spinner">
                         <i class="fas fa-hand-pointer" style="color:#2d6a4f;"></i>
-                        Click anywhere on the map to get pixel intelligence.
+                        Click on the map or search coordinates to get climatic and environmental data.
                     </div>
                 `;
                 
@@ -1161,7 +1357,7 @@
                 map.getContainer().style.cursor = 'crosshair';
             } else {
                 btn.classList.remove('active');
-                btn.innerHTML = '<i class="fas fa-crosshairs"></i> Pixel Info';
+                btn.innerHTML = '<i class="fas fa-cloud-sun"></i> Climate Intel';
                 popup.classList.remove('open');
                 
                 // Disable map click
@@ -1169,53 +1365,135 @@
                 map.getContainer().style.cursor = '';
                 
                 // Remove marker
-                if (pixelMarker) {
-                    map.removeLayer(pixelMarker);
-                    pixelMarker = null;
+                if (climateMarker) {
+                    map.removeLayer(climateMarker);
+                    climateMarker = null;
                 }
             }
         }
 
-        function closePixelInfo() {
-            if (pixelInfoActive) {
-                togglePixelInfo();
+        function closeClimateIntel() {
+            if (climateIntelActive) {
+                toggleClimateIntel();
             }
         }
 
-        function onMapClick(e) {
-            if (!pixelInfoActive) return;
+        function searchCoords() {
+            var latInput = document.getElementById('searchLat');
+            var lonInput = document.getElementById('searchLon');
+            var lat = parseFloat(latInput.value);
+            var lon = parseFloat(lonInput.value);
             
-            var lat = e.latlng.lat;
-            var lng = e.latlng.lng;
-            
-            // Add marker
-            if (pixelMarker) {
-                map.removeLayer(pixelMarker);
+            if (isNaN(lat) || isNaN(lon)) {
+                alert('Please enter valid latitude and longitude values');
+                return;
             }
-            pixelMarker = L.marker([lat, lng], {
+            
+            if (lat < -90 || lat > 90) {
+                alert('Latitude must be between -90 and 90');
+                return;
+            }
+            
+            if (lon < -180 || lon > 180) {
+                alert('Longitude must be between -180 and 180');
+                return;
+            }
+            
+            // Update display
+            document.getElementById('currentCoordsDisplay').textContent = `Lat: ${lat.toFixed(4)}, Lon: ${lon.toFixed(4)}`;
+            
+            // Pan map to location
+            map.setView([lat, lon], 12);
+            
+            // Add/update marker
+            if (climateMarker) {
+                map.removeLayer(climateMarker);
+            }
+            climateMarker = L.marker([lat, lon], {
                 icon: L.divIcon({
-                    className: 'pixel-marker',
+                    className: 'climate-marker',
                     html: '<i class="fas fa-crosshairs" style="color:#2d6a4f; font-size:20px;"></i>',
                     iconSize: [20, 20],
                     iconAnchor: [10, 10]
                 })
             }).addTo(map);
             
-            // Fetch pixel data
-            fetchPixelData(lat, lng);
+            // Fetch data for coordinates
+            fetchClimateData(lat, lon);
         }
 
-        function fetchPixelData(lat, lng) {
-            var content = document.getElementById('pixelInfoContent');
+        function applyClimateBuffer() {
+            var input = document.getElementById('climateBufferInput');
+            var val = parseFloat(input.value);
+            if (!isNaN(val) && val >= 0) {
+                climateBuffer = val;
+                document.getElementById('currentBufferDisplay').textContent = climateBuffer + ' m';
+                
+                // If there's a marker already, re-fetch with new buffer
+                if (climateMarker) {
+                    var lat = climateMarker.getLatLng().lat;
+                    var lng = climateMarker.getLatLng().lng;
+                    fetchClimateData(lat, lng);
+                }
+            } else {
+                alert('Please enter a valid buffer value (0 or positive number)');
+                input.value = climateBuffer;
+            }
+        }
+
+        function resetClimateBuffer() {
+            climateBuffer = 0;
+            document.getElementById('climateBufferInput').value = 0;
+            document.getElementById('currentBufferDisplay').textContent = '0 m';
+            
+            // Re-fetch if there's a marker
+            if (climateMarker) {
+                var lat = climateMarker.getLatLng().lat;
+                var lng = climateMarker.getLatLng().lng;
+                fetchClimateData(lat, lng);
+            }
+        }
+
+        function onMapClick(e) {
+            if (!climateIntelActive) return;
+            
+            var lat = e.latlng.lat;
+            var lng = e.latlng.lng;
+            
+            // Update search inputs
+            document.getElementById('searchLat').value = lat.toFixed(6);
+            document.getElementById('searchLon').value = lng.toFixed(6);
+            document.getElementById('currentCoordsDisplay').textContent = `Lat: ${lat.toFixed(4)}, Lon: ${lng.toFixed(4)}`;
+            
+            // Add marker
+            if (climateMarker) {
+                map.removeLayer(climateMarker);
+            }
+            climateMarker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'climate-marker',
+                    html: '<i class="fas fa-crosshairs" style="color:#2d6a4f; font-size:20px;"></i>',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                })
+            }).addTo(map);
+            
+            // Fetch climate data with current buffer
+            fetchClimateData(lat, lng);
+        }
+
+        function fetchClimateData(lat, lng) {
+            var content = document.getElementById('climateIntelContent');
             content.innerHTML = `
                 <div class="loading-spinner">
                     <i class="fas fa-spinner fa-spin"></i>
-                    Fetching intelligence for ${lat.toFixed(4)}, ${lng.toFixed(4)}...
+                    Fetching climate data for ${lat.toFixed(4)}, ${lng.toFixed(4)}...
+                    <br><span style="font-size: 11px; color: #94a3b8;">Buffer: ${climateBuffer}m</span>
                 </div>
             `;
             
-            // Use buffer=10 for pixel-level analysis
-            var url = `/api/geo-intel/?lat=${lat}&lon=${lng}&buffer=10`;
+            // Use the current buffer value
+            var url = `/api/geo-intel/?lat=${lat}&lon=${lng}&buffer=${climateBuffer}`;
             
             fetch(url)
                 .then(function(response) { return response.json(); })
@@ -1223,20 +1501,20 @@
                     if (data.error) {
                         throw new Error(data.error);
                     }
-                    displayPixelData(data);
+                    displayClimateData(data);
                 })
                 .catch(function(error) {
                     content.innerHTML = `
                         <div class="error-message">
                             <i class="fas fa-exclamation-circle"></i>
-                            <p>${error.message || 'Failed to fetch pixel data'}</p>
+                            <p>${error.message || 'Failed to fetch climate data'}</p>
                         </div>
                     `;
                 });
         }
 
-        function displayPixelData(data) {
-            var content = document.getElementById('pixelInfoContent');
+        function displayClimateData(data) {
+            var content = document.getElementById('climateIntelContent');
             
             // Determine NDVI status
             var ndvi = data.sentinel_ndvi;
@@ -1257,7 +1535,7 @@
                 else { soilStatus = 'high'; }
             }
             
-            // Format dates with better handling
+            // Format dates
             function formatDate(dateStr) {
                 if (!dateStr || dateStr === 'N/A' || dateStr === null || dateStr === undefined) {
                     return 'N/A';
@@ -1300,14 +1578,14 @@
                 </div>
                 <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center;">
                     <i class="fas fa-map-pin"></i> ${data.lat}, ${data.lon} | Buffer: ${data.buffer_m}m
-                    <br><span style="font-size: 9px;">Data: ${data.datasets ? Object.values(data.datasets).join(' | ') : 'Sentinel-2, ERA5-Land, CHIRPS, SRTM'}</span>
+                    <br><span style="font-size: 9px;">Data: Sentinel-2, SMAP, CHIRPS, ERA5, SRTM</span>
                     <br><span style="font-size: 9px; color: #cbd5e1;">Cloud mask: QA60 | Filter: < 20%</span>
                 </div>
             `;
         }
 
         // ==========================================
-        // END PIXEL INFO FUNCTIONS
+        // END CLIMATE INTEL FUNCTIONS
         // ==========================================
 
         function toggleSearchCard() {
@@ -2255,6 +2533,9 @@
         document.addEventListener('DOMContentLoaded', function() {
             initMap();
             setupHeaderSearch();
+            
+            // Auto-search default coordinates (Harare) when tool opens
+            // This will be triggered when user clicks Climate Intel button
         });
     </script>
 

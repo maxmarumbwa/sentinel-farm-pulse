@@ -1667,6 +1667,9 @@ from django.http import JsonResponse
 import datetime
 import ee
 from apps.gee.ee_auth import initialize_earth_engine
+from concurrent.futures import ThreadPoolExecutor
+from django.core.cache import cache
+import hashlib
 
 # Initialize GEE
 try:
@@ -1674,15 +1677,51 @@ try:
 except:
     pass
 
-def get_latest_image_with_data(collection, ee_geom, band_name, scale, max_pixels=1e9):
+# ==========================================
+# DATASET RESOLUTIONS AND CONFIG
+# ==========================================
+RESOLUTIONS = {
+    'sentinel2': 10,
+    'smap': 9000,
+    'chirps': 5500,
+    'era5': 27700,
+    'srtm': 30,
+}
+
+# Cache TTLs (in seconds)
+CACHE_TTL = {
+    'srtm': 2592000,      # 30 days (static)
+    'ndvi': 43200,        # 12 hours
+    'soil': 86400,        # 24 hours
+    'rainfall': 86400,    # 24 hours
+    'temperature': 86400, # 24 hours
+}
+
+def get_cache_key(dataset, lat, lon, buffer_m):
+    """Generate consistent cache key"""
+    rounded_lat = round(lat, 3)
+    rounded_lon = round(lon, 3)
+    rounded_buffer = round(buffer_m, 0)
+    key_str = f"{dataset}_{rounded_lat}_{rounded_lon}_{rounded_buffer}"
+    return hashlib.md5(key_str.encode()).hexdigest()
+
+def get_image_value_single_request(collection, ee_geom, band_name, scale, max_pixels=1e9, date_range_days=None):
     """
-    Helper function to get the latest image with data for a given collection.
-    Returns: (image, date_string, value)
+    Optimized: Single Earth Engine request for both date and value.
+    Uses ee.Dictionary to combine date and stats in one getInfo() call.
     """
     try:
-        # Get the latest image without date filtering
+        # Apply date filter if specified (for faster search)
+        if date_range_days:
+            now = ee.Date(datetime.datetime.now())
+            start_date = now.advance(-date_range_days, 'day')
+            filtered = collection.filterDate(start_date, now)
+        else:
+            filtered = collection
+        
+        # Get latest image
         latest = (
-            collection
+            filtered
             .filterBounds(ee_geom)
             .sort('system:time_start', False)
             .limit(1)
@@ -1690,22 +1729,21 @@ def get_latest_image_with_data(collection, ee_geom, band_name, scale, max_pixels
         )
         
         if not latest:
-            return None, None, None
-        
-        # Get the date
-        date_property = latest.get('system:time_start')
-        date_val = date_property.getInfo()
-        date_str = None
-        if date_val:
-            date_str = datetime.datetime.fromtimestamp(date_val/1000).strftime('%Y-%m-%d')
-        
-        # Check if the band exists
-        band_names = latest.bandNames().getInfo()
-        if band_name not in band_names:
-            return None, date_str, None
+            # If no image found with date filter, try without date filter
+            # This ensures we always get the latest available data
+            latest = (
+                collection
+                .filterBounds(ee_geom)
+                .sort('system:time_start', False)
+                .limit(1)
+                .first()
+            )
+            
+            if not latest:
+                return None, None, None
         
         # Reduce region
-        reducer = latest.select(band_name).reduceRegion(
+        stats = latest.select(band_name).reduceRegion(
             reducer=ee.Reducer.mean(),
             geometry=ee_geom,
             scale=scale,
@@ -1713,25 +1751,49 @@ def get_latest_image_with_data(collection, ee_geom, band_name, scale, max_pixels
             bestEffort=True
         )
         
-        result = reducer.getInfo()
-        value = result.get(band_name)
+        # Combine date and value into single dictionary
+        output = ee.Dictionary({
+            'date': latest.date().format('YYYY-MM-dd'),
+            'value': stats.get(band_name)
+        })
         
-        # Check if value is valid (not None and not NaN)
-        if value is None or (isinstance(value, float) and (value != value)):  # NaN check
+        # Single getInfo() call
+        result = output.getInfo()
+        
+        if result is None:
+            return None, None, None
+        
+        date_str = result.get('date')
+        value = result.get('value')
+        
+        # Check for NaN or None
+        if value is None or (isinstance(value, float) and (value != value)):
             return None, date_str, None
             
-        return latest, date_str, value
+        return None, date_str, value
         
     except Exception as e:
-        print(f"Error in get_latest_image_with_data: {e}")
+        print(f"Error in get_image_value_single_request: {e}")
         return None, None, None
+
+def get_cached_or_fetch(cache_key, fetch_func, ttl):
+    """Helper to get from cache or fetch and cache"""
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    
+    result = fetch_func()
+    if result is not None:
+        cache.set(cache_key, result, ttl)
+    return result
 
 def api_geo_intel(request):
     """
-    Returns essential geospatial intelligence for any Lat/Lon coordinate.
-    Buffer is automatically set to match pixel resolution of each dataset.
-    Expects GET parameters: lat, lon
-    Optional GET parameter: buffer (meters, default 0 - will use dataset resolution)
+    Optimized geospatial intelligence API.
+    - Single getInfo() per dataset
+    - Parallel processing
+    - Aggressive caching
+    - Centroid-based extraction
     """
     try:
         lat = request.GET.get('lat')
@@ -1748,201 +1810,213 @@ def api_geo_intel(request):
         except ValueError:
             return JsonResponse({'error': 'lat, lon, and buffer must be valid numbers'}, status=400)
         
-        # ==========================================
-        # DATASET RESOLUTIONS (in meters)
-        # ==========================================
-        RESOLUTIONS = {
-            'sentinel2': 10,      # 10 meters
-            'smap': 9000,         # 9 km
-            'chirps': 5500,       # 5.5 km
-            'era5': 27700,        # ~31 km
-            'srtm': 30,           # 30 meters
-        }
+        # Use centroid for point extraction (faster than buffered mean)
+        # But allow user to override with buffer parameter
+        use_centroid = buffer_m <= 0
+        if use_centroid:
+            ee_geom = ee.Geometry.Point([lon, lat])
+        else:
+            ee_geom = ee.Geometry.Point([lon, lat]).buffer(buffer_m)
         
-        # Create geometry with appropriate buffer for each dataset
         def get_geom_for_dataset(resolution):
             """Create geometry with buffer = resolution (or user buffer if larger)"""
+            if use_centroid:
+                return ee.Geometry.Point([lon, lat])
             buffer_size = max(buffer_m, resolution)
             return ee.Geometry.Point([lon, lat]).buffer(buffer_size)
         
         # ==========================================
-        # 1. SENTINEL-2 NDVI (10m resolution)
+        # DEFINE ALL FETCH FUNCTIONS
         # ==========================================
-        sentinel_ndvi = None
-        sentinel_ndvi_date = None
-        try:
-            ee_geom_s2 = get_geom_for_dataset(RESOLUTIONS['sentinel2'])
+        def fetch_ndvi():
+            """Sentinel-2 NDVI - cached, 60-day search window"""
+            cache_key = get_cache_key('ndvi', lat, lon, buffer_m)
             
-            s2_collection = (
-                ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-                .filterBounds(ee_geom_s2)
-                .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 20))
-            )
-            
-            # Get latest image with NDVI
-            def add_ndvi(img):
-                ndvi = img.normalizedDifference(['B8', 'B4']).rename('ndvi')
-                return img.addBands(ndvi)
-            
-            s2_with_ndvi = s2_collection.map(add_ndvi)
-            latest_s2, date_str, ndvi_val = get_latest_image_with_data(
-                s2_with_ndvi, ee_geom_s2, 'ndvi', RESOLUTIONS['sentinel2']
-            )
-            
-            if ndvi_val is not None:
-                sentinel_ndvi = round(ndvi_val, 4)
-                sentinel_ndvi_date = date_str
-                
-        except Exception as e:
-            print(f"NDVI error: {e}")
-
-        # ==========================================
-        # 2. SOIL MOISTURE - SMAP v008 (9km resolution)
-        # ==========================================
-        soil_moisture = None
-        soil_moisture_date = None
-        try:
-            ee_geom_smap = get_geom_for_dataset(RESOLUTIONS['smap'])
-            
-            smap_collection = ee.ImageCollection("NASA/SMAP/SPL4SMGP/008").filterBounds(ee_geom_smap)
-            
-            latest_smap, date_str, soil_val = get_latest_image_with_data(
-                smap_collection, ee_geom_smap, 'sm_surface', RESOLUTIONS['smap']
-            )
-            
-            if soil_val is not None:
-                soil_moisture = round(soil_val * 100, 1)
-                soil_moisture_date = date_str
-                
-        except Exception as e:
-            print(f"Soil moisture error: {e}")
-
-        # ==========================================
-        # 3. ELEVATION & SLOPE - SRTM (30m resolution)
-        # ==========================================
-        elevation = None
-        slope = None
-        try:
-            ee_geom_srtm = get_geom_for_dataset(RESOLUTIONS['srtm'])
-            srtm = ee.Image("USGS/SRTMGL1_003")
-            
-            elevation_reducer = srtm.reduceRegion(
-                reducer=ee.Reducer.mean(),
-                geometry=ee_geom_srtm,
-                scale=RESOLUTIONS['srtm'],
-                maxPixels=1e9,
-                bestEffort=True
-            )
-            elevation_result = elevation_reducer.getInfo()
-            elevation = elevation_result.get('elevation')
-            if elevation is not None:
-                elevation = round(elevation, 0)
-            
-            slope_img = ee.Terrain.slope(srtm)
-            slope_reducer = slope_img.reduceRegion(
-                reducer=ee.Reducer.mean(),
-                geometry=ee_geom_srtm,
-                scale=RESOLUTIONS['srtm'],
-                maxPixels=1e9,
-                bestEffort=True
-            )
-            slope_result = slope_reducer.getInfo()
-            slope = slope_result.get('slope')
-            if slope is not None:
-                slope = round(slope, 2)
-        except Exception as e:
-            print(f"Elevation/Slope error: {e}")
-
-        # ==========================================
-        # 4. RAINFALL - CHIRPS (5.5km resolution)
-        # ==========================================
-        rainfall_latest = None
-        rainfall_date = None
-        try:
-            ee_geom_chirps = get_geom_for_dataset(RESOLUTIONS['chirps'])
-            
-            chirps_collection = ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY").filterBounds(ee_geom_chirps)
-            
-            latest_chirps, date_str, rain_val = get_latest_image_with_data(
-                chirps_collection, ee_geom_chirps, 'precipitation', RESOLUTIONS['chirps']
-            )
-            
-            if rain_val is not None:
-                rainfall_latest = round(rain_val, 0)
-                rainfall_date = date_str
-            else:
-                # If no data, try 2x resolution
-                print("No CHIRPS data at current location, trying 2x resolution buffer...")
-                ee_geom_chirps_2x = ee.Geometry.Point([lon, lat]).buffer(RESOLUTIONS['chirps'] * 2)
-                chirps_collection_2x = ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY").filterBounds(ee_geom_chirps_2x)
-                
-                latest_chirps, date_str, rain_val = get_latest_image_with_data(
-                    chirps_collection_2x, ee_geom_chirps_2x, 'precipitation', RESOLUTIONS['chirps']
-                )
-                
-                if rain_val is not None:
-                    rainfall_latest = round(rain_val, 0)
-                    rainfall_date = date_str
+            def fetch():
+                try:
+                    ee_geom_s2 = get_geom_for_dataset(RESOLUTIONS['sentinel2'])
                     
-        except Exception as e:
-            print(f"CHIRPS error: {e}")
+                    # Pre-compute NDVI on the server
+                    s2_collection = (
+                        ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+                        .filterBounds(ee_geom_s2)
+                        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 20))
+                    )
+                    
+                    # Map NDVI function
+                    def add_ndvi(img):
+                        ndvi = img.normalizedDifference(['B8', 'B4']).rename('ndvi')
+                        return img.addBands(ndvi)
+                    
+                    s2_with_ndvi = s2_collection.map(add_ndvi)
+                    
+                    # Single request for date and value
+                    _, date_str, ndvi_val = get_image_value_single_request(
+                        s2_with_ndvi, ee_geom_s2, 'ndvi', 
+                        RESOLUTIONS['sentinel2'], date_range_days=60  # Last 60 days only
+                    )
+                    
+                    if ndvi_val is not None:
+                        return {'value': round(ndvi_val, 4), 'date': date_str}
+                    return {'value': None, 'date': None}
+                except Exception as e:
+                    print(f"NDVI error: {e}")
+                    return {'value': None, 'date': None}
             
-            # Fallback to GPM IMERG if CHIRPS fails
-            try:
-                print("Trying GPM IMERG as fallback...")
-                ee_geom_gpm = get_geom_for_dataset(1000)  # GPM is ~1km
-                
-                gpm_collection = ee.ImageCollection("NASA/GPM_L3/IMERG_V06").filterBounds(ee_geom_gpm)
-                
-                latest_gpm, date_str, rain_val = get_latest_image_with_data(
-                    gpm_collection, ee_geom_gpm, 'precipitationCal', 1000
-                )
-                
-                if rain_val is not None:
-                    rainfall_latest = round(rain_val, 1)
-                    rainfall_date = date_str
-            except Exception as e2:
-                print(f"GPM fallback error: {e2}")
-
+            return get_cached_or_fetch(cache_key, fetch, CACHE_TTL['ndvi'])
+        
+        def fetch_soil():
+            """SMAP Soil Moisture - cached, 30-day search window"""
+            cache_key = get_cache_key('soil', lat, lon, buffer_m)
+            
+            def fetch():
+                try:
+                    ee_geom_smap = get_geom_for_dataset(RESOLUTIONS['smap'])
+                    smap_collection = ee.ImageCollection("NASA/SMAP/SPL4SMGP/008")
+                    
+                    _, date_str, soil_val = get_image_value_single_request(
+                        smap_collection, ee_geom_smap, 'sm_surface',
+                        RESOLUTIONS['smap'], date_range_days=30
+                    )
+                    
+                    if soil_val is not None:
+                        return {'value': round(soil_val * 100, 1), 'date': date_str}
+                    return {'value': None, 'date': None}
+                except Exception as e:
+                    print(f"Soil moisture error: {e}")
+                    return {'value': None, 'date': None}
+            
+            return get_cached_or_fetch(cache_key, fetch, CACHE_TTL['soil'])
+        
+        def fetch_elevation_slope():
+            """SRTM Elevation & Slope - combined in one request, cached"""
+            cache_key = get_cache_key('srtm', lat, lon, buffer_m)
+            
+            def fetch():
+                try:
+                    ee_geom_srtm = get_geom_for_dataset(RESOLUTIONS['srtm'])
+                    srtm = ee.Image("USGS/SRTMGL1_003")
+                    
+                    # Combine elevation and slope into single image
+                    slope_img = ee.Terrain.slope(srtm)
+                    terrain = srtm.addBands(slope_img.rename('slope'))
+                    
+                    # Single reducer for both bands
+                    terrain_reducer = terrain.select(['elevation', 'slope']).reduceRegion(
+                        reducer=ee.Reducer.mean(),
+                        geometry=ee_geom_srtm,
+                        scale=RESOLUTIONS['srtm'],
+                        maxPixels=1e9,
+                        bestEffort=True
+                    )
+                    
+                    # Single getInfo()
+                    result = terrain_reducer.getInfo()
+                    elevation = result.get('elevation')
+                    slope = result.get('slope')
+                    
+                    return {
+                        'elevation': round(elevation, 0) if elevation else None,
+                        'slope': round(slope, 2) if slope else None
+                    }
+                except Exception as e:
+                    print(f"Elevation/Slope error: {e}")
+                    return {'elevation': None, 'slope': None}
+            
+            return get_cached_or_fetch(cache_key, fetch, CACHE_TTL['srtm'])
+        
+        def fetch_rainfall():
+            """CHIRPS Rainfall - cached, NO date filter (continuous data)"""
+            cache_key = get_cache_key('rainfall', lat, lon, buffer_m)
+            
+            def fetch():
+                try:
+                    # Use a larger buffer for CHIRPS (5.5km resolution)
+                    chirps_buffer = max(buffer_m, RESOLUTIONS['chirps'])
+                    ee_geom_chirps = ee.Geometry.Point([lon, lat]).buffer(chirps_buffer)
+                    
+                    chirps_collection = ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
+                    
+                    # NO date filter - get the latest available image
+                    # CHIRPS is continuous, so there's always data
+                    _, date_str, rain_val = get_image_value_single_request(
+                        chirps_collection, ee_geom_chirps, 'precipitation',
+                        RESOLUTIONS['chirps'], date_range_days=None  # No date filter
+                    )
+                    
+                    if rain_val is not None:
+                        return {'value': round(rain_val, 0), 'date': date_str}
+                    return {'value': None, 'date': None}
+                except Exception as e:
+                    print(f"Rainfall error: {e}")
+                    return {'value': None, 'date': None}
+            
+            return get_cached_or_fetch(cache_key, fetch, CACHE_TTL['rainfall'])
+        
+        def fetch_temperature():
+            """ERA5 Temperature - cached, NO date filter (continuous data)"""
+            cache_key = get_cache_key('temperature', lat, lon, buffer_m)
+            
+            def fetch():
+                try:
+                    # Use a larger buffer for ERA5 (31km resolution)
+                    era5_buffer = max(buffer_m, RESOLUTIONS['era5'])
+                    ee_geom_era5 = ee.Geometry.Point([lon, lat]).buffer(era5_buffer)
+                    
+                    era5_collection = ee.ImageCollection("ECMWF/ERA5/DAILY")
+                    
+                    # NO date filter - get the latest available image
+                    # ERA5 is continuous, so there's always data
+                    _, date_str, temp_k = get_image_value_single_request(
+                        era5_collection, ee_geom_era5, 'mean_2m_air_temperature',
+                        RESOLUTIONS['era5'], date_range_days=None  # No date filter
+                    )
+                    
+                    if temp_k is not None:
+                        return {'value': round(temp_k - 273.15, 1), 'date': date_str}
+                    return {'value': None, 'date': None}
+                except Exception as e:
+                    print(f"Temperature error: {e}")
+                    return {'value': None, 'date': None}
+            
+            return get_cached_or_fetch(cache_key, fetch, CACHE_TTL['temperature'])
+        
         # ==========================================
-        # 5. TEMPERATURE - ERA5 (~31km resolution)
+        # PARALLEL EXECUTION
         # ==========================================
-        temperature_latest = None
-        temperature_date = None
-        try:
-            ee_geom_era5 = get_geom_for_dataset(RESOLUTIONS['era5'])
+        with ThreadPoolExecutor(max_workers=6) as executor:
+            future_ndvi = executor.submit(fetch_ndvi)
+            future_soil = executor.submit(fetch_soil)
+            future_elev = executor.submit(fetch_elevation_slope)
+            future_rain = executor.submit(fetch_rainfall)
+            future_temp = executor.submit(fetch_temperature)
             
-            era5_collection = ee.ImageCollection("ECMWF/ERA5/DAILY").filterBounds(ee_geom_era5)
-            
-            latest_era5, date_str, temp_k = get_latest_image_with_data(
-                era5_collection, ee_geom_era5, 'mean_2m_air_temperature', RESOLUTIONS['era5']
-            )
-            
-            if temp_k is not None:
-                temperature_latest = round(temp_k - 273.15, 1)
-                temperature_date = date_str
-                
-        except Exception as e:
-            print(f"Temperature error: {e}")
-
+            # Collect results
+            ndvi_result = future_ndvi.result(timeout=60)
+            soil_result = future_soil.result(timeout=60)
+            elev_result = future_elev.result(timeout=60)
+            rain_result = future_rain.result(timeout=60)
+            temp_result = future_temp.result(timeout=60)
+        
         # ==========================================
-        # 6. Build Response
+        # BUILD RESPONSE
         # ==========================================
         return JsonResponse({
             'success': True,
             'lat': round(lat, 6),
             'lon': round(lon, 6),
             'buffer_m': buffer_m,
-            'sentinel_ndvi': sentinel_ndvi,
-            'sentinel_ndvi_date': sentinel_ndvi_date,
-            'soil_moisture': soil_moisture,
-            'soil_moisture_date': soil_moisture_date,
-            'elevation': elevation,
-            'slope': slope,
-            'rainfall_latest': rainfall_latest,
-            'rainfall_date': rainfall_date,
-            'temperature_latest': temperature_latest,
-            'temperature_date': temperature_date,
+            'use_centroid': use_centroid,
+            'sentinel_ndvi': ndvi_result.get('value'),
+            'sentinel_ndvi_date': ndvi_result.get('date'),
+            'soil_moisture': soil_result.get('value'),
+            'soil_moisture_date': soil_result.get('date'),
+            'elevation': elev_result.get('elevation'),
+            'slope': elev_result.get('slope'),
+            'rainfall_latest': rain_result.get('value'),
+            'rainfall_date': rain_result.get('date'),
+            'temperature_latest': temp_result.get('value'),
+            'temperature_date': temp_result.get('date'),
         }, status=200)
 
     except Exception as e:

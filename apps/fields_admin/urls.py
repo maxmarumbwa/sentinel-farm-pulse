@@ -19,7 +19,8 @@ urlpatterns = [
     path('api/fields/<int:field_id>/delete/', views.api_delete_field, name='api_delete_field'), 
     path('api/fields/check-duplicates/', views.api_check_duplicates, name='api_check_duplicates'),
     path('api/fields/latest-health/', views.api_fields_latest_health, name='api_fields_latest_health'),
-    
+    # View multiple param latlon 
+    path('api/geo-intel/', views.api_geo_intel, name='api_geo_intel'),
     
     ################################### NDVI API URLs ##########################
     # NDVI MAP - MAIN VIEW

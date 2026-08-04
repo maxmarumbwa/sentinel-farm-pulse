@@ -96,29 +96,6 @@
         }
         .header-tools a:hover, .header-tools button:hover { background: #f1f5f9; color: #0f172a; }
         
-        /* Pixel Info Tool Button - Special Styling */
-        .pixel-info-btn {
-            background: #2d6a4f !important;
-            color: white !important;
-            border: none !important;
-            padding: 6px 14px !important;
-            border-radius: 6px !important;
-        }
-        .pixel-info-btn:hover {
-            background: #1b4332 !important;
-            color: white !important;
-        }
-        .pixel-info-btn.active {
-            background: #ef4444 !important;
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-        
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-
         /* Time-Lapse Specific Header Styles */
         .tl-controls {
             display: flex;
@@ -132,7 +109,7 @@
         }
         .tl-controls.disabled {
             opacity: 0.5;
-            pointer-events: none;
+            pointer-events: none; /* Prevents clicks when disabled */
         }
         .tl-controls span { font-size: 11px; font-weight: 500; color: #475569; min-width: 110px; text-align: right; }
         .tl-controls input[type="range"] { 
@@ -220,116 +197,6 @@
         }
         #headerSearchResults div:last-child {
             border-bottom: none;
-        }
-
-        /* Pixel Info Popup */
-        #pixelInfoPopup {
-            position: fixed;
-            bottom: 100px;
-            right: 30px;
-            width: 420px;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-            padding: 20px;
-            z-index: 9999;
-            display: none;
-            max-height: 520px;
-            overflow-y: auto;
-        }
-        #pixelInfoPopup.open {
-            display: block;
-            animation: slideUp 0.3s ease;
-        }
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        #pixelInfoPopup .popup-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        #pixelInfoPopup .popup-header h3 {
-            font-size: 14px;
-            font-weight: 600;
-            color: #0f172a;
-            margin: 0;
-        }
-        #pixelInfoPopup .popup-header h3 i {
-            color: #2d6a4f;
-            margin-right: 8px;
-        }
-        #pixelInfoPopup .close-popup {
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            color: #94a3b8;
-            font-size: 18px;
-            transition: 0.2s;
-        }
-        #pixelInfoPopup .close-popup:hover { color: #d32f2f; }
-        #pixelInfoPopup .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-        #pixelInfoPopup .info-item {
-            background: #f8fafc;
-            border-radius: 6px;
-            padding: 10px 12px;
-            text-align: center;
-        }
-        #pixelInfoPopup .info-item .label {
-            font-size: 9px;
-            text-transform: uppercase;
-            color: #94a3b8;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-        #pixelInfoPopup .info-item .value {
-            font-size: 18px;
-            font-weight: 700;
-            color: #0f172a;
-            margin-top: 2px;
-        }
-        #pixelInfoPopup .info-item .value.high { color: #2d6a4f; }
-        #pixelInfoPopup .info-item .value.medium { color: #f59e0b; }
-        #pixelInfoPopup .info-item .value.low { color: #ef4444; }
-        #pixelInfoPopup .info-item .date-label {
-            font-size: 9px;
-            color: #94a3b8;
-            margin-top: 4px;
-            font-weight: 400;
-        }
-        #pixelInfoPopup .info-item .date-label i {
-            margin-right: 3px;
-            font-size: 8px;
-        }
-        #pixelInfoPopup .info-item .sub-value {
-            font-size: 10px;
-            color: #94a3b8;
-            margin-top: 2px;
-        }
-        #pixelInfoPopup .loading-spinner {
-            text-align: center;
-            padding: 20px;
-            color: #94a3b8;
-        }
-        #pixelInfoPopup .loading-spinner i {
-            font-size: 32px;
-            display: block;
-            margin-bottom: 10px;
-            color: #2d6a4f;
-        }
-        #pixelInfoPopup .error-message {
-            color: #ef4444;
-            text-align: center;
-            padding: 20px;
         }
 
         /* --- NOTIFICATION & SETTINGS STYLES --- */
@@ -656,7 +523,7 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* --- ENHANCED BOTTOM DATA TABLE --- */
+        /* --- ENHANCED BOTTOM DATA TABLE (Multi-Field + Summary + Conclusion) --- */
         #bottom-data-container {
             position: absolute;
             bottom: 20px;
@@ -814,7 +681,7 @@
             border-radius: 8px;
             padding: 16px;
             margin-top: 12px;
-            display: none;
+            display: none; /* Hidden by default */
             box-shadow: 0 2px 8px rgba(0,0,0,0.03);
         }
         #searchCard .card-header {
@@ -846,7 +713,6 @@
             .tl-controls input[type="range"] { width: 50px; }
             #headerSearchInput { width: 140px; }
             #headerSearchInput:focus { width: 180px; }
-            #pixelInfoPopup { width: 90%; right: 5%; bottom: 80px; }
         }
     </style>
 </head>
@@ -903,11 +769,6 @@
                     <div class="alert-empty">No alerts detected.</div>
                 </div>
             </div>
-
-            <!-- ✅ PIXEL INFO TOOL -->
-            <button class="pixel-info-btn" id="pixelInfoBtn" onclick="togglePixelInfo()">
-                <i class="fas fa-crosshairs"></i> Pixel Info
-            </button>
 
             <a href="#" onclick="clearAllSelections()"><i class="fas fa-undo-alt"></i> Clear All</a>
             <a href="#" id="exportBtn"><i class="fas fa-file-csv"></i> Export Report</a>
@@ -1036,7 +897,7 @@
                 <span>Loading farm boundaries...</span>
             </div>
 
-            <!-- --- ENHANCED BOTTOM DATA TABLE --- -->
+            <!-- --- ENHANCED BOTTOM DATA TABLE (Multi-Field + Summary + Conclusion) --- -->
             <div id="bottom-data-container">
                 <div class="bottom-table-header">
                     <h4><i class="fas fa-table"></i> Raw NDVI Data Comparison</h4>
@@ -1061,7 +922,7 @@
                 <!-- Summary & Conclusion Section -->
                 <div id="summary-section">
                     
-                    <!-- Summary Stats Table -->
+                    <!-- Summary Stats Table (Show Avg, Latest, Status for ALL fields) -->
                     <div id="summary-table-container">
                         <table>
                             <thead>
@@ -1088,20 +949,6 @@
         </div>
     </div>
 
-    <!-- --- PIXEL INFO POPUP --- -->
-    <div id="pixelInfoPopup">
-        <div class="popup-header">
-            <h3><i class="fas fa-crosshairs"></i> Pixel Intelligence</h3>
-            <button class="close-popup" onclick="closePixelInfo()">&times;</button>
-        </div>
-        <div id="pixelInfoContent">
-            <div class="loading-spinner">
-                <i class="fas fa-hand-pointer" style="color:#2d6a4f;"></i>
-                Click anywhere on the map to get pixel data.
-            </div>
-        </div>
-    </div>
-
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script>
@@ -1110,11 +957,7 @@
         var fields = [];
         var selectedFields = []; 
         var currentColors = ['#2d6a4f', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'];
-        var allDataCache = {};
-
-        // --- Pixel Info State ---
-        var pixelInfoActive = false;
-        var pixelMarker = null;
+        var allDataCache = {}; 
 
         // --- Global Alert State ---
         var globalAlerts = [];
@@ -1123,6 +966,10 @@
         // --- Time-Lapse Variables ---
         var animationInterval = null;
         var isPlaying = false;
+        
+        // --- Modal State ---
+        var modalActiveFieldId = null;
+        var modalElement = null; // Will be created dynamically
 
         function initMap() {
             map = L.map('map').setView([-19.0, 29.5], 6);
@@ -1132,184 +979,12 @@
             }).addTo(map);
             
             loadFields();
-            loadLatestHealthData();
+            loadLatestHealthData(); // Load alerts on page load
             
             window.addEventListener('resize', function() { map.invalidateSize(); });
         }
 
-        // ==========================================
-        // PIXEL INFO TOOL FUNCTIONS
-        // ==========================================
-        function togglePixelInfo() {
-            pixelInfoActive = !pixelInfoActive;
-            var btn = document.getElementById('pixelInfoBtn');
-            var popup = document.getElementById('pixelInfoPopup');
-            
-            if (pixelInfoActive) {
-                btn.classList.add('active');
-                btn.innerHTML = '<i class="fas fa-crosshairs"></i> Click Map';
-                popup.classList.add('open');
-                document.getElementById('pixelInfoContent').innerHTML = `
-                    <div class="loading-spinner">
-                        <i class="fas fa-hand-pointer" style="color:#2d6a4f;"></i>
-                        Click anywhere on the map to get pixel intelligence.
-                    </div>
-                `;
-                
-                // Enable map click
-                map.on('click', onMapClick);
-                map.getContainer().style.cursor = 'crosshair';
-            } else {
-                btn.classList.remove('active');
-                btn.innerHTML = '<i class="fas fa-crosshairs"></i> Pixel Info';
-                popup.classList.remove('open');
-                
-                // Disable map click
-                map.off('click', onMapClick);
-                map.getContainer().style.cursor = '';
-                
-                // Remove marker
-                if (pixelMarker) {
-                    map.removeLayer(pixelMarker);
-                    pixelMarker = null;
-                }
-            }
-        }
-
-        function closePixelInfo() {
-            if (pixelInfoActive) {
-                togglePixelInfo();
-            }
-        }
-
-        function onMapClick(e) {
-            if (!pixelInfoActive) return;
-            
-            var lat = e.latlng.lat;
-            var lng = e.latlng.lng;
-            
-            // Add marker
-            if (pixelMarker) {
-                map.removeLayer(pixelMarker);
-            }
-            pixelMarker = L.marker([lat, lng], {
-                icon: L.divIcon({
-                    className: 'pixel-marker',
-                    html: '<i class="fas fa-crosshairs" style="color:#2d6a4f; font-size:20px;"></i>',
-                    iconSize: [20, 20],
-                    iconAnchor: [10, 10]
-                })
-            }).addTo(map);
-            
-            // Fetch pixel data
-            fetchPixelData(lat, lng);
-        }
-
-        function fetchPixelData(lat, lng) {
-            var content = document.getElementById('pixelInfoContent');
-            content.innerHTML = `
-                <div class="loading-spinner">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    Fetching intelligence for ${lat.toFixed(4)}, ${lng.toFixed(4)}...
-                </div>
-            `;
-            
-            // Use buffer=10 for pixel-level analysis
-            var url = `/api/geo-intel/?lat=${lat}&lon=${lng}&buffer=10`;
-            
-            fetch(url)
-                .then(function(response) { return response.json(); })
-                .then(function(data) {
-                    if (data.error) {
-                        throw new Error(data.error);
-                    }
-                    displayPixelData(data);
-                })
-                .catch(function(error) {
-                    content.innerHTML = `
-                        <div class="error-message">
-                            <i class="fas fa-exclamation-circle"></i>
-                            <p>${error.message || 'Failed to fetch pixel data'}</p>
-                        </div>
-                    `;
-                });
-        }
-
-        function displayPixelData(data) {
-            var content = document.getElementById('pixelInfoContent');
-            
-            // Determine NDVI status
-            var ndvi = data.sentinel_ndvi;
-            var ndviStatus = 'high';
-            var ndviLabel = 'Excellent';
-            if (ndvi !== null && ndvi !== undefined) {
-                if (ndvi < 0.3) { ndviStatus = 'low'; ndviLabel = 'Stressed'; }
-                else if (ndvi < 0.5) { ndviStatus = 'medium'; ndviLabel = 'Moderate'; }
-                else { ndviStatus = 'high'; ndviLabel = 'Excellent'; }
-            }
-            
-            // Determine soil moisture status
-            var soil = data.soil_moisture;
-            var soilStatus = 'medium';
-            if (soil !== null && soil !== undefined) {
-                if (soil < 10) { soilStatus = 'low'; }
-                else if (soil < 20) { soilStatus = 'medium'; }
-                else { soilStatus = 'high'; }
-            }
-            
-            // Format dates with better handling
-            function formatDate(dateStr) {
-                if (!dateStr || dateStr === 'N/A' || dateStr === null || dateStr === undefined) {
-                    return 'N/A';
-                }
-                return dateStr;
-            }
-            
-            content.innerHTML = `
-                <div class="info-grid">
-                    <div class="info-item">
-                        <div class="label">NDVI</div>
-                        <div class="value ${ndviStatus}">${ndvi !== null && ndvi !== undefined ? ndvi.toFixed(3) : 'N/A'}</div>
-                        <div class="sub-value">${ndviLabel}</div>
-                        <div class="date-label"><i class="far fa-calendar-alt"></i> ${formatDate(data.sentinel_ndvi_date)}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="label">Soil Moisture</div>
-                        <div class="value ${soilStatus}">${soil !== null && soil !== undefined ? soil + '%' : 'N/A'}</div>
-                        <div class="sub-value">${soil !== null && soil !== undefined ? (soil < 10 ? 'Dry' : soil < 20 ? 'Moderate' : 'Optimal') : ''}</div>
-                        <div class="date-label"><i class="far fa-calendar-alt"></i> ${formatDate(data.soil_moisture_date)}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="label">Elevation</div>
-                        <div class="value">${data.elevation !== null && data.elevation !== undefined ? data.elevation + 'm' : 'N/A'}</div>
-                        <div class="sub-value">${data.slope !== null && data.slope !== undefined ? 'Slope: ' + data.slope + '°' : ''}</div>
-                        <div class="date-label"><i class="fas fa-mountain"></i> Static Data</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="label">Rainfall</div>
-                        <div class="value">${data.rainfall_latest !== null && data.rainfall_latest !== undefined ? data.rainfall_latest + 'mm' : 'N/A'}</div>
-                        <div class="sub-value">${data.rainfall_latest !== null && data.rainfall_latest !== undefined ? (data.rainfall_latest > 0 ? 'Rain recorded' : 'No rain') : ''}</div>
-                        <div class="date-label"><i class="far fa-calendar-alt"></i> ${formatDate(data.rainfall_date)}</div>
-                    </div>
-                    <div class="info-item" style="grid-column: span 2;">
-                        <div class="label">Temperature</div>
-                        <div class="value">${data.temperature_latest !== null && data.temperature_latest !== undefined ? data.temperature_latest + '°C' : 'N/A'}</div>
-                        <div class="sub-value">Air temperature</div>
-                        <div class="date-label"><i class="far fa-calendar-alt"></i> ${formatDate(data.temperature_date)}</div>
-                    </div>
-                </div>
-                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center;">
-                    <i class="fas fa-map-pin"></i> ${data.lat}, ${data.lon} | Buffer: ${data.buffer_m}m
-                    <br><span style="font-size: 9px;">Data: ${data.datasets ? Object.values(data.datasets).join(' | ') : 'Sentinel-2, ERA5-Land, CHIRPS, SRTM'}</span>
-                    <br><span style="font-size: 9px; color: #cbd5e1;">Cloud mask: QA60 | Filter: < 20%</span>
-                </div>
-            `;
-        }
-
-        // ==========================================
-        // END PIXEL INFO FUNCTIONS
-        // ==========================================
-
+        // --- TOGGLE SEARCH CARD ---
         function toggleSearchCard() {
             var card = document.getElementById('searchCard');
             if (card.style.display === 'none' || card.style.display === '') {
@@ -1345,6 +1020,9 @@
                 });
         }
 
+        // ==========================================
+        // --- LOAD LATEST HEALTH DATA (API) ---
+        // ==========================================
         function loadLatestHealthData() {
             fetch('/api/fields/latest-health/')
                 .then(function(response) { return response.json(); })
@@ -1353,6 +1031,7 @@
                         console.error('Health API Error:', data.error);
                         return;
                     }
+                    // Check initial alerts based on all fields
                     checkInitialAlerts(data);
                 })
                 .catch(function(error) {
@@ -1383,7 +1062,11 @@
             
             updateAlertUI(globalAlerts);
         }
+        // ==========================================
 
+        // ==========================================
+        // --- DROPDOWN FILTER LOGIC ---
+        // ==========================================
         function populateFilters(features) {
             var admin1Set = new Set();
             features.forEach(f => {
@@ -1464,6 +1147,7 @@
                 updateFieldList();      
             }
         }
+        // ==========================================
         
         function drawFields(features) {
             if (fieldLayer) { map.removeLayer(fieldLayer); }
@@ -1564,6 +1248,7 @@
                 document.getElementById('sliderDateLabel').textContent = 'Select a field';
                 if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
                 
+                // ✅ Keep global alerts visible
                 updateAlertUI(globalAlerts);
                 return;
             }
@@ -1594,6 +1279,7 @@
             renderDataTableAndSummary();
             setupTimeLapse(); 
             
+            // ✅ Keep global alerts visible
             updateAlertUI(globalAlerts);
         }
 
@@ -1734,6 +1420,9 @@
             }
         }
 
+        // ==========================================
+        // --- TIME-LAPSE LOGIC ---
+        // ==========================================
         function setupTimeLapse() {
             if (animationInterval) {
                 clearInterval(animationInterval);
@@ -1837,7 +1526,11 @@
                 }
             });
         }
+        // ==========================================
 
+        // ==========================================
+        // --- HEADER SEARCH LOGIC ---
+        // ==========================================
         function setupHeaderSearch() {
             var searchInput = document.getElementById('headerSearchInput');
             var resultsContainer = document.getElementById('headerSearchResults');
@@ -1913,7 +1606,11 @@
                 }, 2000);
             }
         }
+        // ==========================================
 
+        // ==========================================
+        // --- SETTINGS & ALERTS LOGIC ---
+        // ==========================================
         function toggleSettingsDropdown() {
             var settingsDropdown = document.getElementById('settingsDropdown');
             document.getElementById('alertDropdown').classList.remove('open');
@@ -1951,12 +1648,14 @@
         }
 
         function checkCurrentAlerts() {
+            // Re-run alert check on the existing global alerts data with new threshold
             if (globalAlerts.length > 0) {
                 var newAlerts = globalAlerts.filter(function(a) {
                     return a.ndvi < ndviAlertThreshold;
                 });
                 updateAlertUI(newAlerts);
             } else {
+                // If no alerts, just refresh UI
                 updateAlertUI(globalAlerts);
             }
         }
@@ -1994,12 +1693,18 @@
             dropdown.innerHTML = html;
         }
 
+        // ==========================================
+        // --- DYNAMIC MODAL LOGIC (No DOM element until click) ---
+        // ==========================================
+        
         function openDetailModal(fieldId) {
+            // Find the alert data
             var alertData = globalAlerts.find(a => a.id === fieldId);
             if (!alertData) return;
             
             modalActiveFieldId = fieldId;
 
+            // 1. Create the modal HTML string (Wider: 420px, Taller: 550px)
             var modalHTML = `
                 <div id="detailModalOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3);" onclick="closeModal(event)">
                     <div id="detailModal" style="width: 420px; max-height: 550px; overflow-y: auto; padding: 20px; border-radius: 12px; background: #ffffff; box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative; cursor: default;" onclick="event.stopPropagation();">
@@ -2055,11 +1760,13 @@
                 </div>
             `;
 
+            // 2. Inject the modal into the body
             var modalWrapper = document.createElement('div');
             modalWrapper.innerHTML = modalHTML;
             document.body.appendChild(modalWrapper.firstElementChild);
         }
 
+        // Helper functions for the modal
         function generateHistoryHTML(history) {
             var latestThree = history.slice(-3).reverse(); 
             if (latestThree.length === 0) {
@@ -2136,7 +1843,7 @@
 
         function closeModal(e) {
             var overlay = document.getElementById('detailModalOverlay');
-            if (e && e.target && e.target !== overlay) return;
+            if (e && e.target && e.target !== overlay) return; // Clicking inside modal ignores
             if (overlay) overlay.remove();
             modalActiveFieldId = null;
         }
@@ -2149,6 +1856,7 @@
                 zoomToField(feature);
             }
         }
+        // ==========================================
 
         function refreshAllSelected() {
             var currentStartDate = document.getElementById('startDate').value;

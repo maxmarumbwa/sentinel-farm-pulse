@@ -1657,6 +1657,496 @@ def api_fields_latest_health(request):
         return JsonResponse({'error': str(e)}, status=500)
 #
 
+###################################################################################################
+
+#####                   API for gettng satellite data for lat/long point                #############
+
+###########################################################################################################
+# New with cloud filter and date
+from django.http import JsonResponse
+import datetime
+import ee
+from apps.gee.ee_auth import initialize_earth_engine
+
+# Initialize GEE
+try:
+    initialize_earth_engine()
+except:
+    pass
+
+def get_latest_image_with_data(collection, ee_geom, band_name, scale, max_pixels=1e9):
+    """
+    Helper function to get the latest image with data for a given collection.
+    Returns: (image, date_string, value)
+    """
+    try:
+        # Get the latest image without date filtering
+        latest = (
+            collection
+            .filterBounds(ee_geom)
+            .sort('system:time_start', False)
+            .limit(1)
+            .first()
+        )
+        
+        if not latest:
+            return None, None, None
+        
+        # Get the date
+        date_property = latest.get('system:time_start')
+        date_val = date_property.getInfo()
+        date_str = None
+        if date_val:
+            date_str = datetime.datetime.fromtimestamp(date_val/1000).strftime('%Y-%m-%d')
+        
+        # Check if the band exists
+        band_names = latest.bandNames().getInfo()
+        if band_name not in band_names:
+            return None, date_str, None
+        
+        # Reduce region
+        reducer = latest.select(band_name).reduceRegion(
+            reducer=ee.Reducer.mean(),
+            geometry=ee_geom,
+            scale=scale,
+            maxPixels=max_pixels,
+            bestEffort=True
+        )
+        
+        result = reducer.getInfo()
+        value = result.get(band_name)
+        
+        # Check if value is valid (not None and not NaN)
+        if value is None or (isinstance(value, float) and (value != value)):  # NaN check
+            return None, date_str, None
+            
+        return latest, date_str, value
+        
+    except Exception as e:
+        print(f"Error in get_latest_image_with_data: {e}")
+        return None, None, None
+
+def api_geo_intel(request):
+    """
+    Returns essential geospatial intelligence for any Lat/Lon coordinate.
+    Buffer is automatically set to match pixel resolution of each dataset.
+    Expects GET parameters: lat, lon
+    Optional GET parameter: buffer (meters, default 0 - will use dataset resolution)
+    """
+    try:
+        lat = request.GET.get('lat')
+        lon = request.GET.get('lon')
+        buffer_m = request.GET.get('buffer', '0')
+        
+        if not lat or not lon:
+            return JsonResponse({'error': 'lat and lon parameters are required'}, status=400)
+        
+        try:
+            lat = float(lat)
+            lon = float(lon)
+            buffer_m = float(buffer_m)
+        except ValueError:
+            return JsonResponse({'error': 'lat, lon, and buffer must be valid numbers'}, status=400)
+        
+        # ==========================================
+        # DATASET RESOLUTIONS (in meters)
+        # ==========================================
+        RESOLUTIONS = {
+            'sentinel2': 10,      # 10 meters
+            'smap': 9000,         # 9 km
+            'chirps': 5500,       # 5.5 km
+            'era5': 27700,        # ~31 km
+            'srtm': 30,           # 30 meters
+        }
+        
+        # Create geometry with appropriate buffer for each dataset
+        def get_geom_for_dataset(resolution):
+            """Create geometry with buffer = resolution (or user buffer if larger)"""
+            buffer_size = max(buffer_m, resolution)
+            return ee.Geometry.Point([lon, lat]).buffer(buffer_size)
+        
+        # ==========================================
+        # 1. SENTINEL-2 NDVI (10m resolution)
+        # ==========================================
+        sentinel_ndvi = None
+        sentinel_ndvi_date = None
+        try:
+            ee_geom_s2 = get_geom_for_dataset(RESOLUTIONS['sentinel2'])
+            
+            s2_collection = (
+                ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+                .filterBounds(ee_geom_s2)
+                .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 20))
+            )
+            
+            # Get latest image with NDVI
+            def add_ndvi(img):
+                ndvi = img.normalizedDifference(['B8', 'B4']).rename('ndvi')
+                return img.addBands(ndvi)
+            
+            s2_with_ndvi = s2_collection.map(add_ndvi)
+            latest_s2, date_str, ndvi_val = get_latest_image_with_data(
+                s2_with_ndvi, ee_geom_s2, 'ndvi', RESOLUTIONS['sentinel2']
+            )
+            
+            if ndvi_val is not None:
+                sentinel_ndvi = round(ndvi_val, 4)
+                sentinel_ndvi_date = date_str
+                
+        except Exception as e:
+            print(f"NDVI error: {e}")
+
+        # ==========================================
+        # 2. SOIL MOISTURE - SMAP v008 (9km resolution)
+        # ==========================================
+        soil_moisture = None
+        soil_moisture_date = None
+        try:
+            ee_geom_smap = get_geom_for_dataset(RESOLUTIONS['smap'])
+            
+            smap_collection = ee.ImageCollection("NASA/SMAP/SPL4SMGP/008").filterBounds(ee_geom_smap)
+            
+            latest_smap, date_str, soil_val = get_latest_image_with_data(
+                smap_collection, ee_geom_smap, 'sm_surface', RESOLUTIONS['smap']
+            )
+            
+            if soil_val is not None:
+                soil_moisture = round(soil_val * 100, 1)
+                soil_moisture_date = date_str
+                
+        except Exception as e:
+            print(f"Soil moisture error: {e}")
+
+        # ==========================================
+        # 3. ELEVATION & SLOPE - SRTM (30m resolution)
+        # ==========================================
+        elevation = None
+        slope = None
+        try:
+            ee_geom_srtm = get_geom_for_dataset(RESOLUTIONS['srtm'])
+            srtm = ee.Image("USGS/SRTMGL1_003")
+            
+            elevation_reducer = srtm.reduceRegion(
+                reducer=ee.Reducer.mean(),
+                geometry=ee_geom_srtm,
+                scale=RESOLUTIONS['srtm'],
+                maxPixels=1e9,
+                bestEffort=True
+            )
+            elevation_result = elevation_reducer.getInfo()
+            elevation = elevation_result.get('elevation')
+            if elevation is not None:
+                elevation = round(elevation, 0)
+            
+            slope_img = ee.Terrain.slope(srtm)
+            slope_reducer = slope_img.reduceRegion(
+                reducer=ee.Reducer.mean(),
+                geometry=ee_geom_srtm,
+                scale=RESOLUTIONS['srtm'],
+                maxPixels=1e9,
+                bestEffort=True
+            )
+            slope_result = slope_reducer.getInfo()
+            slope = slope_result.get('slope')
+            if slope is not None:
+                slope = round(slope, 2)
+        except Exception as e:
+            print(f"Elevation/Slope error: {e}")
+
+        # ==========================================
+        # 4. RAINFALL - CHIRPS (5.5km resolution)
+        # ==========================================
+        rainfall_latest = None
+        rainfall_date = None
+        try:
+            ee_geom_chirps = get_geom_for_dataset(RESOLUTIONS['chirps'])
+            
+            chirps_collection = ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY").filterBounds(ee_geom_chirps)
+            
+            latest_chirps, date_str, rain_val = get_latest_image_with_data(
+                chirps_collection, ee_geom_chirps, 'precipitation', RESOLUTIONS['chirps']
+            )
+            
+            if rain_val is not None:
+                rainfall_latest = round(rain_val, 0)
+                rainfall_date = date_str
+            else:
+                # If no data, try 2x resolution
+                print("No CHIRPS data at current location, trying 2x resolution buffer...")
+                ee_geom_chirps_2x = ee.Geometry.Point([lon, lat]).buffer(RESOLUTIONS['chirps'] * 2)
+                chirps_collection_2x = ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY").filterBounds(ee_geom_chirps_2x)
+                
+                latest_chirps, date_str, rain_val = get_latest_image_with_data(
+                    chirps_collection_2x, ee_geom_chirps_2x, 'precipitation', RESOLUTIONS['chirps']
+                )
+                
+                if rain_val is not None:
+                    rainfall_latest = round(rain_val, 0)
+                    rainfall_date = date_str
+                    
+        except Exception as e:
+            print(f"CHIRPS error: {e}")
+            
+            # Fallback to GPM IMERG if CHIRPS fails
+            try:
+                print("Trying GPM IMERG as fallback...")
+                ee_geom_gpm = get_geom_for_dataset(1000)  # GPM is ~1km
+                
+                gpm_collection = ee.ImageCollection("NASA/GPM_L3/IMERG_V06").filterBounds(ee_geom_gpm)
+                
+                latest_gpm, date_str, rain_val = get_latest_image_with_data(
+                    gpm_collection, ee_geom_gpm, 'precipitationCal', 1000
+                )
+                
+                if rain_val is not None:
+                    rainfall_latest = round(rain_val, 1)
+                    rainfall_date = date_str
+            except Exception as e2:
+                print(f"GPM fallback error: {e2}")
+
+        # ==========================================
+        # 5. TEMPERATURE - ERA5 (~31km resolution)
+        # ==========================================
+        temperature_latest = None
+        temperature_date = None
+        try:
+            ee_geom_era5 = get_geom_for_dataset(RESOLUTIONS['era5'])
+            
+            era5_collection = ee.ImageCollection("ECMWF/ERA5/DAILY").filterBounds(ee_geom_era5)
+            
+            latest_era5, date_str, temp_k = get_latest_image_with_data(
+                era5_collection, ee_geom_era5, 'mean_2m_air_temperature', RESOLUTIONS['era5']
+            )
+            
+            if temp_k is not None:
+                temperature_latest = round(temp_k - 273.15, 1)
+                temperature_date = date_str
+                
+        except Exception as e:
+            print(f"Temperature error: {e}")
+
+        # ==========================================
+        # 6. Build Response
+        # ==========================================
+        return JsonResponse({
+            'success': True,
+            'lat': round(lat, 6),
+            'lon': round(lon, 6),
+            'buffer_m': buffer_m,
+            'sentinel_ndvi': sentinel_ndvi,
+            'sentinel_ndvi_date': sentinel_ndvi_date,
+            'soil_moisture': soil_moisture,
+            'soil_moisture_date': soil_moisture_date,
+            'elevation': elevation,
+            'slope': slope,
+            'rainfall_latest': rainfall_latest,
+            'rainfall_date': rainfall_date,
+            'temperature_latest': temperature_latest,
+            'temperature_date': temperature_date,
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+#
+#
+# OLD no dates and cloud filter
+# import datetime
+# import ee
+# from apps.gee.ee_auth import initialize_earth_engine
+
+# # Initialize GEE
+# try:
+#     initialize_earth_engine()
+# except:
+#     pass
+
+# def api_geo_intel(request):
+#     """
+#     Returns essential geospatial intelligence for any Lat/Lon coordinate.
+#     Optimized for speed - only returns key metrics.
+#     Expects GET parameters: lat, lon
+#     Optional GET parameter: buffer (meters, default 0)
+#     """
+#     try:
+#         lat = request.GET.get('lat')
+#         lon = request.GET.get('lon')
+#         buffer_m = request.GET.get('buffer', '0')
+        
+#         if not lat or not lon:
+#             return JsonResponse({'error': 'lat and lon parameters are required'}, status=400)
+        
+#         try:
+#             lat = float(lat)
+#             lon = float(lon)
+#             buffer_m = float(buffer_m)
+#         except ValueError:
+#             return JsonResponse({'error': 'lat, lon, and buffer must be valid numbers'}, status=400)
+        
+#         # Create geometry
+#         if buffer_m > 0:
+#             ee_geom = ee.Geometry.Point([lon, lat]).buffer(buffer_m)
+#         else:
+#             ee_geom = ee.Geometry.Point([lon, lat])
+
+#         # ==========================================
+#         # 1. SENTINEL-2 NDVI (Quick, single most recent)
+#         # ==========================================
+#         end_date = datetime.date.today()
+#         start_date = end_date - datetime.timedelta(days=30)
+        
+#         sentinel_ndvi = None
+#         try:
+#             s2_collection = (
+#                 ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+#                 .filterBounds(ee_geom)
+#                 .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+#                 .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 20))
+#                 .sort('system:time_start', False)  # Get most recent
+#                 .limit(1)  # Just get one image for speed
+#             )
+            
+#             if s2_collection.size().getInfo() > 0:
+#                 def add_ndvi(img):
+#                     ndvi = img.normalizedDifference(['B8', 'B4']).rename('ndvi')
+#                     return img.addBands(ndvi)
+                
+#                 s2_img = s2_collection.map(add_ndvi).first()
+#                 s2_reducer = s2_img.select('ndvi').reduceRegion(
+#                     reducer=ee.Reducer.mean(),
+#                     geometry=ee_geom,
+#                     scale=10,
+#                     maxPixels=1e9,
+#                     bestEffort=True
+#                 )
+#                 sentinel_ndvi = s2_reducer.get('ndvi').getInfo()
+#                 if sentinel_ndvi is not None:
+#                     sentinel_ndvi = round(sentinel_ndvi, 4)
+#         except:
+#             pass
+
+#         # ==========================================
+#         # 2. SOIL MOISTURE (Latest SMAP)
+#         # ==========================================
+#         soil_moisture = None
+#         try:
+#             smap = ee.ImageCollection("NASA/SMAP/SPL4SMGP/007")
+#             latest_smap = smap.filterBounds(ee_geom).sort('system:time_start', False).limit(1).first()
+            
+#             if latest_smap:
+#                 smap_reducer = latest_smap.select('sm_surface').reduceRegion(
+#                     reducer=ee.Reducer.mean(),
+#                     geometry=ee_geom,
+#                     scale=9000,
+#                     maxPixels=1e9,
+#                     bestEffort=True
+#                 )
+#                 soil_moisture = smap_reducer.get('sm_surface').getInfo()
+#                 if soil_moisture is not None:
+#                     soil_moisture = round(soil_moisture * 100, 1)
+#         except:
+#             pass
+
+#         # ==========================================
+#         # 3. ELEVATION & SLOPE (SRTM) - Optimized
+#         # ==========================================
+#         elevation = None
+#         slope = None
+#         try:
+#             srtm = ee.Image("USGS/SRTMGL1_003")
+            
+#             # Use a smaller scale for faster processing
+#             elevation_reducer = srtm.reduceRegion(
+#                 reducer=ee.Reducer.mean(),
+#                 geometry=ee_geom,
+#                 scale=90,  # Increased scale for speed
+#                 maxPixels=1e9,
+#                 bestEffort=True
+#             )
+#             elevation = elevation_reducer.get('elevation').getInfo()
+#             if elevation is not None:
+#                 elevation = round(elevation, 0)
+            
+#             slope_img = ee.Terrain.slope(srtm)
+#             slope_reducer = slope_img.reduceRegion(
+#                 reducer=ee.Reducer.mean(),
+#                 geometry=ee_geom,
+#                 scale=90,  # Increased scale for speed
+#                 maxPixels=1e9,
+#                 bestEffort=True
+#             )
+#             slope = slope_reducer.get('slope').getInfo()
+#             if slope is not None:
+#                 slope = round(slope, 2)
+#         except:
+#             pass
+
+#         # ==========================================
+#         # 4. RAINFALL - Latest single day (CHIRPS)
+#         # ==========================================
+#         rainfall_latest = None
+#         try:
+#             chirps = ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
+#             latest_chirps = chirps.filterBounds(ee_geom).sort('system:time_start', False).limit(1).first()
+            
+#             if latest_chirps:
+#                 latest_reducer = latest_chirps.select('precipitation').reduceRegion(
+#                     reducer=ee.Reducer.mean(),
+#                     geometry=ee_geom,
+#                     scale=5500,
+#                     maxPixels=1e9,
+#                     bestEffort=True
+#                 )
+#                 rainfall_latest = latest_reducer.get('precipitation').getInfo()
+#                 if rainfall_latest is not None:
+#                     rainfall_latest = round(rainfall_latest, 0)
+#         except:
+#             pass
+
+#         # ==========================================
+#         # 5. TEMPERATURE - Latest day (ERA5)
+#         # ==========================================
+#         temperature_latest = None
+#         try:
+#             era5 = ee.ImageCollection("ECMWF/ERA5/DAILY")
+#             latest_era5 = era5.filterBounds(ee_geom).sort('system:time_start', False).limit(1).first()
+            
+#             if latest_era5:
+#                 latest_temp_reducer = latest_era5.select('mean_2m_air_temperature').reduceRegion(
+#                     reducer=ee.Reducer.mean(),
+#                     geometry=ee_geom,
+#                     scale=27700,
+#                     maxPixels=1e9,
+#                     bestEffort=True
+#                 )
+#                 temp_k = latest_temp_reducer.get('mean_2m_air_temperature').getInfo()
+#                 if temp_k is not None:
+#                     temperature_latest = round(temp_k - 273.15, 1)
+#         except:
+#             pass
+
+#         # ==========================================
+#         # 6. Build Minimal Response
+#         # ==========================================
+#         return JsonResponse({
+#             'success': True,
+#             'lat': round(lat, 6),
+#             'lon': round(lon, 6),
+#             'buffer_m': buffer_m,
+#             'sentinel_ndvi': sentinel_ndvi,
+#             'soil_moisture': soil_moisture,
+#             'elevation': elevation,
+#             'slope': slope,
+#             'rainfall_latest': rainfall_latest,
+#             'temperature_latest': temperature_latest,
+#         }, status=200)
+
+#     except Exception as e:
+#         return JsonResponse({'error': str(e)}, status=500)
+
+
+
+
+
 
 #########################################################################################################
 #################################  Get Rainfall #########################################################

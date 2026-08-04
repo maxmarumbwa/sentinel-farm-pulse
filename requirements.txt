@@ -6,7 +6,7 @@ whitenoise
 google-auth
 gunicorn
 django-leaflet-0.33.0
-
+apscheduler
 
 
 

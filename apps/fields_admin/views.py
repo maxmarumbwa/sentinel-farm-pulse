@@ -2021,6 +2021,9 @@ def api_geo_intel(request):
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+    
+    
+    #
 #
 #
 # OLD no dates and cloud filter
@@ -2228,6 +2231,7 @@ def api_geo_intel(request):
 
 
 ##########################################################################################################
+#
 # apps/fields_admin/views.py
 """
 API views for climate data aggregation.
@@ -2245,7 +2249,6 @@ from apps.fields_admin.config import PRODUCTS, DEFAULT_LTA, SEASON_DEFINITIONS
 from apps.fields_admin.services.resolver import resolve_product
 from apps.fields_admin.services.loader import load_data
 from apps.fields_admin.services.aggregator import aggregate
-from apps.fields_admin.services.climatology import calculate_lta, add_lta_to_data
 from apps.fields_admin.services.serializer import serialize, build_response
 
 # Import metrics
@@ -2279,20 +2282,28 @@ def climate_aggregate(request):
     
     Query parameters:
     - product: rainfall, ndvi, temperature, or all
-    - start_date: YYYY-MM-DD
-    - end_date: YYYY-MM-DD
+    - start_date: YYYY-MM-DD (required)
+    - end_date: YYYY-MM-DD (required)
     - period: daily, dekad, monthly, annual, seasonal
     - aggregation: sum, mean, median, max, min, std
     - include_lta: true/false (default: false)
-    - lta_start: YYYY (optional)
-    - lta_end: YYYY (optional)
+    - lta_start: YYYY (optional) - if not provided, uses default from config
+    - lta_end: YYYY (optional) - if not provided, uses default from config
     - metrics: comma-separated list (anomaly, pct_average, zscore, spi, vci, tci, vhi)
     - province: (optional) Filter by specific province
     - season: (optional) For seasonal aggregation
     - format: json (default) or csv
     
-    Example:
-    /api/climate/aggregate/?product=rainfall&start_date=2000-01-01&end_date=2024-12-31&period=monthly&aggregation=sum&include_lta=true&metrics=anomaly,pct_average
+    Data Flow:
+    1. Load raw daily data for requested period
+    2. Aggregate for requested period (monthly/dekad/seasonal/etc)
+    3. If LTA requested:
+       a. Use default LTA from config OR user-specified lta_start/lta_end
+       b. Load raw daily data for LTA period
+       c. Aggregate using SAME aggregation method
+       d. Calculate LTA: average per period-province (for seasonal: per season-province)
+    4. Apply metrics (anomaly, pct_average, etc.)
+    5. Serialize and return
     """
     try:
         # Parse query parameters
@@ -2322,7 +2333,7 @@ def climate_aggregate(request):
                 'example': '/api/climate/aggregate/?product=rainfall&start_date=2000-01-01&end_date=2024-12-31&period=monthly'
             }, status=400)
         
-        # Parse dates - Using datetime.datetime.strptime like other views
+        # Parse dates
         try:
             start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
             end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
@@ -2339,28 +2350,42 @@ def climate_aggregate(request):
                 'available_products': list(PRODUCTS.keys())
             }, status=400)
         
-        # Determine LTA period
+        # ============================================================
+        # DETERMINE LTA PERIOD
+        # Always use default from config unless user specifies
+        # ============================================================
         lta_start_year = None
         lta_end_year = None
+        lta_start_date = None
+        lta_end_date = None
+        
         if include_lta:
+            # Get the first product's config for default LTA
+            first_product_config = product_configs[0].get('config', {})
+            
             if lta_start and lta_end:
+                # User explicitly specified LTA period - use it
                 try:
                     lta_start_year = int(lta_start)
                     lta_end_year = int(lta_end)
+                    lta_start_date = datetime.date(lta_start_year, 1, 1)
+                    lta_end_date = datetime.date(lta_end_year, 12, 31)
+                    logger.info(f"Using user-specified LTA period: {lta_start_year}-{lta_end_year}")
                 except ValueError:
                     return JsonResponse({
                         'error': 'lta_start and lta_end must be valid years'
                     }, status=400)
             else:
-                # Use product default or global default
-                product_config = product_configs[0].get('config', {})
-                default_lta = product_config.get('default_lta', DEFAULT_LTA)
+                # No user LTA specified - use default from config
+                default_lta = first_product_config.get('default_lta', DEFAULT_LTA)
                 lta_start_year = default_lta[0]
                 lta_end_year = default_lta[1]
+                lta_start_date = datetime.date(lta_start_year, 1, 1)
+                lta_end_date = datetime.date(lta_end_year, 12, 31)
+                logger.info(f"Using default LTA period from config: {lta_start_year}-{lta_end_year}")
         
         # Get aggregation method
         if not aggregation:
-            # Use product default
             product_config = product_configs[0].get('config', {})
             aggregation = product_config.get('default_aggregation', 'mean')
         
@@ -2387,15 +2412,22 @@ def climate_aggregate(request):
             product_info = product_config.get('config', {})
             value_field = product_info.get('value_field', 'value')
             
-            # Load data
+            # ============================================================
+            # STEP 1: Load raw daily data for requested period
+            # ============================================================
             raw_data = load_data(model, start_date, end_date, filters)
             
             if not raw_data:
                 logger.warning(f"No data found for {product_name}")
                 continue
             
-            # Aggregate data
+            logger.info(f"Loaded {len(raw_data)} raw records for {product_name}")
+            
+            # ============================================================
+            # STEP 2: Aggregate for requested period
+            # ============================================================
             kwargs = {}
+            season_def = None
             if period == 'seasonal':
                 season_def = SEASON_DEFINITIONS.get(season)
                 if not season_def:
@@ -2408,9 +2440,97 @@ def climate_aggregate(request):
                 kwargs['season_label'] = season_def['label']
                 kwargs['cross_year'] = season_def['cross_year']
             
+            # Aggregate the data
             aggregated = aggregate(raw_data, period, aggregation, **kwargs)
             
-            # Convert to list with product info
+            logger.info(f"Aggregated to {len(aggregated)} records for {product_name}")
+            
+            # ============================================================
+            # STEP 3: Calculate LTA from raw data for LTA period
+            # Uses default from config OR user-specified
+            # ============================================================
+            lta_lookup = {}
+            lta_count_lookup = {}
+            lta_years = []
+            
+            if include_lta and lta_start_date is not None and lta_end_date is not None:
+                # Load raw data for LTA period
+                lta_raw_data = load_data(model, lta_start_date, lta_end_date, filters)
+                
+                if lta_raw_data:
+                    logger.info(f"Loaded {len(lta_raw_data)} raw records for LTA period {lta_start_year}-{lta_end_year}")
+                    
+                    # Aggregate LTA data using SAME aggregation method
+                    lta_aggregated = aggregate(lta_raw_data, period, aggregation, **kwargs)
+                    
+                    logger.info(f"LTA aggregated to {len(lta_aggregated)} records")
+                    
+                    # ============================================================
+                    # Group LTA by PERIOD TYPE (not by year)
+                    # For seasonal: group by season|province
+                    # For monthly: group by month|province
+                    # For dekad: group by month-dekad|province
+                    # ============================================================
+                    lta_groups = {}
+                    
+                    for item in lta_aggregated:
+                        province = item['province']
+                        value = item['value']
+                        
+                        if period == 'seasonal':
+                            # For seasonal: group by season|province
+                            season_name = item.get('season', season)
+                            group_key = f"{season_name}|{province}"
+                        elif period == 'monthly':
+                            # For monthly: group by month|province
+                            month = item['metadata'].get('month', 0)
+                            group_key = f"M{month:02d}|{province}"
+                        elif period == 'dekad':
+                            # For dekad: group by month-dekad|province
+                            month = item['metadata'].get('month', 0)
+                            dekad = item['metadata'].get('dekad', 0)
+                            group_key = f"M{month:02d}-D{dekad}|{province}"
+                        elif period == 'annual':
+                            # For annual: group by province only
+                            group_key = f"ANNUAL|{province}"
+                        else:
+                            # Default: group by period_key and province
+                            group_key = f"{item['period_key']}|{province}"
+                        
+                        if group_key not in lta_groups:
+                            lta_groups[group_key] = []
+                        lta_groups[group_key].append(value)
+                    
+                    # Calculate averages for each group
+                    for group_key, values in lta_groups.items():
+                        if values:
+                            lta_lookup[group_key] = round(sum(values) / len(values), 2)
+                            lta_count_lookup[group_key] = len(values)
+                            logger.debug(f"LTA for {group_key}: {lta_lookup[group_key]} from {len(values)} values")
+                    
+                    # Get unique years for LTA period
+                    lta_years = sorted(set(
+                        item.get('year', 0) for item in lta_aggregated 
+                        if item.get('year')
+                    ))
+                    
+                    all_metadata['lta_period'] = {
+                        'start_year': lta_start_year,
+                        'end_year': lta_end_year,
+                        'num_years': len(lta_years),
+                        'years': lta_years,
+                        'description': f"{len(lta_years)} years ({lta_start_year}-{lta_end_year})",
+                        'note': 'LTA is calculated from the available data in the LTA period'
+                    }
+                    
+                    logger.info(f"LTA calculated for {len(lta_lookup)} period-province combinations")
+                    logger.info(f"LTA keys: {list(lta_lookup.keys())}")
+                else:
+                    logger.warning(f"No data found for LTA period {lta_start_year}-{lta_end_year}")
+            
+            # ============================================================
+            # STEP 4: Add LTA to aggregated data
+            # ============================================================
             product_data = []
             for item in aggregated:
                 product_item = {
@@ -2422,29 +2542,44 @@ def climate_aggregate(request):
                     'product': product_name,
                     'value_field': value_field
                 }
+                
+                # Add season info if seasonal
+                if period == 'seasonal':
+                    product_item['season'] = item.get('season', season)
+                    if 'metadata' in product_item and product_item['metadata']:
+                        product_item['metadata']['season'] = item.get('season', season)
+                
+                # Add LTA if available
+                if include_lta and lta_lookup:
+                    # Build the lookup key based on period type
+                    if period == 'seasonal':
+                        season_name = item.get('season', season)
+                        lookup_key = f"{season_name}|{item['province']}"
+                    elif period == 'monthly':
+                        month = item['metadata'].get('month', 0)
+                        lookup_key = f"M{month:02d}|{item['province']}"
+                    elif period == 'dekad':
+                        month = item['metadata'].get('month', 0)
+                        dekad = item['metadata'].get('dekad', 0)
+                        lookup_key = f"M{month:02d}-D{dekad}|{item['province']}"
+                    elif period == 'annual':
+                        lookup_key = f"ANNUAL|{item['province']}"
+                    else:
+                        lookup_key = f"{item['period_key']}|{item['province']}"
+                    
+                    product_item['lta'] = lta_lookup.get(lookup_key, 0)
+                    product_item['lta_count'] = lta_count_lookup.get(lookup_key, 0)
+                    
+                    logger.debug(f"Item {item['period_key']}|{item['province']} LTA: {product_item['lta']}")
+                else:
+                    product_item['lta'] = 0
+                    product_item['lta_count'] = 0
+                
                 product_data.append(product_item)
             
-            # Calculate LTA if requested
-            if include_lta and lta_start_year is not None and lta_end_year is not None:
-                lta_result = calculate_lta(
-                    aggregated,
-                    period,
-                    lta_start_year,
-                    lta_end_year
-                )
-                
-                if lta_result and lta_result.get('lta'):
-                    product_data = add_lta_to_data(product_data, lta_result)
-                    
-                    # Update metadata
-                    all_metadata['lta_period'] = {
-                        'start_year': lta_start_year,
-                        'end_year': lta_end_year,
-                        'num_years': lta_result.get('num_years', 0),
-                        'years': lta_result.get('years', [])
-                    }
-            
-            # Apply metrics
+            # ============================================================
+            # STEP 5: Apply metrics
+            # ============================================================
             if metrics_param:
                 requested_metrics = [m.strip().lower() for m in metrics_param.split(',') if m.strip()]
                 for metric_name in requested_metrics:
@@ -2474,10 +2609,14 @@ def climate_aggregate(request):
                 'data': []
             }, status=404)
         
-        # Serialize data - USE PIVOT=True to match old view format
+        # ============================================================
+        # STEP 6: Serialize data (pivot format)
+        # ============================================================
         serialized_data = serialize(all_results, all_metadata, pivot=True)
         
-        # Build response
+        # ============================================================
+        # STEP 7: Build response
+        # ============================================================
         response = build_response(
             serialized_data['data'],
             product,
@@ -2487,7 +2626,7 @@ def climate_aggregate(request):
             metrics_list if metrics_param else []
         )
         
-        # Add metadata to response (like old view)
+        # Add metadata to response
         response['metadata']['products'] = all_metadata['products']
         response['metadata']['lta_period'] = all_metadata.get('lta_period')
         response['metadata']['date_range'] = {
@@ -2495,11 +2634,9 @@ def climate_aggregate(request):
             'end': end_date_str
         }
         
-        # Add provinces and totals (like old view)
         response['provinces'] = serialized_data.get('provinces', [])
         response['total_periods'] = len(serialized_data['data'])
         
-        # Add field explanations (like old view)
         response['fields_explanation'] = {
             'rainfall': 'Total monthly rainfall (mm)',
             'lta': 'Long-Term Average monthly rainfall (mm)',
@@ -2520,26 +2657,21 @@ def climate_aggregate(request):
 
 
 def export_pivot_csv(response_data):
-    """
-    Export pivot table data to CSV (like old view).
-    """
+    """Export pivot table data to CSV."""
     data = response_data.get('data', [])
     provinces = response_data.get('provinces', [])
     
     if not data:
         return JsonResponse({'error': 'No data to export'}, status=404)
     
-    # Create CSV response
     csv_response = HttpResponse(content_type='text/csv')
     filename = f"climate_data_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     csv_response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
     writer = csv.writer(csv_response)
     
-    # Build header (like old view)
+    # Build header
     header = ['Period', 'Year', 'Month']
-    
-    # Add month name if available
     if data and 'month_name' in data[0]:
         header.append('Month Name')
     
@@ -2579,7 +2711,7 @@ def export_pivot_csv(response_data):
     return csv_response
 
 
-# Backward compatibility functions - keep these for old endpoints
+# Backward compatibility functions
 def rainfall_monthly(request):
     """Backward compatibility for monthly rainfall endpoint."""
     request.GET = request.GET.copy()
@@ -2618,6 +2750,7 @@ def health_check(request):
         'available_products': list(PRODUCTS.keys()),
         'available_metrics': list(METRIC_FUNCTIONS.keys())
     })
+
 ##
 #
 ##############################################################################################
@@ -2629,251 +2762,251 @@ def health_check(request):
 ###########################################################################################@@
 # MONTHLY RAINFALL AGGREGATION WITH CORRECT LTA
 # LTA is calculated from the data available in the date range
-# =====================================================
+# # =====================================================
 
-import datetime
-import calendar
-import logging
-from django.http import JsonResponse
-from django.db import connection
-from .models import RainfallProvince
+# import datetime
+# import calendar
+# import logging
+# from django.http import JsonResponse
+# from django.db import connection
+# from .models import RainfallProvince
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
 
-def api_rainfall_monthly(request):
-    """
-    Get monthly aggregated rainfall data with Long-Term Average (LTA),
-    Anomaly, and Percentage of Average.
+# def api_rainfall_monthly(request):
+#     """
+#     Get monthly aggregated rainfall data with Long-Term Average (LTA),
+#     Anomaly, and Percentage of Average.
     
-    LTA is calculated from the data available in the requested date range.
-    e.g., if start_date=2000-01-01 and end_date=2001-03-31,
-    LTA_Jan = (Jan2000 + Jan2001) / 2
+#     LTA is calculated from the data available in the requested date range.
+#     e.g., if start_date=2000-01-01 and end_date=2001-03-31,
+#     LTA_Jan = (Jan2000 + Jan2001) / 2
     
-    Query parameters:
-    - start_date: Start date (YYYY-MM-DD) (required)
-    - end_date: End date (YYYY-MM-DD) (required)
-    - province: (optional) Filter by specific province
-    - lta_start: (optional) Override start year for LTA
-    - lta_end: (optional) Override end year for LTA
-    - format: json (default) or csv
-    """
-    try:
-        # Get query parameters
-        start_date_str = request.GET.get('start_date')
-        end_date_str = request.GET.get('end_date')
-        province_filter = request.GET.get('province')
-        lta_start_year = request.GET.get('lta_start')
-        lta_end_year = request.GET.get('lta_end')
-        output_format = request.GET.get('format', 'json').lower()
+#     Query parameters:
+#     - start_date: Start date (YYYY-MM-DD) (required)
+#     - end_date: End date (YYYY-MM-DD) (required)
+#     - province: (optional) Filter by specific province
+#     - lta_start: (optional) Override start year for LTA
+#     - lta_end: (optional) Override end year for LTA
+#     - format: json (default) or csv
+#     """
+#     try:
+#         # Get query parameters
+#         start_date_str = request.GET.get('start_date')
+#         end_date_str = request.GET.get('end_date')
+#         province_filter = request.GET.get('province')
+#         lta_start_year = request.GET.get('lta_start')
+#         lta_end_year = request.GET.get('lta_end')
+#         output_format = request.GET.get('format', 'json').lower()
         
-        if not start_date_str or not end_date_str:
-            return JsonResponse({
-                'error': 'start_date and end_date are required',
-                'example': '/api/rainfall/monthly/lta/?start_date=2000-01-01&end_date=2020-12-31'
-            }, status=400)
+#         if not start_date_str or not end_date_str:
+#             return JsonResponse({
+#                 'error': 'start_date and end_date are required',
+#                 'example': '/api/rainfall/monthly/lta/?start_date=2000-01-01&end_date=2020-12-31'
+#             }, status=400)
         
-        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
-        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+#         start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+#         end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
         
-        # Determine LTA period
-        # If lta_start/lta_end are provided, use them
-        # Otherwise, use the years from the requested date range
-        if lta_start_year and lta_end_year:
-            lta_start = int(lta_start_year)
-            lta_end = int(lta_end_year)
-        else:
-            # Use the years from the requested date range
-            lta_start = start_date.year
-            lta_end = end_date.year
+#         # Determine LTA period
+#         # If lta_start/lta_end are provided, use them
+#         # Otherwise, use the years from the requested date range
+#         if lta_start_year and lta_end_year:
+#             lta_start = int(lta_start_year)
+#             lta_end = int(lta_end_year)
+#         else:
+#             # Use the years from the requested date range
+#             lta_start = start_date.year
+#             lta_end = end_date.year
         
-        # ============================================================
-        # STEP 1: Get monthly totals for the requested period
-        # ============================================================
+#         # ============================================================
+#         # STEP 1: Get monthly totals for the requested period
+#         # ============================================================
         
-        table_name = RainfallProvince._meta.db_table
+#         table_name = RainfallProvince._meta.db_table
         
-        where_clause = "date >= %s AND date <= %s"
-        params = [start_date, end_date]
+#         where_clause = "date >= %s AND date <= %s"
+#         params = [start_date, end_date]
         
-        if province_filter:
-            where_clause += " AND province = %s"
-            params.append(province_filter)
+#         if province_filter:
+#             where_clause += " AND province = %s"
+#             params.append(province_filter)
         
-        sql_monthly = f"""
-            SELECT 
-                EXTRACT(YEAR FROM date)::int as year,
-                EXTRACT(MONTH FROM date)::int as month,
-                province,
-                SUM(rainfall_mm) as total_rainfall
-            FROM {table_name}
-            WHERE {where_clause}
-            GROUP BY EXTRACT(YEAR FROM date), EXTRACT(MONTH FROM date), province
-            ORDER BY year, month, province
-        """
+#         sql_monthly = f"""
+#             SELECT 
+#                 EXTRACT(YEAR FROM date)::int as year,
+#                 EXTRACT(MONTH FROM date)::int as month,
+#                 province,
+#                 SUM(rainfall_mm) as total_rainfall
+#             FROM {table_name}
+#             WHERE {where_clause}
+#             GROUP BY EXTRACT(YEAR FROM date), EXTRACT(MONTH FROM date), province
+#             ORDER BY year, month, province
+#         """
         
-        with connection.cursor() as cursor:
-            cursor.execute(sql_monthly, params)
-            monthly_rows = cursor.fetchall()
+#         with connection.cursor() as cursor:
+#             cursor.execute(sql_monthly, params)
+#             monthly_rows = cursor.fetchall()
         
-        if not monthly_rows:
-            return JsonResponse({
-                'success': False,
-                'message': 'No data found for the given date range.',
-                'data': []
-            }, status=404)
+#         if not monthly_rows:
+#             return JsonResponse({
+#                 'success': False,
+#                 'message': 'No data found for the given date range.',
+#                 'data': []
+#             }, status=404)
         
-        # Get all provinces
-        if province_filter:
-            provinces = [province_filter]
-        else:
-            provinces = sorted(set(row[2] for row in monthly_rows))
+#         # Get all provinces
+#         if province_filter:
+#             provinces = [province_filter]
+#         else:
+#             provinces = sorted(set(row[2] for row in monthly_rows))
         
-        # ============================================================
-        # STEP 2: Calculate LTA for each month using the LTA period
-        # LTA = average of monthly totals for each month within LTA period
-        # ============================================================
+#         # ============================================================
+#         # STEP 2: Calculate LTA for each month using the LTA period
+#         # LTA = average of monthly totals for each month within LTA period
+#         # ============================================================
         
-        lta_where = f"EXTRACT(YEAR FROM date) BETWEEN {lta_start} AND {lta_end}"
-        if province_filter:
-            lta_where += f" AND province = '{province_filter}'"
+#         lta_where = f"EXTRACT(YEAR FROM date) BETWEEN {lta_start} AND {lta_end}"
+#         if province_filter:
+#             lta_where += f" AND province = '{province_filter}'"
         
-        # Get monthly totals for LTA period
-        sql_monthly_lta = f"""
-            SELECT 
-                EXTRACT(YEAR FROM date)::int as year,
-                EXTRACT(MONTH FROM date)::int as month,
-                province,
-                SUM(rainfall_mm) as monthly_total
-            FROM {table_name}
-            WHERE {lta_where}
-            GROUP BY EXTRACT(YEAR FROM date), EXTRACT(MONTH FROM date), province
-        """
+#         # Get monthly totals for LTA period
+#         sql_monthly_lta = f"""
+#             SELECT 
+#                 EXTRACT(YEAR FROM date)::int as year,
+#                 EXTRACT(MONTH FROM date)::int as month,
+#                 province,
+#                 SUM(rainfall_mm) as monthly_total
+#             FROM {table_name}
+#             WHERE {lta_where}
+#             GROUP BY EXTRACT(YEAR FROM date), EXTRACT(MONTH FROM date), province
+#         """
         
-        with connection.cursor() as cursor:
-            cursor.execute(sql_monthly_lta)
-            monthly_lta_rows = cursor.fetchall()
+#         with connection.cursor() as cursor:
+#             cursor.execute(sql_monthly_lta)
+#             monthly_lta_rows = cursor.fetchall()
         
-        # Group monthly totals by month and province
-        lta_data = {}
-        lta_years_set = set()
+#         # Group monthly totals by month and province
+#         lta_data = {}
+#         lta_years_set = set()
         
-        for row in monthly_lta_rows:
-            year = row[0]
-            month = row[1]
-            province = row[2]
-            monthly_total = row[3]
+#         for row in monthly_lta_rows:
+#             year = row[0]
+#             month = row[1]
+#             province = row[2]
+#             monthly_total = row[3]
             
-            key = f"{month}-{province}"
-            if key not in lta_data:
-                lta_data[key] = []
-            lta_data[key].append(monthly_total)
-            lta_years_set.add(year)
+#             key = f"{month}-{province}"
+#             if key not in lta_data:
+#                 lta_data[key] = []
+#             lta_data[key].append(monthly_total)
+#             lta_years_set.add(year)
         
-        # Calculate LTA as average of monthly totals
-        lta_lookup = {}
-        lta_count_lookup = {}
+#         # Calculate LTA as average of monthly totals
+#         lta_lookup = {}
+#         lta_count_lookup = {}
         
-        for key, values in lta_data.items():
-            lta_lookup[key] = round(sum(values) / len(values), 2)
-            lta_count_lookup[key] = len(values)
+#         for key, values in lta_data.items():
+#             lta_lookup[key] = round(sum(values) / len(values), 2)
+#             lta_count_lookup[key] = len(values)
         
-        lta_num_years = len(lta_years_set)
-        lta_years = sorted(lta_years_set)
+#         lta_num_years = len(lta_years_set)
+#         lta_years = sorted(lta_years_set)
         
-        # ============================================================
-        # STEP 3: Combine data with LTA
-        # ============================================================
+#         # ============================================================
+#         # STEP 3: Combine data with LTA
+#         # ============================================================
         
-        month_data = {}
-        for row in monthly_rows:
-            year = row[0]
-            month = row[1]
-            province = row[2]
-            total = row[3]
+#         month_data = {}
+#         for row in monthly_rows:
+#             year = row[0]
+#             month = row[1]
+#             province = row[2]
+#             total = row[3]
             
-            key = f"{year}-{month:02d}"
+#             key = f"{year}-{month:02d}"
             
-            if key not in month_data:
-                month_data[key] = {
-                    'year': year,
-                    'month': month,
-                    'month_name': calendar.month_name[month],
-                    'month_abbr': calendar.month_abbr[month],
-                    'date': f"{year}-{month:02d}-01",
-                    'period': f"{calendar.month_name[month]} {year}",
-                    'sort_key': f"{year}-{month:02d}",
-                }
-                for p in provinces:
-                    month_data[key][p] = 0.0
-                    month_data[key][f"{p}_lta"] = 0.0
-                    month_data[key][f"{p}_lta_count"] = 0
-                    month_data[key][f"{p}_anomaly"] = 0.0
-                    month_data[key][f"{p}_pct_avg"] = 0.0
+#             if key not in month_data:
+#                 month_data[key] = {
+#                     'year': year,
+#                     'month': month,
+#                     'month_name': calendar.month_name[month],
+#                     'month_abbr': calendar.month_abbr[month],
+#                     'date': f"{year}-{month:02d}-01",
+#                     'period': f"{calendar.month_name[month]} {year}",
+#                     'sort_key': f"{year}-{month:02d}",
+#                 }
+#                 for p in provinces:
+#                     month_data[key][p] = 0.0
+#                     month_data[key][f"{p}_lta"] = 0.0
+#                     month_data[key][f"{p}_lta_count"] = 0
+#                     month_data[key][f"{p}_anomaly"] = 0.0
+#                     month_data[key][f"{p}_pct_avg"] = 0.0
             
-            lta_key = f"{month}-{province}"
-            lta_value = lta_lookup.get(lta_key, 0.0)
-            lta_count = lta_count_lookup.get(lta_key, 0)
+#             lta_key = f"{month}-{province}"
+#             lta_value = lta_lookup.get(lta_key, 0.0)
+#             lta_count = lta_count_lookup.get(lta_key, 0)
             
-            anomaly = total - lta_value
-            pct_avg = (total / lta_value * 100) if lta_value > 0 else 0
+#             anomaly = total - lta_value
+#             pct_avg = (total / lta_value * 100) if lta_value > 0 else 0
             
-            month_data[key][province] = round(total, 2)
-            month_data[key][f"{province}_lta"] = lta_value
-            month_data[key][f"{province}_lta_count"] = lta_count
-            month_data[key][f"{province}_anomaly"] = round(anomaly, 2)
-            month_data[key][f"{province}_pct_avg"] = round(pct_avg, 1)
+#             month_data[key][province] = round(total, 2)
+#             month_data[key][f"{province}_lta"] = lta_value
+#             month_data[key][f"{province}_lta_count"] = lta_count
+#             month_data[key][f"{province}_anomaly"] = round(anomaly, 2)
+#             month_data[key][f"{province}_pct_avg"] = round(pct_avg, 1)
         
-        data = sorted(month_data.values(), key=lambda x: x['sort_key'])
+#         data = sorted(month_data.values(), key=lambda x: x['sort_key'])
         
-        # ============================================================
-        # STEP 4: Build response
-        # ============================================================
+#         # ============================================================
+#         # STEP 4: Build response
+#         # ============================================================
         
-        response_data = {
-            'success': True,
-            'aggregation': 'monthly',
-            'aggregation_label': 'Monthly with LTA',
-            'lta_period': {
-                'start_year': lta_start,
-                'end_year': lta_end,
-                'num_years': lta_num_years,
-                'years': lta_years,
-                'description': f"{lta_num_years} years ({lta_start}-{lta_end})",
-                'note': 'LTA is calculated from the available data in the LTA period'
-            },
-            'date_range': {
-                'start': start_date_str,
-                'end': end_date_str
-            },
-            'provinces': provinces,
-            'total_months': len(data),
-            'fields_explanation': {
-                'rainfall': 'Total monthly rainfall (mm)',
-                'lta': 'Long-Term Average monthly rainfall (mm)',
-                'lta_count': 'Number of years used to calculate LTA',
-                'anomaly': 'Rainfall - LTA (mm)',
-                'pct_avg': 'Percentage of LTA (%)'
-            },
-            'data': data,
-            'metadata': {
-                'source': 'database',
-                'exported_at': datetime.datetime.now().isoformat()
-            }
-        }
+#         response_data = {
+#             'success': True,
+#             'aggregation': 'monthly',
+#             'aggregation_label': 'Monthly with LTA',
+#             'lta_period': {
+#                 'start_year': lta_start,
+#                 'end_year': lta_end,
+#                 'num_years': lta_num_years,
+#                 'years': lta_years,
+#                 'description': f"{lta_num_years} years ({lta_start}-{lta_end})",
+#                 'note': 'LTA is calculated from the available data in the LTA period'
+#             },
+#             'date_range': {
+#                 'start': start_date_str,
+#                 'end': end_date_str
+#             },
+#             'provinces': provinces,
+#             'total_months': len(data),
+#             'fields_explanation': {
+#                 'rainfall': 'Total monthly rainfall (mm)',
+#                 'lta': 'Long-Term Average monthly rainfall (mm)',
+#                 'lta_count': 'Number of years used to calculate LTA',
+#                 'anomaly': 'Rainfall - LTA (mm)',
+#                 'pct_avg': 'Percentage of LTA (%)'
+#             },
+#             'data': data,
+#             'metadata': {
+#                 'source': 'database',
+#                 'exported_at': datetime.datetime.now().isoformat()
+#             }
+#         }
         
-        if output_format == 'csv':
-            return export_monthly_lta_csv(response_data)
+#         if output_format == 'csv':
+#             return export_monthly_lta_csv(response_data)
         
-        return JsonResponse(response_data, status=200)
+#         return JsonResponse(response_data, status=200)
         
-    except Exception as e:
-        logger.error(f"Error in monthly LTA aggregation: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
+#     except Exception as e:
+#         logger.error(f"Error in monthly LTA aggregation: {str(e)}")
+#         return JsonResponse({'error': str(e)}, status=500)
 
 
-def export_monthly_csv_optimized(response_data):
-#
+# def export_monthly_csv_optimized(response_data):
+# #
 #
 ##
 #

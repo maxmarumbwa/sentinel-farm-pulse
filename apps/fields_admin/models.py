@@ -102,7 +102,7 @@ class RainfallProvince(models.Model):
         
     def __str__(self):
         return f"{self.province} - {self.date} ({self.rainfall_mm}mm)"
-    
+     
 # Model for saving ndvi for fields
 # =====================================================
 # FIELD NDVI DATA MODEL

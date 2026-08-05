@@ -20,11 +20,15 @@ class ClimatologyService:
     def calculate_lta(self, data, period, lta_start, lta_end):
         """
         Calculate Long-Term Average for each period and province.
+        
+        For seasonal data, the LTA is calculated per season type.
+        e.g., LTA_OND is the average of all OND seasons in the LTA period.
         """
         # Filter data to LTA period
         lta_data = self._filter_by_year(data, lta_start, lta_end)
         
         if not lta_data:
+            logger.warning(f"No data found for LTA period {lta_start}-{lta_end}")
             return {}
         
         # Group by period and province
@@ -39,9 +43,12 @@ class ClimatologyService:
             if values:
                 lta_lookup[group_key] = round(sum(values) / len(values), 2)
                 lta_count_lookup[group_key] = len(values)
+                logger.debug(f"LTA for {group_key}: {lta_lookup[group_key]} from {len(values)} values")
             else:
                 lta_lookup[group_key] = 0
                 lta_count_lookup[group_key] = 0
+        
+        logger.info(f"LTA keys calculated: {list(lta_lookup.keys())}")
         
         return {
             'lta': lta_lookup,
@@ -69,10 +76,16 @@ class ClimatologyService:
             if year and start_year <= year <= end_year:
                 filtered.append(item)
         
+        logger.debug(f"Filtered {len(filtered)} records for LTA period {start_year}-{end_year}")
         return filtered
     
     def _group_by_period_and_province(self, data, period):
-        """Group data by period and province."""
+        """
+        Group data by period and province.
+        
+        For seasonal data, the key is season|province.
+        This ensures LTA is calculated per season type.
+        """
         groups = defaultdict(list)
         
         for item in data:
@@ -101,7 +114,9 @@ class ClimatologyService:
                 key = f"ANNUAL|{province}"
             
             elif period == 'seasonal':
-                key = f"SEASONAL|{province}"
+                # CRITICAL: For seasonal data, use season|province as the key
+                season = item.get('season', 'UNKNOWN')
+                key = f"{season}|{province}"
             
             else:
                 key = f"{item.get('period_key', 'UNKNOWN')}|{province}"
@@ -109,6 +124,8 @@ class ClimatologyService:
             if key:
                 groups[key].append(item)
         
+        logger.debug(f"Created {len(groups)} groups for LTA calculation")
+        logger.debug(f"Group keys: {list(groups.keys())}")
         return dict(groups)
     
     def _extract_years(self, data):
@@ -128,14 +145,22 @@ class ClimatologyService:
         return years
     
     def add_lta_to_data(self, data, lta_data):
-        """Add LTA values to data points."""
+        """
+        Add LTA values to data points.
+        
+        For seasonal data, the key must match what was used in _group_by_period_and_province.
+        """
         lta_lookup = lta_data.get('lta', {})
         lta_count = lta_data.get('count', {})
+        
+        logger.info(f"LTA lookup keys available: {list(lta_lookup.keys())}")
         
         result = []
         for item in data:
             item_copy = item.copy()
             key = self._get_lta_key(item)
+            
+            logger.debug(f"Looking up LTA for key: {key}")
             
             item_copy['lta'] = lta_lookup.get(key, 0)
             item_copy['lta_count'] = lta_count.get(key, 0)
@@ -145,13 +170,27 @@ class ClimatologyService:
         return result
     
     def _get_lta_key(self, item):
-        """Get the key to use for LTA lookup."""
+        """
+        Get the key to use for LTA lookup.
+        
+        This MUST match what was used in _group_by_period_and_province.
+        For seasonal data: season|province
+        """
         province = item.get('province', 'Unknown')
         
+        # Check if this is seasonal data
+        if 'season' in item:
+            season = item.get('season', 'UNKNOWN')
+            # The key must match exactly what was used in _group_by_period_and_province
+            key = f"{season}|{province}"
+            logger.debug(f"Seasonal LTA key: {key}")
+            return key
+        
+        # Non-seasonal data
         if 'month' in item and 'dekad' in item:
-            return f"M{item['month']:02d}-D{item['dekad']}|{province}"
+            key = f"M{item['month']:02d}-D{item['dekad']}|{province}"
         elif 'month' in item:
-            return f"M{item['month']:02d}|{province}"
+            key = f"M{item['month']:02d}|{province}"
         elif 'period_key' in item:
             parts = item['period_key'].split('-')
             if len(parts) >= 2:
@@ -160,13 +199,17 @@ class ClimatologyService:
                     if 'D' in parts[1]:
                         dekad_parts = parts[1].split('D')
                         if len(dekad_parts) == 2:
-                            return f"M{int(dekad_parts[0]):02d}-D{int(dekad_parts[1])}|{province}"
+                            key = f"M{int(dekad_parts[0]):02d}-D{int(dekad_parts[1])}|{province}"
                     else:
-                        return f"M{month:02d}|{province}"
-        elif 'season' in item:
-            return f"SEASONAL|{province}"
+                        key = f"M{month:02d}|{province}"
+                else:
+                    key = f"{item['period_key']}|{province}"
+            else:
+                key = f"{item['period_key']}|{province}"
+        else:
+            key = f"UNKNOWN|{province}"
         
-        return f"UNKNOWN|{province}"
+        return key
 
 
 # Singleton instance

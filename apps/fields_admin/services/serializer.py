@@ -78,7 +78,19 @@ class DataSerializer:
             # Get metadata from first item
             if items and 'metadata' in items[0]:
                 meta = items[0]['metadata']
-                row.update(self._serialize_metadata(meta))
+                # Serialize metadata - this will include season_year and season_display for seasonal
+                serialized_meta = self._serialize_metadata(meta)
+                row.update(serialized_meta)
+                
+                # For seasonal data, add additional season fields
+                if meta.get('period') == 'seasonal':
+                    # Add season_year and season_display if they exist in metadata
+                    if 'season_year' in meta:
+                        row['season_year'] = meta['season_year']
+                    if 'season_display' in meta:
+                        row['season_display'] = meta['season_display']
+                    if 'display_year' in meta:
+                        row['display_year'] = meta['display_year']
             
             # Add data for each province
             for province in provinces:
@@ -196,7 +208,10 @@ class DataSerializer:
         return period_key
     
     def _serialize_metadata(self, metadata):
-        """Serialize metadata."""
+        """
+        Serialize metadata.
+        For seasonal data, this includes season_year and season_display.
+        """
         serialized = {}
         
         if 'year' in metadata:
@@ -216,6 +231,22 @@ class DataSerializer:
             serialized['season'] = metadata['season']
             if 'season_label' in metadata:
                 serialized['season_label'] = metadata['season_label']
+            if 'season_description' in metadata:
+                serialized['season_description'] = metadata['season_description']
+            if 'months_abbr' in metadata:
+                serialized['months'] = ', '.join(metadata['months_abbr'])
+            if 'cross_year' in metadata:
+                serialized['cross_year'] = metadata['cross_year']
+        
+        # For seasonal data - add season_year and season_display
+        if 'season_year' in metadata:
+            serialized['season_year'] = metadata['season_year']
+        
+        if 'season_display' in metadata:
+            serialized['season_display'] = metadata['season_display']
+        
+        if 'display_year' in metadata:
+            serialized['display_year'] = metadata['display_year']
         
         if 'start_date' in metadata:
             serialized['start_date'] = metadata['start_date']

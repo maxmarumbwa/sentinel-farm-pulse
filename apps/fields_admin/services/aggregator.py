@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 class Aggregator:
     """
     Aggregates daily data into various temporal periods.
+    Groups by period AND province.
     """
     
     def __init__(self):
@@ -29,12 +30,28 @@ class Aggregator:
     def aggregate(self, data, period, aggregation_method='sum', **kwargs):
         """
         Main aggregation method - groups by period AND province.
+        
+        For seasonal data, the season is added to each result item
+        so that LTA can be calculated per season type.
         """
         if not data:
+            logger.warning("No data to aggregate")
             return []
+        
+        # Log sample data for debugging
+        logger.info(f"Total records to aggregate: {len(data)}")
+        if data:
+            provinces = set()
+            for item in data:
+                prov = item.get('province', 'Unknown')
+                if prov:
+                    provinces.add(prov)
+            logger.info(f"Provinces found in data: {provinces}")
         
         # Group data by period AND province
         grouped = self._group_by_period_and_province(data, period, **kwargs)
+        
+        logger.info(f"Number of groups created: {len(grouped)}")
         
         # Apply aggregation function
         agg_func = self.aggregation_functions.get(aggregation_method, self._mean_values)
@@ -47,24 +64,67 @@ class Aggregator:
             # Parse group key to get period and province
             period_key, province = self._parse_group_key(group_key)
             
-            result.append({
+            item = {
                 'period_key': period_key,
                 'province': province,
                 'value': aggregated_value,
                 'count': len(values),
                 'dates': [item['date'] for item in group_data],
                 'metadata': self._get_period_metadata(period_key, period, **kwargs)
-            })
+            }
+            
+            # CRITICAL: For seasonal data, add the season to the item
+            if period == 'seasonal':
+                season = kwargs.get('season', 'UNKNOWN')
+                item['season'] = season
+                if 'metadata' in item and item['metadata']:
+                    item['metadata']['season'] = season
+            
+            result.append(item)
+        
+        # For seasonal data, add additional season info to metadata
+        if period == 'seasonal':
+            season = kwargs.get('season', 'UNKNOWN')
+            season_def = kwargs.get('season_def', {})
+            cross_year = kwargs.get('cross_year', False)
+            
+            for item in result:
+                if 'metadata' in item and item['metadata']:
+                    item['metadata']['season_label'] = season_def.get('label', '')
+                    item['metadata']['season_description'] = season_def.get('description', '')
+                    item['metadata']['months_abbr'] = season_def.get('months_abbr', [])
+                    item['metadata']['cross_year'] = cross_year
+                    
+                    # Add season year and display info
+                    period_key = item['period_key']
+                    if cross_year:
+                        try:
+                            year_int = int(period_key)
+                            item['metadata']['season_year'] = f"{year_int-1}/{year_int}"
+                            item['metadata']['season_display'] = f"{year_int-1}/{year_int}"
+                            item['metadata']['display_year'] = f"{year_int-1} - {year_int}"
+                        except ValueError:
+                            item['metadata']['season_year'] = period_key
+                            item['metadata']['season_display'] = period_key
+                            item['metadata']['display_year'] = period_key
+                    else:
+                        item['metadata']['season_year'] = period_key
+                        item['metadata']['season_display'] = period_key
+                        item['metadata']['display_year'] = period_key
         
         # Sort by period then province
         result.sort(key=lambda x: (x['period_key'], x['province']))
         
+        logger.info(f"Number of aggregated results: {len(result)}")
+        if result:
+            logger.info(f"Sample result: period={result[0]['period_key']}, province={result[0]['province']}, value={result[0]['value']}")
+            if 'season' in result[0]:
+                logger.info(f"Sample season: {result[0]['season']}")
+        
         return result
     
     def _group_by_period_and_province(self, data, period, **kwargs):
-        """
-        Group data by period AND province.
-        """
+        """Group data by period AND province."""
         if period == 'daily':
             return self._group_daily_by_province(data)
         elif period == 'dekad':
@@ -142,7 +202,12 @@ class Aggregator:
         return dict(groups)
     
     def _group_seasonal_by_province(self, data, season_def=None, **kwargs):
-        """Group data by season and province."""
+        """
+        Group data by season and province.
+        
+        For cross-year seasons (like ONDJFM, DJF), the season year is calculated
+        based on the starting year of the season.
+        """
         if not season_def:
             raise ValueError("Season definition required for seasonal aggregation")
         
@@ -159,24 +224,16 @@ class Aggregator:
             
             if date.month in months:
                 if cross_year:
-                    if date.month in [1, 2, 3]:
+                    # For cross-year seasons (ONDJFM: Oct, Nov, Dec, Jan, Feb, Mar)
+                    # The season year is the year of the starting month (Oct)
+                    if date.month >= 10:  # Oct, Nov, Dec
                         season_year = date.year
-                    else:
-                        season_year = date.year
-                    
-                    if date.month >= 10:
-                        display_year = date.year
-                    else:
-                        display_year = date.year - 1
-                    
-                    period_key = str(season_year)
-                    item['season_year'] = season_year
-                    item['display_year'] = display_year
+                    else:  # Jan, Feb, Mar
+                        season_year = date.year - 1
                 else:
-                    period_key = str(date.year)
-                    item['season_year'] = date.year
-                    item['display_year'] = date.year
+                    season_year = date.year
                 
+                period_key = str(season_year)
                 key = f"{period_key}|{province}"
                 groups[key].append(item)
         
@@ -236,11 +293,10 @@ class Aggregator:
             metadata['year'] = int(period_key)
         
         elif period == 'seasonal':
-            metadata['season'] = kwargs.get('season', 'UNKNOWN')
-            metadata['season_label'] = kwargs.get('season_label', 'Unknown Season')
-            metadata['season_year'] = int(period_key)
-            if kwargs.get('cross_year', False):
-                metadata['display_year'] = f"{int(period_key)-1}/{period_key}"
+            try:
+                metadata['year'] = int(period_key)
+            except ValueError:
+                metadata['year'] = period_key
         
         return metadata
     

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>VCI Monitoring Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        /* ... (previous styles) ... */
+        
+        #timeline {
+            position: absolute;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255,255,255,0.95);
+            padding: 15px 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        #timeline input[type="range"] {
+            width: 300px;
+            accent-color: #4299e1;
+        }
+        
+        #monthDisplay {
+            font-weight: 600;
+            color: #2d3748;
+            min-width: 120px;
+            text-align: center;
+        }
+        
+        .trend-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .trend-increasing {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .trend-decreasing {
+            background: #fc8181;
+            color: white;
+        }
+        
+        .trend-stable {
+            background: #ecc94b;
+            color: #2d3748;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <!-- Info Panel -->
+    <div class="info-panel" id="infoPanel">
+        <h3>Crop Health Summary</h3>
+        <div class="stat">
+            <span class="label">Mean VCI</span>
+            <span class="value" id="meanVCI">--</span>
+        </div>
+        <div class="stat">
+            <span class="label">Mean NDVI</span>
+            <span class="value" id="meanNDVI">--</span>
+        </div>
+        <div class="stat">
+            <span class="label">Area (ha)</span>
+            <span class="value" id="area">--</span>
+        </div>
+        <div class="stat">
+            <span class="label">Healthy Area</span>
+            <span class="value" id="healthyArea">--</span>
+        </div>
+        <div id="condition" class="condition">Loading...</div>
+        <div id="trendIndicator" class="trend-indicator">Loading...</div>
+    </div>
+    
+    <!-- Timeline -->
+    <div id="timeline">
+        <span style="font-weight: 600; font-size: 14px; color: #4a5568;">📊</span>
+        <span id="monthDisplay">Loading...</span>
+        <input type="range" id="timeSlider" min="0" max="11" value="0" step="1">
+        <button id="playButton" onclick="togglePlay()">▶ Play</button>
+        <button onclick="resetView()">↺ Reset</button>
+    </div>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let map = L.map('map').setView([0, 0], 6);
+        let currentLayer = null;
+        let animationData = [];
+        let isPlaying = false;
+        let currentIndex = 0;
+        let playInterval = null;
+        
+        // Base map
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+        
+        // Load VCI data
+        async function loadVCI(year, month) {
+            try {
+                const response = await fetch('/api/vci/calculate/', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        geometry: getMapBounds(),
+                        year: year,
+                        month: month
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateMap(data.tile_url);
+                    updateInfo(data);
+                    return data;
+                } else {
+                    console.error('Error:', data.error);
+                }
+            } catch (error) {
+                console.error('Request failed:', error);
+            }
+        }
+        
+        // Load animation data
+        async function loadAnimation(year, months) {
+            try {
+                const response = await fetch('/api/vci/animation/', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        geometry: getMapBounds(),
+                        year: year,
+                        months: months
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    animationData = data.animation_data;
+                    setupTimeline(animationData);
+                    loadMonth(0);
+                } else {
+                    console.error('Error:', data.error);
+                }
+            } catch (error) {
+                console.error('Animation load failed:', error);
+            }
+        }
+        
+        function updateMap(tileUrl) {
+            if (currentLayer) {
+                map.removeLayer(currentLayer);
+            }
+            
+            currentLayer = L.tileLayer(tileUrl, {
+                opacity: 0.85,
+                attribution: 'VCI Classification'
+            }).addTo(map);
+        }
+        
+        function updateInfo(data) {
+            document.getElementById('meanVCI').textContent = 
+                data.statistics.vci.mean.toFixed(1) + '%';
+            document.getElementById('meanNDVI').textContent = 
+                data.statistics.ndvi.mean.toFixed(3);
+            document.getElementById('area').textContent = 
+                data.statistics.area_ha.toFixed(1);
+            
+            const healthy = data.class_breakdown.summary.healthy_percentage;
+            document.getElementById('healthyArea').textContent = 
+                healthy.toFixed(1) + '%';
+            
+            const condition = document.getElementById('condition');
+            condition.textContent = data.condition;
+            condition.className = 'condition ' + 
+                data.condition.toLowerCase().replace(' ', '');
+        }
+        
+        function setupTimeline(data) {
+            const slider = document.getElementById('timeSlider');
+            slider.max = data.length - 1;
+            
+            // Add monthly labels
+            const display = document.getElementById('monthDisplay');
+            
+            // Load trend data
+            loadTrendData();
+        }
+        
+        async function loadTrendData() {
+            try {
+                const response = await fetch('/api/trend/analyze/', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        geometry: getMapBounds(),
+                        year: 2026,
+                        month: 7,
+                        num_months: 12
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.trend && !data.trend.error) {
+                    const trend = data.trend;
+                    const indicator = document.getElementById('trendIndicator');
+                    
+                    if (trend.direction === 'Increasing') {
+                        indicator.className = 'trend-indicator trend-increasing';
+                        indicator.innerHTML = `📈 ${trend.direction} (${trend.change_percent}%)`;
+                    } else if (trend.direction === 'Decreasing') {
+                        indicator.className = 'trend-indicator trend-decreasing';
+                        indicator.innerHTML = `📉 ${trend.direction} (${trend.change_percent}%)`;
+                    } else {
+                        indicator.className = 'trend-indicator trend-stable';
+                        indicator.innerHTML = `➡️ ${trend.direction}`;
+                    }
+                }
+            } catch (error) {
+                console.error('Trend load failed:', error);
+            }
+        }
+        
+        function loadMonth(index) {
+            if (index < 0 || index >= animationData.length) return;
+            
+            const data = animationData[index];
+            if (data && data.tile_url) {
+                updateMap(data.tile_url);
+                document.getElementById('monthDisplay').textContent = data.month_label;
+                
+                // Update info with VCI value
+                document.getElementById('meanVCI').textContent = 
+                    data.mean_vci.toFixed(1) + '%';
+            }
+        }
+        
+        function togglePlay() {
+            const button = document.getElementById('playButton');
+            if (isPlaying) {
+                clearInterval(playInterval);
+                button.textContent = '▶ Play';
+                isPlaying = false;
+            } else {
+                button.textContent = '⏹ Stop';
+                isPlaying = true;
+                playInterval = setInterval(() => {
+                    currentIndex = (currentIndex + 1) % animationData.length;
+                    document.getElementById('timeSlider').value = currentIndex;
+                    loadMonth(currentIndex);
+                }, 1500);
+            }
+        }
+        
+        function resetView() {
+            if (animationData.length > 0) {
+                currentIndex = 0;
+                document.getElementById('timeSlider').value = 0;
+                loadMonth(0);
+                if (isPlaying) togglePlay();
+            }
+        }
+        
+        function getMapBounds() {
+            // Return current map bounds as GeoJSON
+            const bounds = map.getBounds();
+            return {
+                type: 'Polygon',
+                coordinates: [[
+                    [bounds.getSouth(), bounds.getWest()],
+                    [bounds.getSouth(), bounds.getEast()],
+                    [bounds.getNorth(), bounds.getEast()],
+                    [bounds.getNorth(), bounds.getWest()],
+                    [bounds.getSouth(), bounds.getWest()]
+                ]]
+            };
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load initial VCI for current month
+            const currentDate = new Date();
+            loadAnimation(2026, [1,2,3,4,5,6,7,8,9,10,11,12]);
+            
+            // Set up slider
+            document.getElementById('timeSlider').addEventListener('input', function(e) {
+                const index = parseInt(e.target.value);
+                loadMonth(index);
+            });
+        });
+    </script>
+</body>
+</html>

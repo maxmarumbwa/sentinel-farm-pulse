@@ -1019,7 +1019,7 @@ def fields_map_view(request):
 ############## Get NDVI for a single field over a selected period    ######################
 from django.http import JsonResponse
 from .models import Field, FieldNDVI
-from datetime import datetime
+import datetime
 
 def api_ndvi_single_field(request):
     """
@@ -2224,706 +2224,301 @@ def api_geo_intel(request):
 ###################################################################################################
 
 
-                                #  AGGRREGATION FUNCTION YEAR - MONTH, DEKAD
+                                # NDVI AGGRREGATION- MONTH, DEKAD
 
 
 ##########################################################################################################
-# apps/fields_admin/views.py
-"""
-API views for climate data aggregation.
-"""
 
-import logging
-import json
-import csv
-import datetime
-from django.http import JsonResponse, HttpResponse
+api_rainfall_monthly
+
+
+
+
+
+##
+#
+#
+#
+#
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+##
+#
+#
+#
+#########################################################################################################
+#
+#################################  VCI CALCULATION #########################################################
+#
+#############################################################################################@@@@@@@@@@@@@
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+import json
+import ee
+import logging
 
-from apps.fields_admin.config import PRODUCTS, DEFAULT_LTA, SEASON_DEFINITIONS
-from apps.fields_admin.services.resolver import resolve_product
-from apps.fields_admin.services.loader import load_data
-from apps.fields_admin.services.aggregator import aggregate
-from apps.fields_admin.services.climatology import calculate_lta, add_lta_to_data
-from apps.fields_admin.services.serializer import serialize, build_response
+# Import Sentinel Service
+from .services.sentinel import SentinelService
 
-# Import metrics
-from apps.fields_admin.metrics.anomaly import apply_anomaly_to_data
-from apps.fields_admin.metrics.percent_average import apply_percent_average_to_data
-from apps.fields_admin.metrics.zscore import apply_zscore_to_data
-from apps.fields_admin.metrics.spi import apply_spi_to_data
-from apps.fields_admin.metrics.vci import apply_vci_to_data
-from apps.fields_admin.metrics.tci import apply_tci_to_data
-from apps.fields_admin.metrics.vhi import apply_vhi_to_data
+# Import Earth Engine authentication
+from apps.gee.ee_auth import initialize_earth_engine
 
 logger = logging.getLogger(__name__)
 
-# Metric registry
-METRIC_FUNCTIONS = {
-    'anomaly': apply_anomaly_to_data,
-    'pct_average': apply_percent_average_to_data,
-    'zscore': apply_zscore_to_data,
-    'spi': apply_spi_to_data,
-    'vci': apply_vci_to_data,
-    'tci': apply_tci_to_data,
-    'vhi': apply_vhi_to_data,
-}
+# ============================================
+# VCI MAP VIEW
+# ============================================
 
+@login_required
+def vci_map_view(request):
+    """
+    Display VCI map view - minimal.
+    """
+    context = {
+        'title': 'Zimbabwe VCI Monitor',
+        'year': request.GET.get('year', 2026),
+        'month': request.GET.get('month', 7),
+    }
+    return render(request, 'fields_admin/vci_map.html', context)
+
+
+# ============================================
+# VCI API - 12km RESOLUTION, NO STATISTICS
+# ============================================
+
+from django.shortcuts import render
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+import json
+import ee
+import logging
+
+# Import Sentinel Service
+from .services.sentinel import SentinelService
+
+# Import Earth Engine authentication
+from apps.gee.ee_auth import initialize_earth_engine
+
+logger = logging.getLogger(__name__)
+
+# ============================================
+# VCI MAP VIEW - NO LOGIN REQUIRED
+# ============================================
+
+def vci_map_view(request):
+    """
+    Display VCI map view - no login required.
+    """
+    context = {
+        'title': 'Zimbabwe VCI Monitor',
+        'year': request.GET.get('year', 2026),
+        'month': request.GET.get('month', 7),
+    }
+    return render(request, 'fields_admin/vci_map.html', context)
+
+
+# ============================================
+# VCI API - NO LOGIN REQUIRED
+# ============================================
 
 @csrf_exempt
-@require_http_methods(['GET'])
-def climate_aggregate(request):
+@require_http_methods(["POST"])
+def api_calculate_vci(request):
     """
-    Main aggregation endpoint.
-    
-    Query parameters:
-    - product: rainfall, ndvi, temperature, or all
-    - start_date: YYYY-MM-DD
-    - end_date: YYYY-MM-DD
-    - period: daily, dekad, monthly, annual, seasonal
-    - aggregation: sum, mean, median, max, min, std
-    - include_lta: true/false (default: false)
-    - lta_start: YYYY (optional)
-    - lta_end: YYYY (optional)
-    - metrics: comma-separated list (anomaly, pct_average, zscore, spi, vci, tci, vhi)
-    - province: (optional) Filter by specific province
-    - season: (optional) For seasonal aggregation
-    - format: json (default) or csv
-    
-    Example:
-    /api/climate/aggregate/?product=rainfall&start_date=2000-01-01&end_date=2024-12-31&period=monthly&aggregation=sum&include_lta=true&metrics=anomaly,pct_average
+    Ultra-fast VCI API - 12km resolution, tile only.
+    No login required.
     """
     try:
-        # Parse query parameters
-        product = request.GET.get('product')
-        start_date_str = request.GET.get('start_date')
-        end_date_str = request.GET.get('end_date')
-        period = request.GET.get('period', 'monthly')
-        aggregation = request.GET.get('aggregation')
-        include_lta = request.GET.get('include_lta', 'false').lower() == 'true'
-        lta_start = request.GET.get('lta_start')
-        lta_end = request.GET.get('lta_end')
-        metrics_param = request.GET.get('metrics', '')
-        province_filter = request.GET.get('province')
-        season = request.GET.get('season', 'FULL')
-        output_format = request.GET.get('format', 'json').lower()
-        
-        # Validate required parameters
-        if not product:
-            return JsonResponse({
-                'error': 'product is required',
-                'available_products': list(PRODUCTS.keys())
-            }, status=400)
-        
-        if not start_date_str or not end_date_str:
-            return JsonResponse({
-                'error': 'start_date and end_date are required',
-                'example': '/api/climate/aggregate/?product=rainfall&start_date=2000-01-01&end_date=2024-12-31&period=monthly'
-            }, status=400)
-        
-        # Parse dates - Using datetime.datetime.strptime like other views
+        # Ensure Earth Engine is initialized
         try:
-            start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
-        except ValueError as e:
-            return JsonResponse({
-                'error': f'Invalid date format. Use YYYY-MM-DD: {str(e)}'
-            }, status=400)
+            initialize_earth_engine()
+        except Exception as e:
+            logger.warning(f"Earth Engine init warning: {str(e)}")
         
-        # Resolve product
-        product_configs = resolve_product(product)
-        if not product_configs:
-            return JsonResponse({
-                'error': f'Invalid product: {product}',
-                'available_products': list(PRODUCTS.keys())
-            }, status=400)
+        data = json.loads(request.body)
         
-        # Determine LTA period
-        lta_start_year = None
-        lta_end_year = None
-        if include_lta:
-            if lta_start and lta_end:
-                try:
-                    lta_start_year = int(lta_start)
-                    lta_end_year = int(lta_end)
-                except ValueError:
-                    return JsonResponse({
-                        'error': 'lta_start and lta_end must be valid years'
-                    }, status=400)
-            else:
-                # Use product default or global default
-                product_config = product_configs[0].get('config', {})
-                default_lta = product_config.get('default_lta', DEFAULT_LTA)
-                lta_start_year = default_lta[0]
-                lta_end_year = default_lta[1]
+        # Get geometry
+        geometry = None
         
-        # Get aggregation method
-        if not aggregation:
-            # Use product default
-            product_config = product_configs[0].get('config', {})
-            aggregation = product_config.get('default_aggregation', 'mean')
-        
-        # Prepare filters
-        filters = {}
-        if province_filter:
-            filters['province'] = province_filter
-        
-        # Process each product
-        all_results = []
-        all_metadata = {
-            'products': [],
-            'period': period,
-            'aggregation': aggregation,
-            'include_lta': include_lta,
-            'lta_period': None
-        }
-        
-        metrics_list = []
-        
-        for product_config in product_configs:
-            product_name = product_config['product']
-            model = product_config['model']
-            product_info = product_config.get('config', {})
-            value_field = product_info.get('value_field', 'value')
-            
-            # Load data
-            raw_data = load_data(model, start_date, end_date, filters)
-            
-            if not raw_data:
-                logger.warning(f"No data found for {product_name}")
-                continue
-            
-            # Aggregate data
-            kwargs = {}
-            if period == 'seasonal':
-                season_def = SEASON_DEFINITIONS.get(season)
-                if not season_def:
-                    return JsonResponse({
-                        'error': f'Invalid season: {season}',
-                        'available_seasons': list(SEASON_DEFINITIONS.keys())
-                    }, status=400)
-                kwargs['season_def'] = season_def
-                kwargs['season'] = season
-                kwargs['season_label'] = season_def['label']
-                kwargs['cross_year'] = season_def['cross_year']
-            
-            aggregated = aggregate(raw_data, period, aggregation, **kwargs)
-            
-            # Convert to list with product info
-            product_data = []
-            for item in aggregated:
-                product_item = {
-                    'period_key': item['period_key'],
-                    'province': item.get('province', 'Unknown'),
-                    'value': item['value'],
-                    'count': item['count'],
-                    'metadata': item['metadata'],
-                    'product': product_name,
-                    'value_field': value_field
-                }
-                product_data.append(product_item)
-            
-            # Calculate LTA if requested
-            if include_lta and lta_start_year is not None and lta_end_year is not None:
-                lta_result = calculate_lta(
-                    aggregated,
-                    period,
-                    lta_start_year,
-                    lta_end_year
-                )
-                
-                if lta_result and lta_result.get('lta'):
-                    product_data = add_lta_to_data(product_data, lta_result)
-                    
-                    # Update metadata
-                    all_metadata['lta_period'] = {
-                        'start_year': lta_start_year,
-                        'end_year': lta_end_year,
-                        'num_years': lta_result.get('num_years', 0),
-                        'years': lta_result.get('years', [])
-                    }
-            
-            # Apply metrics
-            if metrics_param:
-                requested_metrics = [m.strip().lower() for m in metrics_param.split(',') if m.strip()]
-                for metric_name in requested_metrics:
-                    if metric_name in METRIC_FUNCTIONS:
-                        try:
-                            metric_func = METRIC_FUNCTIONS[metric_name]
-                            product_data = metric_func(product_data)
-                            if metric_name not in metrics_list:
-                                metrics_list.append(metric_name)
-                        except Exception as e:
-                            logger.error(f"Error applying metric {metric_name}: {str(e)}")
-            
-            # Add product data to results
-            all_results.extend(product_data)
-            all_metadata['products'].append({
-                'name': product_name,
-                'display_name': product_info.get('display_name', product_name),
-                'unit': product_info.get('unit', ''),
-                'records': len(product_data)
-            })
-        
-        # Check if we have any results
-        if not all_results:
+        if data.get('field_id'):
+            try:
+                from .models import Field
+                field = Field.objects.get(id=data['field_id'])
+                if field.geometry:
+                    geom_json = json.loads(field.geometry.geojson)
+                    geometry = ee.Geometry(geom_json)
+            except Exception as e:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Field error: {str(e)}'
+                }, status=404)
+        elif data.get('geometry'):
+            geometry = ee.Geometry(data['geometry'])
+        else:
             return JsonResponse({
                 'success': False,
-                'message': 'No data found for the given parameters',
-                'data': []
-            }, status=404)
+                'error': 'geometry or field_id is required'
+            }, status=400)
         
-        # Serialize data - USE PIVOT=True to match old view format
-        serialized_data = serialize(all_results, all_metadata, pivot=True)
+        # Get parameters
+        year = int(data.get('year', 2026))
+        month = int(data.get('month', 7))
+        baseline_start = int(data.get('baseline_start', 2018))
+        baseline_end = int(data.get('baseline_end', 2025))
         
-        # Build response
-        response = build_response(
-            serialized_data['data'],
-            product,
-            period,
-            aggregation,
-            include_lta,
-            metrics_list if metrics_param else []
+        # Use 12km resolution for maximum speed
+        scale = data.get('scale', 12000)
+        max_pixels = data.get('maxPixels', 10000000)
+        
+        logger.info(f"Calculating VCI for {year}-{month:02d} at {scale}m resolution")
+        
+        # Get Sentinel data using optimized service
+        sentinel = SentinelService()
+        
+        # Get current month composite
+        current_composite, image_count = sentinel.get_monthly_composite(
+            geometry, year, month, scale=scale
         )
         
-        # Add metadata to response (like old view)
-        response['metadata']['products'] = all_metadata['products']
-        response['metadata']['lta_period'] = all_metadata.get('lta_period')
-        response['metadata']['date_range'] = {
-            'start': start_date_str,
-            'end': end_date_str
-        }
-        
-        # Add provinces and totals (like old view)
-        response['provinces'] = serialized_data.get('provinces', [])
-        response['total_periods'] = len(serialized_data['data'])
-        
-        # Add field explanations (like old view)
-        response['fields_explanation'] = {
-            'rainfall': 'Total monthly rainfall (mm)',
-            'lta': 'Long-Term Average monthly rainfall (mm)',
-            'lta_count': 'Number of years used to calculate LTA',
-            'anomaly': 'Rainfall - LTA (mm)',
-            'pct_avg': 'Percentage of LTA (%)'
-        }
-        
-        # If CSV requested
-        if output_format == 'csv':
-            return export_pivot_csv(response)
-        
-        return JsonResponse(response, status=200)
-        
-    except Exception as e:
-        logger.error(f"Error in climate_aggregate: {str(e)}", exc_info=True)
-        return JsonResponse({'error': str(e)}, status=500)
-
-
-def export_pivot_csv(response_data):
-    """
-    Export pivot table data to CSV (like old view).
-    """
-    data = response_data.get('data', [])
-    provinces = response_data.get('provinces', [])
-    
-    if not data:
-        return JsonResponse({'error': 'No data to export'}, status=404)
-    
-    # Create CSV response
-    csv_response = HttpResponse(content_type='text/csv')
-    filename = f"climate_data_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-    csv_response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    
-    writer = csv.writer(csv_response)
-    
-    # Build header (like old view)
-    header = ['Period', 'Year', 'Month']
-    
-    # Add month name if available
-    if data and 'month_name' in data[0]:
-        header.append('Month Name')
-    
-    for province in provinces:
-        header.extend([
-            f'{province}',
-            f'{province}_lta',
-            f'{province}_lta_count',
-            f'{province}_anomaly',
-            f'{province}_pct_avg'
-        ])
-    
-    writer.writerow(header)
-    
-    # Write data rows
-    for row in data:
-        row_data = [
-            row.get('period', ''),
-            row.get('year', ''),
-            row.get('month', '')
-        ]
-        
-        if 'month_name' in row:
-            row_data.append(row.get('month_name', ''))
-        
-        for province in provinces:
-            row_data.extend([
-                row.get(province, 0.0),
-                row.get(f'{province}_lta', 0.0),
-                row.get(f'{province}_lta_count', 0),
-                row.get(f'{province}_anomaly', 0.0),
-                row.get(f'{province}_pct_avg', 0.0)
-            ])
-        
-        writer.writerow(row_data)
-    
-    return csv_response
-
-
-# Backward compatibility functions - keep these for old endpoints
-def rainfall_monthly(request):
-    """Backward compatibility for monthly rainfall endpoint."""
-    request.GET = request.GET.copy()
-    request.GET['product'] = 'rainfall'
-    request.GET['period'] = 'monthly'
-    if 'format' not in request.GET:
-        request.GET['format'] = 'json'
-    return climate_aggregate(request)
-
-
-def rainfall_dekadal(request):
-    """Backward compatibility for dekadal rainfall endpoint."""
-    request.GET = request.GET.copy()
-    request.GET['product'] = 'rainfall'
-    request.GET['period'] = 'dekad'
-    if 'format' not in request.GET:
-        request.GET['format'] = 'json'
-    return climate_aggregate(request)
-
-
-def rainfall_annual(request):
-    """Backward compatibility for annual rainfall endpoint."""
-    request.GET = request.GET.copy()
-    request.GET['product'] = 'rainfall'
-    request.GET['period'] = 'seasonal'
-    if 'format' not in request.GET:
-        request.GET['format'] = 'json'
-    return climate_aggregate(request)
-
-
-def health_check(request):
-    """Health check endpoint."""
-    return JsonResponse({
-        'status': 'ok',
-        'timestamp': datetime.datetime.now().isoformat(),
-        'available_products': list(PRODUCTS.keys()),
-        'available_metrics': list(METRIC_FUNCTIONS.keys())
-    })
-##
-#
-##############################################################################################
-
-#
-#                           OLD rainfall aggreation only api
-#
-#
-###########################################################################################@@
-# MONTHLY RAINFALL AGGREGATION WITH CORRECT LTA
-# LTA is calculated from the data available in the date range
-# =====================================================
-
-import datetime
-import calendar
-import logging
-from django.http import JsonResponse
-from django.db import connection
-from .models import RainfallProvince
-
-logger = logging.getLogger(__name__)
-
-
-def api_rainfall_monthly(request):
-    """
-    Get monthly aggregated rainfall data with Long-Term Average (LTA),
-    Anomaly, and Percentage of Average.
-    
-    LTA is calculated from the data available in the requested date range.
-    e.g., if start_date=2000-01-01 and end_date=2001-03-31,
-    LTA_Jan = (Jan2000 + Jan2001) / 2
-    
-    Query parameters:
-    - start_date: Start date (YYYY-MM-DD) (required)
-    - end_date: End date (YYYY-MM-DD) (required)
-    - province: (optional) Filter by specific province
-    - lta_start: (optional) Override start year for LTA
-    - lta_end: (optional) Override end year for LTA
-    - format: json (default) or csv
-    """
-    try:
-        # Get query parameters
-        start_date_str = request.GET.get('start_date')
-        end_date_str = request.GET.get('end_date')
-        province_filter = request.GET.get('province')
-        lta_start_year = request.GET.get('lta_start')
-        lta_end_year = request.GET.get('lta_end')
-        output_format = request.GET.get('format', 'json').lower()
-        
-        if not start_date_str or not end_date_str:
-            return JsonResponse({
-                'error': 'start_date and end_date are required',
-                'example': '/api/rainfall/monthly/lta/?start_date=2000-01-01&end_date=2020-12-31'
-            }, status=400)
-        
-        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
-        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
-        
-        # Determine LTA period
-        # If lta_start/lta_end are provided, use them
-        # Otherwise, use the years from the requested date range
-        if lta_start_year and lta_end_year:
-            lta_start = int(lta_start_year)
-            lta_end = int(lta_end_year)
-        else:
-            # Use the years from the requested date range
-            lta_start = start_date.year
-            lta_end = end_date.year
-        
-        # ============================================================
-        # STEP 1: Get monthly totals for the requested period
-        # ============================================================
-        
-        table_name = RainfallProvince._meta.db_table
-        
-        where_clause = "date >= %s AND date <= %s"
-        params = [start_date, end_date]
-        
-        if province_filter:
-            where_clause += " AND province = %s"
-            params.append(province_filter)
-        
-        sql_monthly = f"""
-            SELECT 
-                EXTRACT(YEAR FROM date)::int as year,
-                EXTRACT(MONTH FROM date)::int as month,
-                province,
-                SUM(rainfall_mm) as total_rainfall
-            FROM {table_name}
-            WHERE {where_clause}
-            GROUP BY EXTRACT(YEAR FROM date), EXTRACT(MONTH FROM date), province
-            ORDER BY year, month, province
-        """
-        
-        with connection.cursor() as cursor:
-            cursor.execute(sql_monthly, params)
-            monthly_rows = cursor.fetchall()
-        
-        if not monthly_rows:
+        if image_count == 0:
             return JsonResponse({
                 'success': False,
-                'message': 'No data found for the given date range.',
-                'data': []
+                'error': f'No images for {year}-{month:02d}'
             }, status=404)
         
-        # Get all provinces
-        if province_filter:
-            provinces = [province_filter]
-        else:
-            provinces = sorted(set(row[2] for row in monthly_rows))
+        # Calculate NDVI
+        current_ndvi = sentinel.calculate_ndvi(current_composite)
         
-        # ============================================================
-        # STEP 2: Calculate LTA for each month using the LTA period
-        # LTA = average of monthly totals for each month within LTA period
-        # ============================================================
+        # Get historical baseline
+        historical = sentinel.get_historical_ndvi(
+            geometry, month, baseline_start, baseline_end, scale=scale
+        )
         
-        lta_where = f"EXTRACT(YEAR FROM date) BETWEEN {lta_start} AND {lta_end}"
-        if province_filter:
-            lta_where += f" AND province = '{province_filter}'"
+        # Check if historical data exists
+        try:
+            hist_count = historical.size().getInfo()
+            if hist_count == 0:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'No historical data for month {month}'
+                }, status=404)
+        except Exception as e:
+            logger.error(f"Error checking historical data: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'error': f'Error accessing historical data: {str(e)}'
+            }, status=500)
         
-        # Get monthly totals for LTA period
-        sql_monthly_lta = f"""
-            SELECT 
-                EXTRACT(YEAR FROM date)::int as year,
-                EXTRACT(MONTH FROM date)::int as month,
-                province,
-                SUM(rainfall_mm) as monthly_total
-            FROM {table_name}
-            WHERE {lta_where}
-            GROUP BY EXTRACT(YEAR FROM date), EXTRACT(MONTH FROM date), province
-        """
+        # Calculate VCI
+        ndvi_min = historical.min()
+        ndvi_max = historical.max()
         
-        with connection.cursor() as cursor:
-            cursor.execute(sql_monthly_lta)
-            monthly_lta_rows = cursor.fetchall()
+        # Safe division
+        difference = ndvi_max.subtract(ndvi_min)
+        difference = difference.where(difference.eq(0), 0.0001)
         
-        # Group monthly totals by month and province
-        lta_data = {}
-        lta_years_set = set()
+        vci = current_ndvi.subtract(ndvi_min) \
+            .divide(difference) \
+            .multiply(100) \
+            .rename('VCI')
         
-        for row in monthly_lta_rows:
-            year = row[0]
-            month = row[1]
-            province = row[2]
-            monthly_total = row[3]
-            
-            key = f"{month}-{province}"
-            if key not in lta_data:
-                lta_data[key] = []
-            lta_data[key].append(monthly_total)
-            lta_years_set.add(year)
+        vci = vci.clamp(0, 100)
         
-        # Calculate LTA as average of monthly totals
-        lta_lookup = {}
-        lta_count_lookup = {}
+        # Classify VCI
+        classified = vci.expression(
+            "(b < 20) ? 1 :"
+            "(b < 35) ? 2 :"
+            "(b < 50) ? 3 :"
+            "(b < 75) ? 4 : 5",
+            {'b': vci}
+        ).rename('VCI_Class')
         
-        for key, values in lta_data.items():
-            lta_lookup[key] = round(sum(values) / len(values), 2)
-            lta_count_lookup[key] = len(values)
+        # Get tile URL only - no statistics
+        palette = ['#8b0000', '#ff4500', '#ffd700', '#7CFC00', '#006400']
+        map_id = classified.getMapId({
+            'min': 1,
+            'max': 5,
+            'palette': palette
+        })
         
-        lta_num_years = len(lta_years_set)
-        lta_years = sorted(lta_years_set)
+        logger.info(f"VCI tile generated successfully for {year}-{month:02d}")
         
-        # ============================================================
-        # STEP 3: Combine data with LTA
-        # ============================================================
-        
-        month_data = {}
-        for row in monthly_rows:
-            year = row[0]
-            month = row[1]
-            province = row[2]
-            total = row[3]
-            
-            key = f"{year}-{month:02d}"
-            
-            if key not in month_data:
-                month_data[key] = {
-                    'year': year,
-                    'month': month,
-                    'month_name': calendar.month_name[month],
-                    'month_abbr': calendar.month_abbr[month],
-                    'date': f"{year}-{month:02d}-01",
-                    'period': f"{calendar.month_name[month]} {year}",
-                    'sort_key': f"{year}-{month:02d}",
-                }
-                for p in provinces:
-                    month_data[key][p] = 0.0
-                    month_data[key][f"{p}_lta"] = 0.0
-                    month_data[key][f"{p}_lta_count"] = 0
-                    month_data[key][f"{p}_anomaly"] = 0.0
-                    month_data[key][f"{p}_pct_avg"] = 0.0
-            
-            lta_key = f"{month}-{province}"
-            lta_value = lta_lookup.get(lta_key, 0.0)
-            lta_count = lta_count_lookup.get(lta_key, 0)
-            
-            anomaly = total - lta_value
-            pct_avg = (total / lta_value * 100) if lta_value > 0 else 0
-            
-            month_data[key][province] = round(total, 2)
-            month_data[key][f"{province}_lta"] = lta_value
-            month_data[key][f"{province}_lta_count"] = lta_count
-            month_data[key][f"{province}_anomaly"] = round(anomaly, 2)
-            month_data[key][f"{province}_pct_avg"] = round(pct_avg, 1)
-        
-        data = sorted(month_data.values(), key=lambda x: x['sort_key'])
-        
-        # ============================================================
-        # STEP 4: Build response
-        # ============================================================
-        
-        response_data = {
+        return JsonResponse({
             'success': True,
-            'aggregation': 'monthly',
-            'aggregation_label': 'Monthly with LTA',
-            'lta_period': {
-                'start_year': lta_start,
-                'end_year': lta_end,
-                'num_years': lta_num_years,
-                'years': lta_years,
-                'description': f"{lta_num_years} years ({lta_start}-{lta_end})",
-                'note': 'LTA is calculated from the available data in the LTA period'
-            },
-            'date_range': {
-                'start': start_date_str,
-                'end': end_date_str
-            },
-            'provinces': provinces,
-            'total_months': len(data),
-            'fields_explanation': {
-                'rainfall': 'Total monthly rainfall (mm)',
-                'lta': 'Long-Term Average monthly rainfall (mm)',
-                'lta_count': 'Number of years used to calculate LTA',
-                'anomaly': 'Rainfall - LTA (mm)',
-                'pct_avg': 'Percentage of LTA (%)'
-            },
-            'data': data,
+            'tile_url': map_id['tile_fetcher'].url_format,
             'metadata': {
-                'source': 'database',
-                'exported_at': datetime.datetime.now().isoformat()
+                'year': year,
+                'month': month,
+                'image_count': image_count,
+                'resolution': f"{scale}m",
+                'historical_count': hist_count if 'hist_count' in locals() else 0
             }
-        }
-        
-        if output_format == 'csv':
-            return export_monthly_lta_csv(response_data)
-        
-        return JsonResponse(response_data, status=200)
-        
+        })
+            
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON data'
+        }, status=400)
     except Exception as e:
-        logger.error(f"Error in monthly LTA aggregation: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
-
-
-def export_monthly_csv_optimized(response_data):
+        logger.error(f"Error in api_calculate_vci: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
 #
-#
-##
-#
-#
-##
-#
-#
-##
-#
-#
-##
-#
-#
-##
-#
-#
-##
-#
-#
-##
-#
-#
-##
-#
-#
-##
-#
-#
-##
-#
-#
-##
-#
-#
-##
-#
-#
-##
-#
-#
-##
-#
-#
-##
-#
-#
-##
-#
-#
-
 #
 #
 #
@@ -3325,6 +2920,8 @@ def api_save_rainfall_data(request):
 # =====================================================
 # API: GET RAINFALL DATA FROM DATABASE (FAST)
 # =====================================================
+#
+#
 from django.db import connection
 def api_rainfall_from_db(request):
     """

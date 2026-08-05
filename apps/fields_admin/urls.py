@@ -21,6 +21,7 @@ urlpatterns = [
     path('api/fields/latest-health/', views.api_fields_latest_health, name='api_fields_latest_health'),
     # View multiple param latlon 
     path('api/geo-intel/', views.api_geo_intel, name='api_geo_intel'),
+
     
     ################################### NDVI API URLs ##########################
     # NDVI MAP - MAIN VIEW
@@ -52,6 +53,10 @@ urlpatterns = [
     path('api/rainfall/export/', views.api_rainfall_export_csv, name='api_rainfall_export_csv'),
     path('api/rainfall_db_al_page/', views.api_rainfall_export_csv_paginated, name='api_rainfall_export'),
     path('api/rainfall/dashboard/', views.rainfall_dashboad, name='rainfall_dashboad'),
+    ##### Db aggregation
+        # Main aggregation endpoint
+    path('api/climate/aggregate/', views.climate_aggregate, name='climate_aggregate'),
+    
     # rainfall aggregation 
     path('api/rainfall/monthly/', views.api_rainfall_monthly, name='api_rainfall_monthly'),
     path('api/rainfall/dekadal/', views.api_rainfall_dekadal, name='api_rainfall_dekadal'),

@@ -1,881 +1,609 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rainfall Dashboard · ECharts</title>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <title>Zimbabwe VCI - Ultra Fast</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * {
-            box-sizing: border-box;
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
         }
         body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background: #f5f9fc;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #f0f2f5;
         }
-        .dashboard {
-            max-width: 1400px;
+        #map {
+            height: 100vh;
             width: 100%;
-            background: white;
-            border-radius: 28px;
-            box-shadow: 0 20px 40px rgba(0,20,40,0.08);
-            overflow: hidden;
-            display: flex;
-            flex-direction: row;
-            flex-wrap: wrap;
         }
-        .panel {
-            width: 320px;
-            min-width: 320px;
-            background: #fafcff;
-            padding: 28px 22px;
-            border-right: 1px solid #eef2f6;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            overflow-y: auto;
-            max-height: 90vh;
-        }
-        .panel h2 {
-            font-size: 18px;
-            font-weight: 600;
-            color: #0b2b3c;
-            letter-spacing: -0.2px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .panel .logo { font-size: 22px; }
-        .control-group { display: flex; flex-direction: column; }
-        .control-group label {
-            font-size: 12px;
-            font-weight: 600;
-            color: #2c4b5e;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            margin-bottom: 4px;
-        }
-        .control-group select {
-            padding: 10px 14px;
-            border: 1px solid #dce3eb;
-            border-radius: 14px;
-            background: white;
-            font-size: 14px;
-            font-weight: 500;
-            color: #1f3a4b;
-            outline: none;
-            transition: 0.2s;
-            cursor: pointer;
-        }
-        .control-group select:focus {
-            border-color: #2f7fa8;
-            box-shadow: 0 0 0 3px rgba(47,127,168,0.15);
-        }
-        .date-range {
-            display: flex;
-            gap: 8px;
-        }
-        .date-range .field { flex: 1; }
-        .date-range .field label {
-            font-size: 10px;
-            text-transform: none;
-            color: #95a5a6;
-            margin-bottom: 2px;
-        }
-        .date-range .field input {
-            width: 100%;
-            padding: 6px 10px;
-            border: 1px solid #dce3eb;
-            border-radius: 8px;
-            font-size: 12px;
-            background: white;
-            outline: none;
-            transition: 0.2s;
-        }
-        .date-range .field input:focus {
-            border-color: #2f7fa8;
-            box-shadow: 0 0 0 3px rgba(47,127,168,0.15);
-        }
-        .control-group .checkbox-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-top: 8px;
-        }
-        .control-group .checkbox-grid label {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 14px;
-            font-weight: 450;
-            text-transform: none;
-            color: #1d3342;
-            cursor: pointer;
-            padding: 4px 0;
-            border-bottom: 1px solid transparent;
-            transition: 0.1s;
-        }
-        .control-group .checkbox-grid label:hover { border-bottom-color: #cbd8e5; }
-        .control-group .checkbox-grid input[type="checkbox"] {
-            width: 16px;
-            height: 16px;
-            accent-color: #2f7fa8;
-            cursor: pointer;
-        }
-        .btn {
+        
+        .header {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255,255,255,0.95);
             padding: 8px 16px;
-            border: none;
-            border-radius: 12px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            white-space: nowrap;
+        }
+        .header h1 {
+            font-size: 16px;
+            color: #1a202c;
+        }
+        .header h1 span {
+            color: #48bb78;
+        }
+        .header p {
+            font-size: 11px;
+            color: #718096;
+            margin-top: 2px;
+        }
+        
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255,255,255,0.95);
+            padding: 10px 14px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            max-width: 95%;
+        }
+        .controls select {
+            padding: 5px 8px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 12px;
+            background: white;
             cursor: pointer;
-            font-size: 13px;
-            font-weight: 500;
-            transition: 0.2s;
-            background: #2c3e50;
+            font-family: Arial, sans-serif;
+        }
+        .controls select:focus {
+            outline: none;
+            border-color: #48bb78;
+        }
+        .controls button {
+            padding: 5px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: Arial, sans-serif;
+        }
+        .btn-primary {
+            background: #48bb78;
             color: white;
         }
-        .btn:hover { background: #1a252f; }
-        .btn-secondary { background: #95a5a6; }
-        .btn-secondary:hover { background: #7f8c8d; }
-        .btn-success { background: #27ae60; }
-        .btn-success:hover { background: #229954; }
-        .btn-sm { padding: 6px 10px; font-size: 12px; }
-        .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
-        .btn-group .btn { flex: 1; min-width: 60px; }
-        .chart-wrapper {
-            flex: 1;
-            padding: 28px 28px 24px 28px;
-            background: white;
-            min-width: 0;
+        .btn-primary:hover {
+            background: #38a169;
         }
-        .chart-header {
+        .btn-primary:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: #edf2f7;
+            color: #2d3748;
+        }
+        .btn-secondary:hover {
+            background: #e2e8f0;
+        }
+        .btn-danger {
+            background: #fc8181;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #f56565;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 80px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(255,255,255,0.95);
+            padding: 8px 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            min-width: 110px;
+        }
+        .legend-title {
+            font-weight: 600;
+            font-size: 11px;
+            margin-bottom: 4px;
+            color: #2d3748;
+        }
+        .legend-item {
             display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            margin-bottom: 16px;
-            flex-wrap: wrap;
-        }
-        .chart-header h3 {
-            font-weight: 500;
-            font-size: 18px;
-            color: #1d3f54;
-        }
-        .chart-header .sub {
-            font-size: 13px;
-            color: #6f8a9e;
-            background: #eef4f9;
-            padding: 4px 14px;
-            border-radius: 40px;
-        }
-        #rainfallChart {
-            width: 100%;
-            height: 520px;
-            border-radius: 20px;
-            background: #ffffff;
-            transition: 0.2s;
-        }
-        .footer-note {
-            text-align: right;
-            font-size: 12px;
-            color: #8ba0b2;
-            margin-top: 16px;
-            border-top: 1px solid #ecf2f8;
-            padding-top: 16px;
-        }
-        .loading-overlay {
-            display: flex;
-            justify-content: center;
             align-items: center;
-            height: 520px;
-            color: #6f8a9e;
-            font-size: 16px;
-            background: #fafcff;
-            border-radius: 20px;
+            gap: 6px;
+            padding: 2px 0;
+            font-size: 10px;
+            color: #4a5568;
         }
-        .spinner {
-            border: 4px solid #eef2f6;
-            border-top: 4px solid #2f7fa8;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 0.8s linear infinite;
-            margin-right: 16px;
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            border: 1px solid rgba(0,0,0,0.1);
+            flex-shrink: 0;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .error-msg {
-            color: #c0392b;
-            background: #fdedec;
-            padding: 16px 20px;
-            border-radius: 14px;
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2000;
+            background: rgba(255,255,255,0.95);
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            display: none;
             text-align: center;
         }
-        .empty-state {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 520px;
-            color: #8ba0b2;
-            font-size: 18px;
-            background: #fafcff;
-            border-radius: 20px;
-            flex-direction: column;
-            gap: 12px;
+        .loading.active {
+            display: block;
         }
-        .empty-state .icon { font-size: 48px; }
-        @media (max-width: 780px) {
-            .dashboard { flex-direction: column; }
-            .panel { width: 100%; min-width: unset; border-right: none; border-bottom: 1px solid #e2eaf2; max-height: unset; }
-            #rainfallChart { height: 400px; }
-            .loading-overlay { height: 400px; }
-            .empty-state { height: 400px; }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #48bb78;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+        .loading p {
+            color: #4a5568;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        .status {
+            position: absolute;
+            bottom: 75px;
+            left: 10px;
+            z-index: 1000;
+            font-size: 10px;
+            color: #718096;
+            background: rgba(255,255,255,0.9);
+            padding: 2px 8px;
+            border-radius: 4px;
+            backdrop-filter: blur(5px);
+        }
+        
+        .info-box {
+            position: absolute;
+            top: 75px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(255,255,255,0.95);
+            padding: 10px 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            min-width: 100px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .info-box .label {
+            font-size: 10px;
+            color: #718096;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .info-box .value {
+            font-size: 16px;
+            font-weight: 700;
+            color: #2d3748;
+            margin: 2px 0;
+        }
+        .info-box .sub {
+            font-size: 10px;
+            color: #718096;
+            margin-top: 2px;
+        }
+        
+        @media (max-width: 768px) {
+            .header {
+                width: 90%;
+                padding: 6px 12px;
+                top: 10px;
+                white-space: normal;
+            }
+            .header h1 {
+                font-size: 14px;
+            }
+            .header p {
+                font-size: 10px;
+            }
+            .controls {
+                padding: 8px;
+                gap: 4px;
+            }
+            .controls select {
+                font-size: 11px;
+                padding: 4px 6px;
+            }
+            .controls button {
+                font-size: 11px;
+                padding: 4px 8px;
+            }
+            .legend {
+                bottom: 70px;
+                right: 8px;
+                padding: 6px 8px;
+                min-width: 90px;
+            }
+            .info-box {
+                top: 65px;
+                right: 8px;
+                padding: 8px;
+                min-width: 80px;
+            }
+            .info-box .value {
+                font-size: 14px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .controls select {
+                font-size: 10px;
+                padding: 3px 5px;
+            }
+            .controls button {
+                font-size: 10px;
+                padding: 3px 6px;
+            }
+            .legend-item {
+                font-size: 9px;
+            }
+            .legend-color {
+                width: 12px;
+                height: 12px;
+            }
         }
     </style>
 </head>
 <body>
-<div class="dashboard">
-    <!-- LEFT PANEL -->
-    <div class="panel">
-        <div>
-            <h2><span class="logo">🌦️</span> RainScope</h2>
-            <p style="font-size: 13px; color: #4b6e86; margin-top: 4px;">dekadal · live data</p>
-        </div>
 
-        <!-- Observation Period -->
-        <div class="control-group">
-            <label>🔵 Observation Period</label>
-            <div class="date-range">
-                <div class="field">
-                    <label>Start</label>
-                    <input type="date" id="obsStart">
-                </div>
-                <div class="field">
-                    <label>End</label>
-                    <input type="date" id="obsEnd">
-                </div>
-            </div>
-        </div>
+    <div id="map"></div>
 
-        <!-- LTA Period -->
-        <div class="control-group">
-            <label>🔴 LTA Period</label>
-            <div class="date-range">
-                <div class="field">
-                    <label>Start</label>
-                    <input type="date" id="ltaStart">
-                </div>
-                <div class="field">
-                    <label>End</label>
-                    <input type="date" id="ltaEnd">
-                </div>
-            </div>
-            <div class="btn-group" style="margin-top:6px;">
-                <button class="btn btn-secondary btn-sm" onclick="setLTADefault()">Full</button>
-                <button class="btn btn-secondary btn-sm" onclick="setLTAPrevYear()">Prev Year</button>
-                <button class="btn btn-secondary btn-sm" onclick="setLTA5Year()">5 Years</button>
-            </div>
-        </div>
+    <!-- Header -->
+    <div class="header">
+        <h1>🌿 Zimbabwe <span>VCI</span></h1>
+        <p>12km resolution • Sentinel-2</p>
+    </div>
 
-        <!-- Province -->
-        <div class="control-group">
-            <label>📍 Province</label>
-            <select id="provinceSelect">
-                <option value="">Loading...</option>
-            </select>
-        </div>
+    <!-- Info Box -->
+    <div class="info-box">
+        <div class="label">Images</div>
+        <div class="value" id="imageCount">--</div>
+        <div class="sub" id="monthInfo">Loading...</div>
+    </div>
 
-        <!-- Display Controls -->
-        <div class="control-group">
-            <label>📊 Display</label>
-            <div class="checkbox-grid">
-                <label><input type="checkbox" id="showRainfall" checked> Rainfall</label>
-                <label><input type="checkbox" id="showLTA" checked> Long-Term Average</label>
-                <label><input type="checkbox" id="showAnomaly"> Anomaly</label>
-                <label><input type="checkbox" id="showPctAvg"> % of Average</label>
-                <label><input type="checkbox" id="showCumulative"> Cumulative Rainfall</label>
-            </div>
+    <!-- Legend -->
+    <div class="legend">
+        <div class="legend-title">VCI</div>
+        <div class="legend-item">
+            <div class="legend-color" style="background:#8b0000;"></div>
+            <span>Extreme</span>
         </div>
-
-        <!-- Actions -->
-        <div class="control-group">
-            <button class="btn" onclick="loadData()" style="width:100%;">📊 Load Data</button>
-            <div style="display:flex; gap:6px; margin-top:4px;">
-                <button class="btn btn-success btn-sm" onclick="exportCSV()" style="flex:1;">📥 CSV</button>
-                <button class="btn btn-secondary btn-sm" onclick="resetToDefault()" style="flex:1;">🔄 Reset</button>
-            </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background:#ff4500;"></div>
+            <span>Severe</span>
         </div>
-
-        <div style="font-size: 12px; color: #819aae; background: #e9f0f6; padding: 10px 14px; border-radius: 40px; text-align: center;">
-            ⏱️ data: <span id="dataRangeLabel">-</span>
+        <div class="legend-item">
+            <div class="legend-color" style="background:#ffd700;"></div>
+            <span>Moderate</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background:#7CFC00;"></div>
+            <span>Healthy</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background:#006400;"></div>
+            <span>Excellent</span>
         </div>
     </div>
 
-    <!-- RIGHT: CHART -->
-    <div class="chart-wrapper">
-        <div class="chart-header">
-            <h3>📈 Rainfall dekad · <span id="provinceLabel">-</span></h3>
-            <span class="sub">mm · LTA baseline</span>
-        </div>
-        <div id="rainfallChart"></div>
-        <div class="footer-note">ECharts · toggle series via display controls</div>
+    <!-- Controls -->
+    <div class="controls">
+        <select id="yearSelect">
+            <option value="2026" selected>2026</option>
+            <option value="2025">2025</option>
+            <option value="2024">2024</option>
+            <option value="2023">2023</option>
+            <option value="2022">2022</option>
+            <option value="2021">2021</option>
+            <option value="2020">2020</option>
+        </select>
+
+        <select id="monthSelect">
+            <option value="1">Jan</option>
+            <option value="2">Feb</option>
+            <option value="3">Mar</option>
+            <option value="4">Apr</option>
+            <option value="5">May</option>
+            <option value="6">Jun</option>
+            <option value="7" selected>Jul</option>
+            <option value="8">Aug</option>
+            <option value="9">Sep</option>
+            <option value="10">Oct</option>
+            <option value="11">Nov</option>
+            <option value="12">Dec</option>
+        </select>
+
+        <button class="btn-primary" id="loadBtn" onclick="loadVCI()">Load</button>
+        <button class="btn-secondary" onclick="centerZimbabwe()">📍</button>
+        <button class="btn-danger" onclick="clearLayer()">✕</button>
     </div>
-</div>
 
-<script>
-    (function() {
-        // --------------------------------------------------------------
-        //  CONFIG
-        // --------------------------------------------------------------
-        const API_BASE = 'http://localhost:8000/api/rainfall/dekadal/';
+    <!-- Loading -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p id="loadingText">Loading VCI...</p>
+    </div>
 
-        // --------------------------------------------------------------
-        //  STATE
-        // --------------------------------------------------------------
-        let chart = null;
-        let currentData = null;
-        let currentProvince = 'Harare';
-        let provinceList = [];
-        let dbInfo = null;
+    <div class="status" id="status">Ready</div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+    </script>
+    <script>
+        // ============================================
+        // CONFIG
+        // ============================================
+        const CONFIG = {
+            scale: 12000,
+            maxPixels: 1e7,
+            baselineStart: 2018,
+            baselineEnd: 2025,
+            timeout: 30000,
+            apiUrl: '/api/vci/calculate/'
+        };
+
+        // ============================================
+        // GET CSRF TOKEN
+        // ============================================
+        function getCsrfToken() {
+            const cookieValue = document.cookie
+                .split('; ')
+                .find(row => row.startsWith('csrftoken='));
+            return cookieValue ? cookieValue.split('=')[1] : '';
+        }
+
+        // ============================================
+        // MAP INITIALIZATION
+        // ============================================
+        const map = L.map('map', {
+            center: [-19.0154, 29.1549],
+            zoom: 6,
+            zoomControl: true
+        });
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap',
+            maxZoom: 19
+        }).addTo(map);
+
+        const zimbabweBounds = [
+            [-22.4, 25.2],
+            [-15.6, 33.0]
+        ];
+        let currentLayer = null;
         let isLoading = false;
 
-        // DOM refs
-        const provinceSelect = document.getElementById('provinceSelect');
-        const provinceLabel = document.getElementById('provinceLabel');
-        const dataRangeLabel = document.getElementById('dataRangeLabel');
-        const chartDom = document.getElementById('rainfallChart');
-        const obsStart = document.getElementById('obsStart');
-        const obsEnd = document.getElementById('obsEnd');
-        const ltaStart = document.getElementById('ltaStart');
-        const ltaEnd = document.getElementById('ltaEnd');
-
-        // --------------------------------------------------------------
-        //  DATE HELPERS
-        // --------------------------------------------------------------
-        function getToday() {
-            const d = new Date();
-            return d.toISOString().split('T')[0];
+        // ============================================
+        // UTILITY FUNCTIONS
+        // ============================================
+        function centerZimbabwe() {
+            map.fitBounds(zimbabweBounds);
         }
 
-        function getDateYearStart(year) {
-            return `${year}-01-01`;
-        }
-
-        function getDateYearEnd(year) {
-            return `${year}-12-31`;
-        }
-
-        // --------------------------------------------------------------
-        //  FETCH DATA
-        // --------------------------------------------------------------
-        async function fetchRainfallData(params) {
-            const url = new URL(API_BASE);
-            url.searchParams.set('start_date', params.start_date);
-            url.searchParams.set('end_date', params.end_date);
-            url.searchParams.set('lta_start', params.lta_start);
-            url.searchParams.set('lta_end', params.lta_end);
-            if (params.province) {
-                url.searchParams.set('province', params.province);
-            }
-
-            const response = await fetch(url.toString());
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            const json = await response.json();
-            if (!json.success) {
-                throw new Error(json.message || 'API returned error');
-            }
-            return json;
-        }
-
-        // --------------------------------------------------------------
-        //  SHOW LOADING
-        // --------------------------------------------------------------
-        function showLoading() {
-            chartDom.innerHTML = `
-                <div class="loading-overlay" style="height:520px; border-radius:20px;">
-                    <div class="spinner"></div>
-                    <span>Loading data...</span>
-                </div>
-            `;
-            if (chart) {
-                chart.dispose();
-                chart = null;
+        function clearLayer() {
+            if (currentLayer) {
+                map.removeLayer(currentLayer);
+                currentLayer = null;
+                document.getElementById('imageCount').textContent = '--';
+                document.getElementById('monthInfo').textContent = 'Cleared';
+                setStatus('Cleared');
             }
         }
 
-        // --------------------------------------------------------------
-        //  SHOW EMPTY STATE
-        // --------------------------------------------------------------
-        function showEmptyState() {
-            chartDom.innerHTML = `
-                <div class="empty-state">
-                    <div class="icon">📊</div>
-                    <div>No series selected</div>
-                    <div style="font-size:14px; color:#b0c4d8;">Check at least one display option</div>
-                </div>
-            `;
-            if (chart) {
-                chart.dispose();
-                chart = null;
-            }
+        function setStatus(text) {
+            document.getElementById('status').textContent = text;
         }
 
-        // --------------------------------------------------------------
-        //  RENDER CHART - ALL SERIES AS BAR (LTA in RED)
-        // --------------------------------------------------------------
-        function renderChart(data, province) {
-            const p = province || data.provinces?.[0] || currentProvince;
-
-            if (!data.data || data.data.length === 0) {
-                chartDom.innerHTML = '<div class="loading-overlay" style="height:520px; border-radius:20px;">No data available</div>';
-                return;
-            }
-
-            // Check if any series are selected
-            const hasRainfall = document.getElementById('showRainfall').checked;
-            const hasLTA = document.getElementById('showLTA').checked;
-            const hasAnomaly = document.getElementById('showAnomaly').checked;
-            const hasPctAvg = document.getElementById('showPctAvg').checked;
-            const hasCumulative = document.getElementById('showCumulative').checked;
-
-            if (!hasRainfall && !hasLTA && !hasAnomaly && !hasPctAvg && !hasCumulative) {
-                showEmptyState();
-                return;
-            }
-
-            const labels = data.data.map(d => d.period || d.start_date);
-            const rainfall = data.data.map(d => d[p] || 0);
-            const lta = data.data.map(d => d[`${p}_lta`] || 0);
-            const anomaly = data.data.map(d => d[`${p}_anomaly`] || 0);
-            const pctAvg = data.data.map(d => d[`${p}_pct_avg`] || 0);
-
-            // cumulative
-            let cumulative = [];
-            let sum = 0;
-            rainfall.forEach(v => { sum += v; cumulative.push(sum); });
-
-            // Dispose old chart if exists
-            if (chart) {
-                chart.dispose();
-                chart = null;
-            }
-
-            // Create new chart
-            chart = echarts.init(chartDom);
-
-            // Build series - ALL AS BAR (except % Avg which can be line)
-            const series = [];
-            const seriesNames = [];
-
-            if (hasRainfall) {
-                series.push({
-                    name: 'Rainfall',
-                    type: 'bar',
-                    data: rainfall,
-                    itemStyle: { color: '#3498db' },
-                    yAxisIndex: 0,
-                    barWidth: '30%',
-                    barGap: '20%'
-                });
-                seriesNames.push('Rainfall');
-            }
-
-            if (hasLTA) {
-                series.push({
-                    name: 'LTA',
-                    type: 'bar',
-                    data: lta,
-                    itemStyle: { color: '#e74c3c' },
-                    yAxisIndex: 0,
-                    barWidth: '30%',
-                    barGap: '20%'
-                });
-                seriesNames.push('LTA');
-            }
-
-            if (hasAnomaly) {
-                series.push({
-                    name: 'Anomaly',
-                    type: 'bar',
-                    data: anomaly,
-                    itemStyle: {
-                        color: function(params) {
-                            return params.value >= 0 ? '#2ecc71' : '#e67e22';
-                        }
-                    },
-                    yAxisIndex: 0,
-                    barWidth: '20%',
-                    barGap: '30%'
-                });
-                seriesNames.push('Anomaly');
-            }
-
-            if (hasPctAvg) {
-                series.push({
-                    name: '% Average',
-                    type: 'line',
-                    smooth: true,
-                    data: pctAvg,
-                    lineStyle: { width: 2, color: '#9b59b6' },
-                    symbol: 'circle',
-                    symbolSize: 6,
-                    yAxisIndex: 1
-                });
-                seriesNames.push('% Average');
-            }
-
-            if (hasCumulative) {
-                series.push({
-                    name: 'Cumulative',
-                    type: 'bar',
-                    data: cumulative,
-                    itemStyle: { color: '#16a085' },
-                    yAxisIndex: 0,
-                    barWidth: '25%',
-                    barGap: '30%'
-                });
-                seriesNames.push('Cumulative');
-            }
-
-            // Determine y-axis min for anomaly
-            const anomalyValues = hasAnomaly ? anomaly : [];
-            const hasNegativeAnomaly = anomalyValues.some(v => v < 0);
-
-            let yMin = 0;
-            if (hasNegativeAnomaly) {
-                const minAnomaly = Math.min(...anomalyValues);
-                yMin = Math.min(0, minAnomaly - Math.max(5, Math.abs(minAnomaly) * 0.15));
-                if (yMin < 0) {
-                    const magnitude = Math.abs(yMin);
-                    const roundTo = magnitude > 20 ? 10 : 5;
-                    yMin = -Math.ceil(magnitude / roundTo) * roundTo;
-                }
-            }
-
-            let yMax = 0;
-            const allPositive = [];
-            if (hasRainfall) allPositive.push(...rainfall);
-            if (hasLTA) allPositive.push(...lta);
-            if (hasCumulative) allPositive.push(...cumulative);
-            if (allPositive.length > 0) {
-                const maxVal = Math.max(...allPositive);
-                yMax = Math.ceil((maxVal + 5) / 10) * 10 + 10;
-            }
-            if (yMax < 10) yMax = 10;
-
-            const yAxisConfig = [
-                {
-                    type: 'value',
-                    name: 'Rainfall / LTA / Anomaly (mm)',
-                    position: 'left',
-                    axisLine: { show: true },
-                    splitLine: { lineStyle: { color: '#e9eef3', type: 'dashed' } },
-                    min: yMin,
-                    max: yMax,
-                    axisLabel: {
-                        formatter: function(value) {
-                            return value.toFixed(0);
-                        }
-                    }
-                },
-                {
-                    type: 'value',
-                    name: '% Average',
-                    position: 'right',
-                    axisLabel: { formatter: '{value}%' },
-                    splitLine: { show: false },
-                    min: 0,
-                    max: function(value) {
-                        return Math.ceil(value.max / 20) * 20 + 10;
-                    }
-                }
+        function getMonthName(month) {
+            const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
             ];
-
-            const legendData = seriesNames;
-
-            chart.setOption({
-                animationDuration: 800,
-                tooltip: {
-                    trigger: 'axis',
-                    axisPointer: { type: 'shadow' },
-                    formatter: function(params) {
-                        let result = `<strong>${params[0].axisValue}</strong><br/>`;
-                        params.forEach(p => {
-                            if (p.seriesName && seriesNames.includes(p.seriesName)) {
-                                const val = p.value !== undefined && p.value !== null ? p.value.toFixed(1) : 'N/A';
-                                const unit = p.seriesName.includes('%') ? '%' : 'mm';
-                                result += `${p.marker} ${p.seriesName}: ${val} ${unit}<br/>`;
-                            }
-                        });
-                        return result;
-                    }
-                },
-                legend: {
-                    top: 5,
-                    left: 'center',
-                    icon: 'roundRect',
-                    itemWidth: 14,
-                    itemHeight: 10,
-                    data: legendData
-                },
-                toolbox: {
-                    right: 10,
-                    feature: {
-                        saveAsImage: {},
-                        restore: {},
-                        dataZoom: {},
-                        magicType: { type: ['line', 'bar'] }
-                    }
-                },
-                grid: {
-                    left: 60,
-                    right: 60,
-                    top: 60,
-                    bottom: 80,
-                    containLabel: false
-                },
-                dataZoom: [
-                    { type: 'inside', start: 0, end: 100 },
-                    { type: 'slider', height: 20, start: 0, end: 100 }
-                ],
-                xAxis: {
-                    type: 'category',
-                    data: labels,
-                    axisLabel: { rotate: 45, fontSize: 11 }
-                },
-                yAxis: yAxisConfig,
-                series: series
-            });
-
-            chart.resize();
-
-            // Update UI
-            const displayName = p.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-            provinceLabel.textContent = displayName;
-
-            if (data.data.length > 0) {
-                const first = data.data[0].start_date || data.data[0].period;
-                const last = data.data[data.data.length - 1].end_date || data.data[data.data.length - 1].period;
-                dataRangeLabel.textContent = `${first} – ${last}`;
-            }
+            return names[parseInt(month) - 1] || month;
         }
 
-        // --------------------------------------------------------------
-        //  LOAD DATA
-        // --------------------------------------------------------------
-        async function loadData() {
-            // Prevent multiple simultaneous loads
+        // ============================================
+        // LOAD VCI - MAIN FUNCTION
+        // ============================================
+        async function loadVCI() {
             if (isLoading) return;
-            
-            const start = obsStart.value;
-            const end = obsEnd.value;
-            const ltaStartVal = ltaStart.value;
-            const ltaEndVal = ltaEnd.value;
-            const province = provinceSelect.value || currentProvince;
 
-            if (!start || !end) {
-                alert('Please select observation period dates.');
-                return;
-            }
-            if (!ltaStartVal || !ltaEndVal) {
-                alert('Please select LTA period dates.');
-                return;
-            }
+            const year = document.getElementById('yearSelect').value;
+            const month = document.getElementById('monthSelect').value;
+
+            const loading = document.getElementById('loading');
+            const loadBtn = document.getElementById('loadBtn');
 
             isLoading = true;
-            showLoading();
+            loading.classList.add('active');
+            loadBtn.disabled = true;
+            loadBtn.textContent = '⏳';
+            document.getElementById('loadingText').textContent = 'Loading 12km VCI...';
+            setStatus('Loading...');
 
             try {
-                const params = {
-                    start_date: start,
-                    end_date: end,
-                    lta_start: ltaStartVal.split('-')[0],
-                    lta_end: ltaEndVal.split('-')[0],
-                    province: province
+                // Get current map bounds
+                const bounds = map.getBounds();
+                const geometry = {
+                    type: 'Polygon',
+                    coordinates: [
+                        [
+                            [bounds.getSouth(), bounds.getWest()],
+                            [bounds.getSouth(), bounds.getEast()],
+                            [bounds.getNorth(), bounds.getEast()],
+                            [bounds.getNorth(), bounds.getWest()],
+                            [bounds.getSouth(), bounds.getWest()]
+                        ]
+                    ]
                 };
-                
-                console.log('Fetching:', params);
-                const data = await fetchRainfallData(params);
-                currentData = data;
 
-                if (data.provinces && data.provinces.length > 0) {
-                    provinceList = data.provinces;
-                    populateProvinceSelect(provinceList, province);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), CONFIG.timeout);
+
+                const csrfToken = getCsrfToken();
+
+                console.log('🚀 Sending request to:', CONFIG.apiUrl);
+                console.log('📦 Year:', year, 'Month:', month);
+
+                const response = await fetch(CONFIG.apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken,
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        geometry: geometry,
+                        year: parseInt(year),
+                        month: parseInt(month),
+                        baseline_start: CONFIG.baselineStart,
+                        baseline_end: CONFIG.baselineEnd,
+                        scale: CONFIG.scale,
+                        maxPixels: CONFIG.maxPixels
+                    }),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                console.log('📡 Response status:', response.status);
+
+                // Handle 404
+                if (response.status === 404) {
+                    setStatus('❌ API endpoint not found');
+                    throw new Error('API endpoint not found. Please check:\n' +
+                        '1. Django server is running\n' +
+                        '2. URL pattern is correct\n' +
+                        '3. URL: ' + CONFIG.apiUrl);
                 }
 
-                renderChart(data, province);
-                isLoading = false;
-            } catch (err) {
-                console.error('Load error:', err);
-                chartDom.innerHTML = `
-                    <div class="loading-overlay" style="height:520px; border-radius:20px; flex-direction:column; gap:12px;">
-                        <div class="error-msg">⚠️ Failed to load data: ${err.message}</div>
-                        <button onclick="loadData()" style="padding:8px 24px; border-radius:40px; border:1px solid #2f7fa8; background:white; color:#2f7fa8; cursor:pointer; font-weight:500;">Retry</button>
-                    </div>
-                `;
-                isLoading = false;
-            }
-        }
+                if (!response.ok) {
+                    throw new Error(`Server error (${response.status})`);
+                }
 
-        // --------------------------------------------------------------
-        //  POPULATE PROVINCE SELECT
-        // --------------------------------------------------------------
-        function populateProvinceSelect(provinces, selected) {
-            provinceSelect.innerHTML = '';
-            provinces.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p;
-                opt.textContent = p.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                if (p === selected) opt.selected = true;
-                provinceSelect.appendChild(opt);
-            });
-            if (!selected && provinces.length > 0) {
-                provinceSelect.value = provinces[0];
-                currentProvince = provinces[0];
-            }
-        }
-
-        // --------------------------------------------------------------
-        //  LTA DATE SETTERS
-        // --------------------------------------------------------------
-        function setLTADefault() {
-            if (dbInfo) {
-                ltaStart.value = dbInfo.min_date;
-                ltaEnd.value = dbInfo.max_date;
-            } else {
-                ltaStart.value = '2000-01-01';
-                ltaEnd.value = '2024-12-31';
-            }
-        }
-
-        function setLTAPrevYear() {
-            const year = new Date().getFullYear() - 1;
-            ltaStart.value = getDateYearStart(year);
-            ltaEnd.value = getDateYearEnd(year);
-        }
-
-        function setLTA5Year() {
-            const currentYear = new Date().getFullYear();
-            const startYear = currentYear - 5;
-            const endYear = currentYear - 1;
-            ltaStart.value = getDateYearStart(startYear);
-            ltaEnd.value = getDateYearEnd(endYear);
-        }
-
-        // --------------------------------------------------------------
-        //  EXPORT CSV
-        // --------------------------------------------------------------
-        function exportCSV() {
-            if (!currentData) {
-                alert('Please load data first.');
-                return;
-            }
-
-            const province = provinceSelect.value || currentProvince;
-            const start = obsStart.value;
-            const end = obsEnd.value;
-
-            let csv = 'Period,Start Date,End Date,Rainfall (mm),LTA (mm),Anomaly (mm),% of Average\n';
-
-            currentData.data.forEach(d => {
-                const rainfall = d[province] || 0;
-                const lta = d[`${province}_lta`] || 0;
-                const anomaly = d[`${province}_anomaly`] || 0;
-                const pctAvg = d[`${province}_pct_avg`] || 0;
-                csv += `${d.period},${d.start_date},${d.end_date},${rainfall.toFixed(1)},${lta.toFixed(1)},${anomaly.toFixed(1)},${pctAvg.toFixed(1)}%\n`;
-            });
-
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `dekadal_rainfall_${province}_${start}_to_${end}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-
-        // --------------------------------------------------------------
-        //  RESET TO DEFAULT
-        // --------------------------------------------------------------
-        function resetToDefault() {
-            const year = new Date().getFullYear();
-            obsStart.value = getDateYearStart(year);
-            obsEnd.value = getToday();
-
-            document.getElementById('showRainfall').checked = true;
-            document.getElementById('showLTA').checked = true;
-            document.getElementById('showAnomaly').checked = false;
-            document.getElementById('showPctAvg').checked = false;
-            document.getElementById('showCumulative').checked = false;
-
-            setLTADefault();
-            loadData();
-        }
-
-        // --------------------------------------------------------------
-        //  REFRESH ON CHECKBOX CHANGE
-        // --------------------------------------------------------------
-        function refreshChartFromControls() {
-            if (currentData && !isLoading) {
-                const province = provinceSelect.value || currentProvince;
-                renderChart(currentData, province);
-            }
-        }
-
-        // --------------------------------------------------------------
-        //  INIT
-        // --------------------------------------------------------------
-        async function init() {
-            const year = new Date().getFullYear();
-            obsStart.value = getDateYearStart(year);
-            obsEnd.value = getToday();
-
-            try {
-                const response = await fetch('http://localhost:8000/api/rainfall/db/info/');
                 const data = await response.json();
+                console.log('📥 Response data:', data);
+
                 if (data.success) {
-                    dbInfo = data;
-                    ltaStart.value = data.min_date;
-                    ltaEnd.value = data.max_date;
+                    // Update map with tile layer
+                    if (currentLayer) {
+                        map.removeLayer(currentLayer);
+                    }
+
+                    currentLayer = L.tileLayer(data.tile_url, {
+                        opacity: 0.85,
+                        attribution: 'VCI © Sentinel-2',
+                        maxZoom: 19
+                    }).addTo(map);
+
+                    // Update info
+                    document.getElementById('imageCount').textContent = data.metadata.image_count || '--';
+                    document.getElementById('monthInfo').textContent = getMonthName(month) + ' ' + year;
+
+                    setStatus('✓ VCI loaded');
+                } else {
+                    throw new Error(data.error || 'Unknown error');
                 }
-            } catch (e) {
-                ltaStart.value = '2000-01-01';
-                ltaEnd.value = '2024-12-31';
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    setStatus('⏱ Timeout');
+                    alert('Request timed out. Please try again.');
+                } else {
+                    console.error('❌ Error:', error);
+                    setStatus('✗ ' + error.message);
+                    alert('Error: ' + error.message);
+                }
+            } finally {
+                isLoading = false;
+                loading.classList.remove('active');
+                loadBtn.disabled = false;
+                loadBtn.textContent = 'Load';
             }
-
-            ['showRainfall','showLTA','showAnomaly','showPctAvg','showCumulative'].forEach(id => {
-                document.getElementById(id).addEventListener('change', refreshChartFromControls);
-            });
-
-            provinceSelect.addEventListener('change', function() {
-                const val = this.value;
-                if (val && !isLoading) {
-                    currentProvince = val;
-                    loadData();
-                }
-            });
-
-            await loadData();
         }
 
-        // Expose for debugging
-        window.loadData = loadData;
-        window.resetToDefault = resetToDefault;
-        window.exportCSV = exportCSV;
-        window.setLTADefault = setLTADefault;
-        window.setLTAPrevYear = setLTAPrevYear;
-        window.setLTA5Year = setLTA5Year;
+        // ============================================
+        // AUTO-RELOAD ON MAP MOVE
+        // ============================================
+        let moveTimeout = null;
+        map.on('moveend', function() {
+            clearTimeout(moveTimeout);
+            moveTimeout = setTimeout(() => {
+                if (currentLayer && !isLoading) {
+                    loadVCI();
+                }
+            }, 3000);
+        });
 
-        init().catch(console.error);
-    })();
-</script>
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        setTimeout(centerZimbabwe, 300);
+
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(loadVCI, 500);
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !isLoading) loadVCI();
+            if (e.key === 'r' || e.key === 'R') centerZimbabwe();
+            if (e.key === 'c' || e.key === 'C') clearLayer();
+        });
+
+        // Console info
+        console.log('🚀 Zimbabwe VCI - Ultra Fast (12km)');
+        console.log('📊 Shortcuts: Enter=Load, R=Center, C=Clear');
+        console.log('🔗 API URL:', CONFIG.apiUrl);
+        console.log('⚡ Resolution: 12km for maximum speed');
+    </script>
+
 </body>
 </html>

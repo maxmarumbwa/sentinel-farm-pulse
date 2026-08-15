@@ -31,6 +31,14 @@ urlpatterns = [
     path('api/fields/ndvi-single/', views.api_ndvi_single_field, name='api_ndvi_single_field'),
     path('view/ndvi-graph/', views.field_analytics_view, name='ndvi-graph'),
     
+    # NDVI Province (lat/lon) endpoints  
+    path('api/ndvi/all/', views.api_ndvi_all_provinces, name='api_ndvi_all_provinces'),
+    path('api/ndvi/save/', views.api_save_ndvi_data, name='api_save_ndvi_data'),
+    path('api/ndvi/db/', views.api_ndvi_from_db, name='api_ndvi_from_db'),
+    path('api/ndvi/export/', views.api_ndvi_export_csv, name='api_ndvi_export_csv'),
+    path('ndvi-to-db/', views.ndvi_to_db, name='ndvi_to_db'),
+
+
     # path('fields-map/', views.fields_map_view, name='fields_map'),
     # path('api/fields/<int:field_id>/ndvi-simple/', views.api_field_ndvi_simple, name='api_field_ndvi_simple'),
     # path('view/ndvi_lookback/', views.ndvi_lookback, name='ndvi_lookback'),

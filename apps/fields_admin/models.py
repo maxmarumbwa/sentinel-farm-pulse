@@ -103,6 +103,10 @@ class RainfallProvince(models.Model):
     def __str__(self):
         return f"{self.province} - {self.date} ({self.rainfall_mm}mm)"
      
+     
+     
+     
+     
 # Model for saving ndvi for fields
 # =====================================================
 # FIELD NDVI DATA MODEL
@@ -121,3 +125,31 @@ class FieldNDVI(models.Model):
     
     def __str__(self):
         return f"{self.field.field_name} - {self.date} ({self.ndvi_value})"
+    
+    
+# =====================================================
+# Model for saving ndvi for provinces (lat/lon points)
+# NDVI PROVINCE MODEL
+# =====================================================
+class NDVIProvince(models.Model):
+    """
+    Stores NDVI data for Zimbabwe provinces/towns.
+    Independent table - no foreign keys.
+    """
+    province = models.CharField(max_length=100, db_index=True, help_text="Province or town name")
+    date = models.DateField(db_index=True)
+    ndvi_value = models.FloatField(default=0.0, help_text="NDVI value (-1 to 1)")
+    lat = models.FloatField(null=True, blank=True, help_text="Latitude")
+    lng = models.FloatField(null=True, blank=True, help_text="Longitude")
+    cloud_cover = models.FloatField(null=True, blank=True, help_text="Cloud cover percentage")
+    source = models.CharField(max_length=50, default='Sentinel-2', help_text="Data source")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name_plural = "NDVI Data"
+        ordering = ['-date', 'province']
+        unique_together = ['province', 'date']  # Prevent duplicate entries per province/date
+        
+    def __str__(self):
+        return f"{self.province} - {self.date} (NDVI: {self.ndvi_value})"

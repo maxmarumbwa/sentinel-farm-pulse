@@ -2236,44 +2236,6 @@ def api_geo_intel(request):
 """
 API views for climate data aggregation.
 """
-
-import logging
-import json
-import csv
-import datetime
-from django.http import JsonResponse, HttpResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
-
-from apps.fields_admin.config import PRODUCTS, DEFAULT_LTA, SEASON_DEFINITIONS
-from apps.fields_admin.services.resolver import resolve_product
-from apps.fields_admin.services.loader import load_data
-from apps.fields_admin.services.aggregator import aggregate
-from apps.fields_admin.services.serializer import serialize, build_response
-
-# Import metrics
-from apps.fields_admin.metrics.anomaly import apply_anomaly_to_data
-from apps.fields_admin.metrics.percent_average import apply_percent_average_to_data
-from apps.fields_admin.metrics.zscore import apply_zscore_to_data
-from apps.fields_admin.metrics.spi import apply_spi_to_data
-from apps.fields_admin.metrics.vci import apply_vci_to_data
-from apps.fields_admin.metrics.tci import apply_tci_to_data
-from apps.fields_admin.metrics.vhi import apply_vhi_to_data
-
-logger = logging.getLogger(__name__)
-
-# Metric registry
-METRIC_FUNCTIONS = {
-    'anomaly': apply_anomaly_to_data,
-    'pct_average': apply_percent_average_to_data,
-    'zscore': apply_zscore_to_data,
-    'spi': apply_spi_to_data,
-    'vci': apply_vci_to_data,
-    'tci': apply_tci_to_data,
-    'vhi': apply_vhi_to_data,
-}
-
-
 @csrf_exempt
 @require_http_methods(['GET'])
 def climate_aggregate(request):
@@ -3006,6 +2968,499 @@ def health_check(request):
 
 
 # def export_monthly_csv_optimized(response_data):
+
+
+# =====================================================
+#OLD working ANNUAL/SEASONAL RAINFALL AGGREGATION WITH LTA
+# # =====================================================
+
+# import datetime
+# import calendar
+# import logging
+# from django.http import JsonResponse
+# from django.db import connection
+# from .models import RainfallProvince
+
+# logger = logging.getLogger(__name__)
+
+
+# def api_rainfall_annual(request):
+#     """
+#     Get annual and seasonal aggregated rainfall data with Long-Term Average (LTA),
+#     Anomaly, and Percentage of Average.
+    
+#     Seasons:
+#     - FULL: January - December (Full Year)
+#     - OND: October, November, December (Early summer / onset)
+#     - NDJ: November, December, January (Mid-summer transition)
+#     - DJF: December, January, February (Peak summer rainy season)
+#     - JFM: January, February, March (Late summer / tropical cyclone)
+#     - FMA: February, March, April (End of summer / tail-end)
+#     - ONDJFM: October, November, December, January, February, March (Cross-year rainy season)
+#     - ON: October, November (Early onset)
+#     - ND: November, December (Mid onset)
+#     - JF: January, February (Peak rains)
+#     - MA: March, April (Late rains / tail-end)
+    
+#     LTA is calculated from the data available in the requested date range.
+#     e.g., if start_year=2000 and end_year=2024,
+#     LTA_DJF = average of all DJF seasons from 2000-2024
+    
+#     Query parameters:
+#     - start_year: Start year (YYYY) (required)
+#     - end_year: End year (YYYY) (required)
+#     - province: (optional) Filter by specific province
+#     - season: (optional) full, OND, NDJ, DJF, JFM, FMA, ONDJFM, ON, ND, JF, MA (default: full)
+#     - lta_start: (optional) Override start year for LTA
+#     - lta_end: (optional) Override end year for LTA
+#     - format: json (default) or csv
+    
+#     Example:
+#     /api/rainfall/annual/lta/?start_year=2000&end_year=2024&province=Harare
+#     /api/rainfall/annual/lta/?start_year=2000&end_year=2024&season=DJF&province=Harare
+#     """
+#     try:
+#         # Get query parameters
+#         start_year = int(request.GET.get('start_year'))
+#         end_year = int(request.GET.get('end_year'))
+#         province_filter = request.GET.get('province')
+#         season_filter = request.GET.get('season', 'FULL').upper()
+#         lta_start_year = request.GET.get('lta_start')
+#         lta_end_year = request.GET.get('lta_end')
+#         output_format = request.GET.get('format', 'json').lower()
+        
+#         # Validate parameters
+#         if start_year > end_year:
+#             return JsonResponse({'error': 'start_year must be less than or equal to end_year'}, status=400)
+        
+#         # ============================================================
+#         # SEASON DEFINITIONS
+#         # ============================================================
+        
+#         season_definitions = {
+#             'FULL': {
+#                 'label': 'Full Year',
+#                 'months': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+#                 'months_abbr': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+#                 'description': 'January - December',
+#                 'year_offset': 0,
+#                 'cross_year': False
+#             },
+#             'OND': {
+#                 'label': 'OND (Early Summer)',
+#                 'months': [10, 11, 12],
+#                 'months_abbr': ['Oct', 'Nov', 'Dec'],
+#                 'description': 'October, November, December - Early summer / onset of rainy season',
+#                 'year_offset': 0,
+#                 'cross_year': False
+#             },
+#             'NDJ': {
+#                 'label': 'NDJ (Mid-Summer)',
+#                 'months': [11, 12, 1],
+#                 'months_abbr': ['Nov', 'Dec', 'Jan'],
+#                 'description': 'November, December, January - Mid-summer transition',
+#                 'year_offset': 1,
+#                 'cross_year': True
+#             },
+#             'DJF': {
+#                 'label': 'DJF (Peak Summer)',
+#                 'months': [12, 1, 2],
+#                 'months_abbr': ['Dec', 'Jan', 'Feb'],
+#                 'description': 'December, January, February - Peak summer rainy season',
+#                 'year_offset': 1,
+#                 'cross_year': True
+#             },
+#             'JFM': {
+#                 'label': 'JFM (Late Summer)',
+#                 'months': [1, 2, 3],
+#                 'months_abbr': ['Jan', 'Feb', 'Mar'],
+#                 'description': 'January, February, March - Late summer / peak tropical cyclone season',
+#                 'year_offset': 0,
+#                 'cross_year': False
+#             },
+#             'FMA': {
+#                 'label': 'FMA (End of Summer)',
+#                 'months': [2, 3, 4],
+#                 'months_abbr': ['Feb', 'Mar', 'Apr'],
+#                 'description': 'February, March, April - End of summer / tail-end of rains',
+#                 'year_offset': 0,
+#                 'cross_year': False
+#             },
+#             'ONDJFM': {
+#                 'label': 'ONDJFM (Rainy Season)',
+#                 'months': [10, 11, 12, 1, 2, 3],
+#                 'months_abbr': ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'],
+#                 'description': 'October, November, December, January, February, March - Full rainy season (cross-year)',
+#                 'year_offset': 1,
+#                 'cross_year': True
+#             },
+#             'ON': {
+#                 'label': 'ON (Early Onset)',
+#                 'months': [10, 11],
+#                 'months_abbr': ['Oct', 'Nov'],
+#                 'description': 'October, November - Early onset of rains',
+#                 'year_offset': 0,
+#                 'cross_year': False
+#             },
+#             'ND': {
+#                 'label': 'ND (Mid Onset)',
+#                 'months': [11, 12],
+#                 'months_abbr': ['Nov', 'Dec'],
+#                 'description': 'November, December - Mid onset of rains',
+#                 'year_offset': 0,
+#                 'cross_year': False
+#             },
+#             'JF': {
+#                 'label': 'JF (Peak Rains)',
+#                 'months': [1, 2],
+#                 'months_abbr': ['Jan', 'Feb'],
+#                 'description': 'January, February - Peak rains',
+#                 'year_offset': 0,
+#                 'cross_year': False
+#             },
+#             'MA': {
+#                 'label': 'MA (Late Rains)',
+#                 'months': [3, 4],
+#                 'months_abbr': ['Mar', 'Apr'],
+#                 'description': 'March, April - Late rains / tail-end',
+#                 'year_offset': 0,
+#                 'cross_year': False
+#             }
+#         }
+        
+#         # Validate season
+#         valid_seasons = list(season_definitions.keys())
+#         if season_filter not in valid_seasons:
+#             return JsonResponse({
+#                 'error': f'Invalid season. Use: {", ".join(valid_seasons)}',
+#                 'example': '/api/rainfall/annual/lta/?start_year=2000&end_year=2024&season=DJF'
+#             }, status=400)
+        
+#         season_info = season_definitions[season_filter]
+#         months = season_info['months']
+#         cross_year = season_info['cross_year']
+        
+#         # Determine LTA period
+#         if lta_start_year and lta_end_year:
+#             lta_start = int(lta_start_year)
+#             lta_end = int(lta_end_year)
+#         else:
+#             # Use the years from the requested date range
+#             lta_start = start_year
+#             lta_end = end_year
+        
+#         # ============================================================
+#         # STEP 1: Build SQL for the requested period
+#         # ============================================================
+        
+#         table_name = RainfallProvince._meta.db_table
+        
+#         # Build month condition
+#         month_conditions = ' OR '.join([f"EXTRACT(MONTH FROM date) = {m}" for m in months])
+        
+#         # Build WHERE clause
+#         where_clause = f"EXTRACT(YEAR FROM date) BETWEEN %s AND %s AND ({month_conditions})"
+#         params = [start_year, end_year]
+        
+#         if province_filter:
+#             where_clause += " AND province = %s"
+#             params.append(province_filter)
+        
+#         # Build SQL with year adjustment for seasons that cross year boundary
+#         if cross_year:
+#             sql_data = f"""
+#                 SELECT 
+#                     CASE 
+#                         WHEN EXTRACT(MONTH FROM date) IN (1, 2, 3) THEN EXTRACT(YEAR FROM date)::int
+#                         ELSE EXTRACT(YEAR FROM date)::int
+#                     END as season_year,
+#                     province,
+#                     SUM(rainfall_mm) as total_rainfall
+#                 FROM {table_name}
+#                 WHERE {where_clause}
+#                 GROUP BY 
+#                     CASE 
+#                         WHEN EXTRACT(MONTH FROM date) IN (1, 2, 3) THEN EXTRACT(YEAR FROM date)::int
+#                         ELSE EXTRACT(YEAR FROM date)::int
+#                     END,
+#                     province
+#                 ORDER BY season_year, province
+#             """
+#         else:
+#             sql_data = f"""
+#                 SELECT 
+#                     EXTRACT(YEAR FROM date)::int as year,
+#                     province,
+#                     SUM(rainfall_mm) as total_rainfall
+#                 FROM {table_name}
+#                 WHERE {where_clause}
+#                 GROUP BY EXTRACT(YEAR FROM date), province
+#                 ORDER BY year, province
+#             """
+        
+#         with connection.cursor() as cursor:
+#             cursor.execute(sql_data, params)
+#             data_rows = cursor.fetchall()
+        
+#         if not data_rows:
+#             return JsonResponse({
+#                 'success': False,
+#                 'message': f'No data found for the given years and season {season_filter}.',
+#                 'data': []
+#             }, status=404)
+        
+#         # Get all provinces
+#         if province_filter:
+#             provinces = [province_filter]
+#         else:
+#             provinces = sorted(set(row[1] for row in data_rows))
+        
+#         # ============================================================
+#         # STEP 2: Calculate LTA for each season using the LTA period
+#         # LTA = average of seasonal totals for each season within LTA period
+#         # ============================================================
+        
+#         lta_where = f"EXTRACT(YEAR FROM date) BETWEEN {lta_start} AND {lta_end} AND ({month_conditions})"
+#         if province_filter:
+#             lta_where += f" AND province = '{province_filter}'"
+        
+#         # Build LTA SQL
+#         if cross_year:
+#             sql_lta = f"""
+#                 SELECT 
+#                     CASE 
+#                         WHEN EXTRACT(MONTH FROM date) IN (1, 2, 3) THEN EXTRACT(YEAR FROM date)::int
+#                         ELSE EXTRACT(YEAR FROM date)::int
+#                     END as season_year,
+#                     province,
+#                     SUM(rainfall_mm) as seasonal_total
+#                 FROM {table_name}
+#                 WHERE {lta_where}
+#                 GROUP BY 
+#                     CASE 
+#                         WHEN EXTRACT(MONTH FROM date) IN (1, 2, 3) THEN EXTRACT(YEAR FROM date)::int
+#                         ELSE EXTRACT(YEAR FROM date)::int
+#                     END,
+#                     province
+#             """
+#         else:
+#             sql_lta = f"""
+#                 SELECT 
+#                     EXTRACT(YEAR FROM date)::int as year,
+#                     province,
+#                     SUM(rainfall_mm) as seasonal_total
+#                 FROM {table_name}
+#                 WHERE {lta_where}
+#                 GROUP BY EXTRACT(YEAR FROM date), province
+#             """
+        
+#         with connection.cursor() as cursor:
+#             cursor.execute(sql_lta)
+#             lta_rows = cursor.fetchall()
+        
+#         # Group seasonal totals by province
+#         lta_data = {}
+#         lta_years_set = set()
+        
+#         for row in lta_rows:
+#             if cross_year:
+#                 year = row[0]
+#                 province = row[1]
+#                 seasonal_total = row[2]
+#             else:
+#                 year = row[0]
+#                 province = row[1]
+#                 seasonal_total = row[2]
+            
+#             key = f"{province}"
+#             if key not in lta_data:
+#                 lta_data[key] = []
+#             lta_data[key].append(seasonal_total)
+#             lta_years_set.add(year)
+        
+#         # Calculate LTA as average of seasonal totals
+#         lta_lookup = {}
+#         lta_count_lookup = {}
+        
+#         for key, values in lta_data.items():
+#             lta_lookup[key] = round(sum(values) / len(values), 2)
+#             lta_count_lookup[key] = len(values)
+        
+#         lta_num_years = len(lta_years_set)
+#         lta_years = sorted(lta_years_set)
+        
+#         # ============================================================
+#         # STEP 3: Combine data with LTA
+#         # ============================================================
+        
+#         season_data = {}
+#         for row in data_rows:
+#             if cross_year:
+#                 year = row[0]
+#                 province = row[1]
+#                 total = row[2]
+#                 # Season year display: e.g., 2020 represents 2019/2020 season
+#                 display_year = year
+#                 season_label = f"{year-1}/{year}"
+#                 season_display = f"{year-1} - {year}"
+#             else:
+#                 year = row[0]
+#                 province = row[1]
+#                 total = row[2]
+#                 display_year = year
+#                 season_label = str(year)
+#                 season_display = str(year)
+            
+#             if display_year not in season_data:
+#                 season_data[display_year] = {
+#                     'year': display_year,
+#                     'season_year': season_label,
+#                     'season_display': season_display,
+#                     'season': season_filter,
+#                     'season_label': season_info['label'],
+#                     'season_description': season_info['description'],
+#                     'months': ', '.join(season_info['months_abbr']),
+#                     'cross_year': cross_year,
+#                 }
+#                 for p in provinces:
+#                     season_data[display_year][p] = 0.0
+#                     season_data[display_year][f"{p}_lta"] = 0.0
+#                     season_data[display_year][f"{p}_lta_count"] = 0
+#                     season_data[display_year][f"{p}_anomaly"] = 0.0
+#                     season_data[display_year][f"{p}_pct_avg"] = 0.0
+            
+#             lta_key = province
+#             lta_value = lta_lookup.get(lta_key, 0.0)
+#             lta_count = lta_count_lookup.get(lta_key, 0)
+            
+#             anomaly = total - lta_value
+#             pct_avg = (total / lta_value * 100) if lta_value > 0 else 0
+            
+#             season_data[display_year][province] = round(total, 2)
+#             season_data[display_year][f"{province}_lta"] = lta_value
+#             season_data[display_year][f"{province}_lta_count"] = lta_count
+#             season_data[display_year][f"{province}_anomaly"] = round(anomaly, 2)
+#             season_data[display_year][f"{province}_pct_avg"] = round(pct_avg, 1)
+        
+#         data = sorted(season_data.values(), key=lambda x: x['year'])
+        
+#         # ============================================================
+#         # STEP 4: Build response
+#         # ============================================================
+        
+#         response_data = {
+#             'success': True,
+#             'aggregation': 'annual',
+#             'aggregation_label': 'Annual/Seasonal with LTA',
+#             'season': season_filter,
+#             'season_label': season_info['label'],
+#             'season_description': season_info['description'],
+#             'season_months': season_info['months_abbr'],
+#             'cross_year': cross_year,
+#             'lta_period': {
+#                 'start_year': lta_start,
+#                 'end_year': lta_end,
+#                 'num_years': lta_num_years,
+#                 'years': lta_years,
+#                 'description': f"{lta_num_years} years ({lta_start}-{lta_end})",
+#                 'note': 'LTA is calculated from the available data in the LTA period'
+#             },
+#             'year_range': {
+#                 'start': start_year,
+#                 'end': end_year
+#             },
+#             'provinces': provinces,
+#             'total_seasons': len(data),
+#             'fields_explanation': {
+#                 'rainfall': 'Total seasonal rainfall (mm)',
+#                 'lta': 'Long-Term Average seasonal rainfall (mm)',
+#                 'lta_count': 'Number of years used to calculate LTA',
+#                 'anomaly': 'Rainfall - LTA (mm)',
+#                 'pct_avg': 'Percentage of LTA (%)'
+#             },
+#             'data': data,
+#             'metadata': {
+#                 'source': 'database',
+#                 'exported_at': datetime.datetime.now().isoformat()
+#             }
+#         }
+        
+#         if output_format == 'csv':
+#             return export_annual_lta_csv(response_data)
+        
+#         return JsonResponse(response_data, status=200)
+        
+#     except ValueError as e:
+#         return JsonResponse({'error': f'Invalid parameter: {str(e)}'}, status=400)
+#     except Exception as e:
+#         logger.error(f"Error in annual LTA aggregation: {str(e)}")
+#         return JsonResponse({'error': str(e)}, status=500)
+
+
+# def export_annual_lta_csv(response_data):
+#     """Export annual LTA data as CSV."""
+#     import csv
+#     from django.http import HttpResponse
+    
+#     data = response_data['data']
+#     provinces = response_data['provinces']
+#     cross_year = response_data.get('cross_year', False)
+    
+#     if not data:
+#         return JsonResponse({'error': 'No data to export'}, status=404)
+    
+#     csv_response = HttpResponse(content_type='text/csv')
+#     filename = f"rainfall_annual_lta_{response_data['year_range']['start']}_to_{response_data['year_range']['end']}_{response_data['season']}.csv"
+#     csv_response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+#     writer = csv.writer(csv_response)
+    
+#     # Write header
+#     if cross_year:
+#         header = ['Year', 'Season Year', 'Season', 'Season Description', 'Months']
+#     else:
+#         header = ['Year', 'Season', 'Season Description', 'Months']
+    
+#     for province in provinces:
+#         header.extend([
+#             f'{province}_rainfall',
+#             f'{province}_lta',
+#             f'{province}_lta_count',
+#             f'{province}_anomaly',
+#             f'{province}_pct_avg'
+#         ])
+#     writer.writerow(header)
+    
+#     # Write data rows
+#     for row in data:
+#         if cross_year:
+#             row_data = [
+#                 row['year'],
+#                 row['season_display'],
+#                 row['season_label'],
+#                 row['season_description'],
+#                 row['months']
+#             ]
+#         else:
+#             row_data = [
+#                 row['year'],
+#                 row['season_label'],
+#                 row['season_description'],
+#                 row['months']
+#             ]
+        
+#         for province in provinces:
+#             row_data.extend([
+#                 row.get(province, 0.0),
+#                 row.get(f'{province}_lta', 0.0),
+#                 row.get(f'{province}_lta_count', 0),
+#                 row.get(f'{province}_anomaly', 0.0),
+#                 row.get(f'{province}_pct_avg', 0.0)
+#             ])
+#         writer.writerow(row_data)
+    
+#     return csv_response
+
 # #
 #
 ##
@@ -3061,7 +3516,7 @@ def health_check(request):
 #
 #
 #########################################################################################################
-#################################  Get Rainfall #########################################################
+#################################  Get Rainfall for zim prov Lat/ lon  #########################################################
 ############################################################################################@@@@@@@@@@@@@
 
 #from django.shortcuts import render
@@ -3942,6 +4397,652 @@ def api_rainfall_export_csv_paginated(request):
         logger.error(f"Error exporting rainfall data: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 ##
+#
+#
+#
+#
+#
+# =======================================================================================================================
+#                        NDVI DATA - Sentinel-2 (No Login Required)
+# =======================================================================================================================
+
+import ee
+import datetime
+import json
+import logging
+from django.http import JsonResponse
+from django.db import IntegrityError
+from django.db import connection
+
+logger = logging.getLogger(__name__)
+
+# Import your model
+from .models import NDVIProvince
+
+# Zimbabwe Province Representative Points (same as rainfall)
+ZIMBABWE_PROVINCES = {
+    'Harare': {'lat': -17.8252, 'lng': 31.0335},
+    'Bulawayo': {'lat': -20.1486, 'lng': 28.5880},
+    'Manicaland': {'lat': -18.9216, 'lng': 32.1746},
+    'Mashonaland Central': {'lat': -16.7633, 'lng': 31.0702},
+    'Mashonaland East': {'lat': -17.5192, 'lng': 31.8667},
+    'Mashonaland West': {'lat': -17.3000, 'lng': 30.4000},
+    'Masvingo': {'lat': -20.0667, 'lng': 30.8333},
+    'Matabeleland North': {'lat': -18.9833, 'lng': 27.0000},
+    'Matabeleland South': {'lat': -21.0000, 'lng': 29.0000},
+    'Midlands': {'lat': -19.0000, 'lng': 30.0000},
+}
+
+
+def get_ndvi_at_point(lat, lng, start_date, end_date, cloud_cover=30):
+    """
+    Get NDVI (Sentinel-2) at a specific point for a date range.
+    Returns daily NDVI values.
+    """
+    try:
+        point = ee.Geometry.Point([lng, lat])
+        
+        # Get Sentinel-2 collection with cloud filter
+        collection = (
+            ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+            .filterBounds(point)
+            .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+            .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_cover))
+            .select('B4', 'B8')  # Red and NIR bands
+        )
+        
+        # Calculate NDVI
+        def add_ndvi(img):
+            ndvi = img.normalizedDifference(['B8', 'B4']).rename('ndvi')
+            return img.addBands(ndvi)
+        
+        collection = collection.map(add_ndvi)
+        
+        def extract_ndvi(img):
+            date = ee.Date(img.get('system:time_start')).format('YYYY-MM-dd')
+            ndvi = img.select('ndvi').reduceRegion(
+                reducer=ee.Reducer.mean(),
+                geometry=point,
+                scale=100,
+                maxPixels=1e9
+            )
+            cloud = img.get('CLOUDY_PIXEL_PERCENTAGE')
+            return ee.Feature(None, {
+                'date': date,
+                'ndvi': ndvi.get('ndvi'),
+                'cloud_cover': cloud
+            })
+        
+        features = collection.map(extract_ndvi)
+        feature_list = features.getInfo()
+        
+        results = []
+        for feature in feature_list.get('features', []):
+            props = feature.get('properties', {})
+            date = props.get('date')
+            ndvi = props.get('ndvi')
+            cloud = props.get('cloud_cover')
+            
+            if date and ndvi is not None:
+                results.append({
+                    'date': date,
+                    'ndvi': round(float(ndvi), 4),
+                    'cloud_cover': round(float(cloud), 1) if cloud is not None else None
+                })
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error in get_ndvi_at_point: {str(e)}")
+        raise Exception(f"Failed to extract NDVI: {str(e)}")
+
+
+# =====================================================
+# API: GET NDVI FOR ALL PROVINCES (NO LOGIN)
+# =====================================================
+
+def api_ndvi_all_provinces(request):
+    """
+    Get NDVI data for all Zimbabwe provinces.
+    No login required - open access.
+    
+    Query parameters:
+    - start_date: Start date (YYYY-MM-DD) (required)
+    - end_date: End date (YYYY-MM-DD) (required)
+    - cloud_cover: Maximum cloud cover (default: 30)
+    """
+    try:
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        cloud_cover = int(request.GET.get('cloud_cover', 30))
+        
+        if not start_date_str or not end_date_str:
+            return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+        
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        results = {}
+        
+        for province, coords in ZIMBABWE_PROVINCES.items():
+            try:
+                ndvi_data = get_ndvi_at_point(
+                    coords['lat'], 
+                    coords['lng'], 
+                    start_date, 
+                    end_date,
+                    cloud_cover
+                )
+                
+                ndvi_values = [r['ndvi'] for r in ndvi_data if r['ndvi'] is not None]
+                avg_ndvi = sum(ndvi_values) / len(ndvi_values) if ndvi_values else 0
+                max_ndvi = max(ndvi_values) if ndvi_values else 0
+                min_ndvi = min(ndvi_values) if ndvi_values else 0
+                
+                results[province] = {
+                    'coords': coords,
+                    'data': ndvi_data,
+                    'stats': {
+                        'avg': round(avg_ndvi, 4),
+                        'max': round(max_ndvi, 4),
+                        'min': round(min_ndvi, 4),
+                        'data_points': len(ndvi_data),
+                        'cloud_cover': cloud_cover
+                    }
+                }
+            except Exception as e:
+                logger.error(f"Error processing {province}: {str(e)}")
+                results[province] = {
+                    'coords': coords,
+                    'error': str(e),
+                    'data': [],
+                    'stats': {
+                        'avg': 0,
+                        'max': 0,
+                        'min': 0,
+                        'data_points': 0,
+                        'cloud_cover': cloud_cover
+                    }
+                }
+        
+        return JsonResponse({
+            'success': True,
+            'provinces': results,
+            'date_range': {
+                'start': start_date_str,
+                'end': end_date_str
+            },
+            'cloud_cover': cloud_cover,
+            'metadata': {
+                'collection': 'COPERNICUS/S2_SR_HARMONIZED',
+                'processed_at': datetime.datetime.now().isoformat()
+            }
+        }, status=200)
+        
+    except Exception as e:
+        logger.error(f"Error in api_ndvi_all_provinces: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# =====================================================
+# SAVE NDVI DATA TO DATABASE
+# =====================================================
+
+def save_ndvi_to_db(province_name, date_str, ndvi_value, lat=None, lng=None, cloud_cover=None):
+    """
+    Save NDVI data for a province to the database.
+    Returns (success, message)
+    """
+    try:
+        date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+        
+        obj, created = NDVIProvince.objects.update_or_create(
+            province=province_name,
+            date=date,
+            defaults={
+                'ndvi_value': round(ndvi_value, 4),
+                'source': 'Sentinel-2',
+                'lat': lat,
+                'lng': lng,
+                'cloud_cover': cloud_cover
+            }
+        )
+        
+        return True, f"{'Created' if created else 'Updated'} record for {province_name} on {date_str}"
+        
+    except Exception as e:
+        return False, f"Error saving: {str(e)}"
+
+
+# =====================================================
+# API: SAVE NDVI DATA TO DATABASE
+# =====================================================
+
+def api_save_ndvi_data(request):
+    """
+    Save NDVI data from Earth Engine to database.
+    
+    Query parameters:
+    - start_date: Start date (YYYY-MM-DD) (required)
+    - end_date: End date (YYYY-MM-DD) (required)
+    - cloud_cover: Maximum cloud cover (default: 30)
+    - overwrite: (optional) 'true' to overwrite existing data
+    """
+    try:
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        cloud_cover = int(request.GET.get('cloud_cover', 30))
+        overwrite = request.GET.get('overwrite', 'false').lower() == 'true'
+        
+        if not start_date_str or not end_date_str:
+            return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+        
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        results = {}
+        saved_count = 0
+        errors = []
+        
+        for province_name, coords in ZIMBABWE_PROVINCES.items():
+            try:
+                ndvi_data = get_ndvi_at_point(
+                    coords['lat'],
+                    coords['lng'],
+                    start_date,
+                    end_date,
+                    cloud_cover
+                )
+                
+                province_results = []
+                for item in ndvi_data:
+                    date_str = item['date']
+                    ndvi_value = item['ndvi']
+                    item_cloud_cover = item.get('cloud_cover')
+                    
+                    if overwrite:
+                        NDVIProvince.objects.filter(
+                            province=province_name,
+                            date=datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+                        ).delete()
+                    
+                    success, msg = save_ndvi_to_db(
+                        province_name, 
+                        date_str, 
+                        ndvi_value,
+                        coords['lat'],
+                        coords['lng'],
+                        item_cloud_cover
+                    )
+                    
+                    if success:
+                        saved_count += 1
+                        province_results.append({
+                            'date': date_str,
+                            'ndvi': ndvi_value,
+                            'cloud_cover': item_cloud_cover,
+                            'status': 'saved'
+                        })
+                    else:
+                        errors.append(msg)
+                        
+                results[province_name] = {
+                    'coords': coords,
+                    'data': province_results,
+                    'count': len(province_results)
+                }
+                
+            except Exception as e:
+                errors.append(f"{province_name}: {str(e)}")
+                results[province_name] = {
+                    'coords': coords,
+                    'error': str(e)
+                }
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Data saved successfully. {saved_count} records saved.',
+            'saved_count': saved_count,
+            'errors': errors,
+            'results': results,
+            'metadata': {
+                'collection': 'COPERNICUS/S2_SR_HARMONIZED',
+                'cloud_cover': cloud_cover,
+                'processed_at': datetime.datetime.now().isoformat()
+            }
+        }, status=200)
+        
+    except Exception as e:
+        logger.error(f"Error saving NDVI data: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# =====================================================
+# API: GET NDVI DATA FROM DATABASE (FAST)
+# =====================================================
+
+def api_ndvi_from_db(request):
+    """
+    Get NDVI data - ULTRA FAST with single SQL query using JSON aggregation.
+    """
+    try:
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        province_filter = request.GET.get('province', '')
+        page = int(request.GET.get('page', 1))
+        page_size = min(int(request.GET.get('page_size', 100)), 500)
+        format_type = request.GET.get('format', 'summary')
+        
+        if not start_date_str or not end_date_str:
+            return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+        
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        offset = (page - 1) * page_size
+        table_name = NDVIProvince._meta.db_table
+        
+        # ============================================================
+        # SINGLE SQL QUERY - Everything in one go
+        # ============================================================
+        sql = """
+            WITH filtered_data AS (
+                SELECT 
+                    date,
+                    province,
+                    ndvi_value,
+                    lat,
+                    lng,
+                    cloud_cover
+                FROM {table_name}
+                WHERE date >= %s AND date <= %s
+                AND (%s = '' OR province = %s)
+            ),
+            stats AS (
+                SELECT 
+                    province,
+                    COUNT(*) as total_days,
+                    COALESCE(AVG(ndvi_value), 0) as avg_ndvi,
+                    COALESCE(MAX(ndvi_value), 0) as max_ndvi,
+                    COALESCE(MIN(ndvi_value), 0) as min_ndvi,
+                    COALESCE(AVG(cloud_cover), 0) as avg_cloud_cover
+                FROM filtered_data
+                GROUP BY province
+            ),
+            paginated AS (
+                SELECT 
+                    date,
+                    province,
+                    ndvi_value,
+                    lat,
+                    lng,
+                    cloud_cover
+                FROM filtered_data
+                ORDER BY date, province
+                LIMIT %s OFFSET %s
+            ),
+            total_count AS (
+                SELECT COUNT(*) as total FROM filtered_data
+            )
+            SELECT 
+                (SELECT total FROM total_count) as total_records,
+                (SELECT json_agg(json_build_object(
+                    'date', date,
+                    'province', province,
+                    'ndvi', ndvi_value,
+                    'lat', lat,
+                    'lng', lng,
+                    'cloud_cover', cloud_cover
+                )) FROM paginated) as data,
+                (SELECT json_agg(json_build_object(
+                    'province', province,
+                    'total_days', total_days,
+                    'avg_ndvi', avg_ndvi,
+                    'max_ndvi', max_ndvi,
+                    'min_ndvi', min_ndvi,
+                    'avg_cloud_cover', avg_cloud_cover
+                )) FROM stats) as stats
+        """.format(table_name=table_name)
+        
+        with connection.cursor() as cursor:
+            cursor.execute(sql, [
+                start_date, 
+                end_date, 
+                province_filter, 
+                province_filter,
+                page_size, 
+                offset
+            ])
+            result = cursor.fetchone()
+        
+        if not result or result[0] == 0:
+            return JsonResponse({
+                'success': True,
+                'message': 'No NDVI data found in database for this date range.',
+                'provinces': {},
+                'pagination': {
+                    'page': page,
+                    'page_size': page_size,
+                    'total_records': 0,
+                    'total_pages': 0,
+                    'has_next': False,
+                    'has_previous': False
+                },
+                'date_range': {
+                    'start': start_date_str,
+                    'end': end_date_str
+                },
+                'metadata': {
+                    'source': 'database',
+                    'records': 0,
+                    'provinces_found': 0,
+                    'format': format_type,
+                    'processed_at': datetime.datetime.now().isoformat()
+                }
+            }, status=200)
+        
+        total_records = result[0]
+        data_list = result[1] or []
+        stats_list = result[2] or []
+        
+        # Process data
+        results = {}
+        province_data = {}
+        province_coords = {}
+        
+        for item in data_list:
+            province = item['province']
+            if province not in province_data:
+                province_data[province] = []
+                province_coords[province] = {
+                    'lat': item['lat'],
+                    'lng': item['lng']
+                }
+            province_data[province].append({
+                'date': item['date'].strftime('%Y-%m-%d') if isinstance(item['date'], datetime.date) else item['date'],
+                'ndvi': item['ndvi'],
+                'cloud_cover': item['cloud_cover']
+            })
+        
+        # Build stats dict
+        stats_dict = {}
+        for stat in stats_list:
+            province = stat['province']
+            stats_dict[province] = {
+                'total_days': stat['total_days'],
+                'avg_ndvi': round(stat['avg_ndvi'], 4),
+                'max_ndvi': round(stat['max_ndvi'], 4),
+                'min_ndvi': round(stat['min_ndvi'], 4),
+                'avg_cloud_cover': round(stat['avg_cloud_cover'], 1)
+            }
+        
+        # Build final results
+        for province, data in province_data.items():
+            stats = stats_dict.get(province, {})
+            total_days = stats.get('total_days', 0)
+            province_total_pages = (total_days + page_size - 1) // page_size if total_days > 0 else 0
+            
+            results[province] = {
+                'coords': province_coords.get(province, {'lat': None, 'lng': None}),
+                'data': data if format_type == 'full' else [],
+                'stats': {
+                    'avg': stats.get('avg_ndvi', 0),
+                    'max': stats.get('max_ndvi', 0),
+                    'min': stats.get('min_ndvi', 0),
+                    'total_days': total_days,
+                    'avg_cloud_cover': stats.get('avg_cloud_cover', 0)
+                },
+                'pagination': {
+                    'total_records': total_days,
+                    'showing': len(data),
+                    'page': page,
+                    'page_size': page_size,
+                    'total_pages': province_total_pages
+                }
+            }
+        
+        total_pages = (total_records + page_size - 1) // page_size if total_records > 0 else 0
+        
+        return JsonResponse({
+            'success': True,
+            'provinces': results,
+            'pagination': {
+                'page': page,
+                'page_size': page_size,
+                'total_records': total_records,
+                'total_pages': total_pages,
+                'has_next': page < total_pages,
+                'has_previous': page > 1,
+                'next_page': page + 1 if page < total_pages else None,
+                'previous_page': page - 1 if page > 1 else None
+            },
+            'date_range': {
+                'start': start_date_str,
+                'end': end_date_str
+            },
+            'metadata': {
+                'source': 'database',
+                'records': total_records,
+                'provinces_found': len(results),
+                'format': format_type,
+                'processed_at': datetime.datetime.now().isoformat()
+            }
+        }, status=200)
+        
+    except ValueError as e:
+        return JsonResponse({'error': f'Invalid parameter: {str(e)}'}, status=400)
+    except Exception as e:
+        logger.error(f"Error getting NDVI from DB: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# =====================================================
+# EXPORT NDVI DATA AS CSV
+# =====================================================
+
+def api_ndvi_export_csv(request):
+    """
+    Export NDVI records as CSV (default) or JSON.
+    
+    Query parameters:
+    - start_date: Start date (YYYY-MM-DD) (required)
+    - end_date: End date (YYYY-MM-DD) (required)
+    - province: (optional) Filter by specific province
+    - format: 'csv' (default) or 'json'
+    """
+    try:
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+        province_filter = request.GET.get('province', '')
+        output_format = request.GET.get('format', 'csv').lower()
+        
+        if not start_date_str or not end_date_str:
+            return JsonResponse({'error': 'start_date and end_date are required'}, status=400)
+        
+        start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        queryset = NDVIProvince.objects.filter(
+            date__gte=start_date,
+            date__lte=end_date
+        ).order_by('date', 'province')
+        
+        if province_filter:
+            queryset = queryset.filter(province=province_filter)
+        
+        # Build data list
+        data = []
+        for record in queryset:
+            data.append({
+                'date': record.date.strftime('%Y-%m-%d'),
+                'province': record.province,
+                'ndvi': record.ndvi_value,
+                'cloud_cover': record.cloud_cover,
+                'lat': record.lat,
+                'lng': record.lng
+            })
+        
+        if output_format == 'json':
+            return JsonResponse({
+                'success': True,
+                'data': data,
+                'count': len(data),
+                'date_range': {
+                    'start': start_date_str,
+                    'end': end_date_str
+                },
+                'filters': {
+                    'province': province_filter if province_filter else 'All'
+                },
+                'metadata': {
+                    'source': 'database',
+                    'exported_at': datetime.datetime.now().isoformat()
+                }
+            }, status=200)
+        
+        # Return CSV
+        import csv
+        from django.http import HttpResponse
+        
+        response = HttpResponse(content_type='text/csv')
+        filename = f"ndvi_{start_date_str}_to_{end_date_str}"
+        if province_filter:
+            filename += f"_{province_filter}"
+        response['Content-Disposition'] = f'attachment; filename="{filename}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow(['Date', 'Province', 'NDVI', 'Cloud Cover (%)', 'Lat', 'Lng'])
+        
+        for record in queryset:
+            writer.writerow([
+                record.date.strftime('%Y-%m-%d'),
+                record.province,
+                f"{record.ndvi_value:.4f}",
+                f"{record.cloud_cover:.1f}" if record.cloud_cover else '',
+                record.lat or '',
+                record.lng or ''
+            ])
+        
+        return response
+        
+    except ValueError as e:
+        return JsonResponse({'error': f'Invalid date format: {str(e)}'}, status=400)
+    except Exception as e:
+        logger.error(f"Error exporting NDVI data: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+#
+#
+#
+# =======================================================================================================================
+# =======================================================================================================================
+#
+#
+#
+#
+##
+#
+#
+# 
 #
 #
 ################################################################################################################
@@ -5849,6 +6950,10 @@ def rainfall_dashboad(request):
 def rainfall_to_db(request):
     """Test view for Rainfall API"""
     return render(request, 'fields_admin/save_rain_to_db.html', {})
+
+def ndvi_to_db(request):
+    """Test view for Rainfall API"""
+    return render(request, 'fields_admin/save_ndvi_to_db.html', {})
 
 
 

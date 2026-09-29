@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vegetation Condition Index (VCI) - Zimbabwe</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100%;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f0f2f5;
+        }
+        
+        #header {
+            height: 60px;
+            background: linear-gradient(135deg, #1a472a 0%, #2d6a4f 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 0 25px;
+            font-size: 20px;
+            font-weight: 600;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 10;
+            position: relative;
+        }
+        #header span {
+            opacity: 0.7;
+            font-weight: 300;
+            font-size: 14px;
+            margin-left: 15px;
+        }
+        
+        #toolbar {
+            background: white;
+            padding: 12px 25px;
+            border-bottom: 2px solid #e0e0e0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+        }
+        #toolbar label {
+            font-weight: 600;
+            font-size: 13px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        #toolbar select {
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 13px;
+            background: white;
+            cursor: pointer;
+            min-width: 100px;
+        }
+        #toolbar select:focus {
+            outline: none;
+            border-color: #2d6a4f;
+            box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.2);
+        }
+        #toolbar button {
+            padding: 7px 20px;
+            background: #2d6a4f;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+        #toolbar button:hover {
+            background: #1a472a;
+        }
+        #toolbar button.btn-danger {
+            background: #e74c3c;
+        }
+        #toolbar button.btn-danger:hover {
+            background: #c0392b;
+        }
+        
+        #map {
+            width: 100%;
+            height: calc(100vh - 160px);
+            min-height: 400px;
+        }
+        
+        .info-panel {
+            position: absolute;
+            right: 20px;
+            top: 100px;
+            z-index: 1000;
+            background: rgba(255,255,255,0.95);
+            padding: 16px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            min-width: 200px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        .info-panel .title {
+            font-weight: 700;
+            font-size: 16px;
+            color: #1a472a;
+            margin-bottom: 8px;
+        }
+        .info-panel .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 13px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .info-panel .stat:last-child {
+            border-bottom: none;
+        }
+        .info-panel .stat .label {
+            color: #666;
+        }
+        .info-panel .stat .value {
+            font-weight: 600;
+            color: #1a472a;
+        }
+        
+        .legend {
+            position: absolute;
+            left: 20px;
+            bottom: 30px;
+            z-index: 1000;
+            background: rgba(255,255,255,0.95);
+            padding: 12px 16px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            min-width: 140px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        .legend .title {
+            font-weight: 700;
+            font-size: 13px;
+            color: #333;
+            margin-bottom: 6px;
+            text-align: center;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            padding: 2px 0;
+            color: #444;
+        }
+        .legend-color {
+            width: 25px;
+            height: 14px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+        
+        .error-container {
+            padding: 20px;
+            margin: 20px;
+            background: #fdf2f2;
+            border-left: 4px solid #e74c3c;
+            border-radius: 6px;
+            color: #721c24;
+        }
+        .error-container h3 {
+            margin-bottom: 10px;
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            font-size: 18px;
+            color: #1a472a;
+            font-weight: 600;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #e0e0e0;
+            border-top: 4px solid #2d6a4f;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            #header { font-size: 16px; padding: 0 15px; }
+            #toolbar { padding: 10px 15px; gap: 8px; }
+            #toolbar select { min-width: 80px; font-size: 12px; padding: 4px 8px; }
+            .info-panel { right: 10px; top: 80px; min-width: 160px; padding: 12px 14px; }
+            .legend { left: 10px; bottom: 20px; min-width: 120px; padding: 10px 12px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="header">
+    🌿 Vegetation Condition Index (VCI)
+    <span>MODIS MOD13Q1 • Reference Period: 2010-2020</span>
+</div>
+
+<div id="toolbar">
+    <form method="get" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;width:100%;">
+        <label>Year
+            <select name="year">
+                {% for y in years %}
+                <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        
+        <label>Month
+            <select name="month">
+                {% for m, name in months %}
+                <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        
+        <label>Province
+            <select name="province">
+                {% for p in provinces %}
+                <option value="{{ p }}" {% if p == province %}selected{% endif %}>{{ p }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        
+        <button type="submit">Load VCI</button>
+        <button type="button" class="btn-danger" onclick="resetView()">Reset</button>
+    </form>
+</div>
+
+{% if error %}
+<div class="error-container">
+    <h3>⚠️ Error</h3>
+    <p>{{ error }}</p>
+</div>
+{% endif %}
+
+<div style="position:relative;">
+    <div id="map"></div>
+    
+    {% if not error and tile_url %}
+    <!-- Info Panel -->
+    <div class="info-panel" id="info-panel">
+        <div class="title">{{ date_label }}</div>
+        <div class="stat"><span class="label">Province</span><span class="value">{{ province }}</span></div>
+        <div class="stat"><span class="label">Mean VCI</span><span class="value">{{ stats.mean|default:"N/A" }}</span></div>
+        <div class="stat"><span class="label">Min VCI</span><span class="value">{{ stats.min|default:"N/A" }}</span></div>
+        <div class="stat"><span class="label">Max VCI</span><span class="value">{{ stats.max|default:"N/A" }}</span></div>
+        <div class="stat"><span class="label">Std Dev</span><span class="value">{{ stats.std|default:"N/A" }}</span></div>
+        <div class="stat" style="border-top:2px solid #eee;margin-top:4px;padding-top:6px;">
+            <span class="label">Status</span>
+            <span class="value" id="vci-status">
+                {% if stats.mean %}
+                    {% if stats.mean >= 60 %}✅ Good{% elif stats.mean >= 40 %}⚠️ Fair{% else %}🔴 Poor{% endif %}
+                {% else %}N/A{% endif %}
+            </span>
+        </div>
+    </div>
+    
+    <!-- Legend -->
+    <div class="legend">
+        <div class="title">VCI Legend</div>
+        {% for item in vci_legend %}
+        <div class="legend-item">
+            <span class="legend-color" style="background:{{ item.color }}"></span>
+            {{ item.label }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+{% if not error and tile_url %}
+<script>
+// =====================================================
+// MAP INITIALIZATION
+// =====================================================
+
+var map = L.map('map');
+
+// Set bounds
+{% if bounds %}
+var bounds = [
+    [{{ bounds.0.0 }}, {{ bounds.0.1 }}],
+    [{{ bounds.1.0 }}, {{ bounds.1.1 }}]
+];
+map.fitBounds(bounds);
+{% else %}
+map.setView([-19.0, 29.5], 6);
+{% endif %}
+
+// Base tile layer
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+}).addTo(map);
+
+// VCI tile layer
+var vciLayer = L.tileLayer('{{ tile_url }}', {
+    attribution: 'Google Earth Engine • MODIS MOD13Q1',
+    maxZoom: 18
+}).addTo(map);
+
+// =====================================================
+// RESET VIEW
+// =====================================================
+
+function resetView() {
+    window.location.href = window.location.pathname;
+}
+
+// =====================================================
+// UPDATE STATUS BASED ON VCI
+// =====================================================
+
+function updateVciStatus(mean) {
+    var statusEl = document.getElementById('vci-status');
+    if (mean >= 60) {
+        statusEl.textContent = '✅ Good';
+        statusEl.style.color = '#2d6a4f';
+    } else if (mean >= 40) {
+        statusEl.textContent = '⚠️ Fair';
+        statusEl.style.color = '#f39c12';
+    } else {
+        statusEl.textContent = '🔴 Poor';
+        statusEl.style.color = '#e74c3c';
+    }
+}
+
+// Update status on load
+{% if stats.mean %}
+updateVciStatus({{ stats.mean }});
+{% endif %}
+
+// =====================================================
+// HANDLE WINDOW RESIZE
+// =====================================================
+
+window.addEventListener('resize', function() {
+    map.invalidateSize();
+});
+
+console.log('VCI Map Loaded');
+console.log('Date: {{ date_label }}');
+console.log('Province: {{ province }}');
+console.log('Mean VCI: {{ stats.mean }}');
+
+</script>
+{% else %}
+<script>
+// No tile URL or error - show basic map
+var map = L.map('map').setView([-19.0, 29.5], 6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+</script>
+{% endif %}
+
+</body>
+</html>

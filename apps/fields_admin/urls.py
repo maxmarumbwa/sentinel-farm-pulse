@@ -38,6 +38,11 @@ urlpatterns = [
     path('api/ndvi/export/', views.api_ndvi_export_csv, name='api_ndvi_export_csv'),
     path('ndvi-to-db/', views.ndvi_to_db, name='ndvi_to_db'),
 
+    # VCI (Vegetation Condition Index) URLs
+  # In urls.py
+    path('vci/', views.vci_view, name='vci_view'),
+    path('api/vci/', views.api_vci_data, name='api_vci_data'),
+
 
     # path('fields-map/', views.fields_map_view, name='fields_map'),
     # path('api/fields/<int:field_id>/ndvi-simple/', views.api_field_ndvi_simple, name='api_field_ndvi_simple'),

@@ -18,10 +18,39 @@ html,body{
     color:white;
     display:flex;
     align-items:center;
+    justify-content:space-between;   /* pushes links to far right */
     padding:0 20px;
     font-size:18px;
 }
 
+#header-links{
+    display:flex;
+    gap:20px;
+    align-items:center;
+}
+
+#header-links a{
+    color:white;
+    text-decoration:none;
+    font-size:14px;
+    font-weight:500;
+    padding:6px 12px;
+    border-radius:4px;
+    transition:background 0.2s ease;
+}
+
+#header-links a:hover{
+    background:rgba(255,255,255,0.15);
+}
+
+#header-links a.disabled-link{
+    color:#95a5a6;
+    cursor:not-allowed;
+}
+
+#header-links a.disabled-link:hover{
+    background:transparent;
+}
 #toolbar{
     background:#f5f5f5;
     padding:10px 20px;
@@ -229,12 +258,21 @@ button:hover{
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
+
+
 </style>
 </head>
 <body>
 
+
 <div id="header">
-    Sentinel-2 Monthly True Colour Composite & Field Digitization
+    <span>Sentinel-2 Monthly True Colour Composite & Field Digitization</span>
+    <div id="header-links">
+        <a href="{% url 'fields_admin:field_dashboard' %}">📊 View fields</a>
+        <a href="#" class="disabled-link">🔗 </a>
+        <a href="#" class="disabled-link">🔗 </a>
+    </div>
 </div>
 
 <div id="toolbar">
@@ -409,7 +447,7 @@ map.setView([-19.0,29.5],6);
 
 // Base tile layer
 L.tileLayer(
-    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    'https://tiles.openfreemap.org/styles/liberty/{z}/{x}/{y}.png',
     {
         attribution:'© OpenStreetMap contributors',
         maxZoom:19

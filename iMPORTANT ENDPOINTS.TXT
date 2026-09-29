@@ -1,0 +1,12 @@
+
+http://localhost:8000/fields/digitize-sentinel/          >>>       digitise fields
+
+http://localhost:8000/fields/dashboard/                  >>>    dashboard to view digitised fields
+
+
+
+Web pages
+fields/admin/digitize_sentinel_truecolour.html
+templates\fields_admin\dashboard.html
+
+

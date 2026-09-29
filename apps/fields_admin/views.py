@@ -4437,7 +4437,7 @@ ZIMBABWE_PROVINCES = {
 def get_ndvi_at_point(lat, lng, start_date, end_date, cloud_cover=30):
     """
     Get NDVI (Sentinel-2) at a specific point for a date range.
-    Returns daily NDVI values.
+    Returns daily NDVI values with cloud cover.
     """
     try:
         point = ee.Geometry.Point([lng, lat])
@@ -4466,6 +4466,7 @@ def get_ndvi_at_point(lat, lng, start_date, end_date, cloud_cover=30):
                 scale=100,
                 maxPixels=1e9
             )
+            # Get cloud cover from image properties
             cloud = img.get('CLOUDY_PIXEL_PERCENTAGE')
             return ee.Feature(None, {
                 'date': date,
@@ -4495,7 +4496,6 @@ def get_ndvi_at_point(lat, lng, start_date, end_date, cloud_cover=30):
     except Exception as e:
         logger.error(f"Error in get_ndvi_at_point: {str(e)}")
         raise Exception(f"Failed to extract NDVI: {str(e)}")
-
 
 # =====================================================
 # API: GET NDVI FOR ALL PROVINCES (NO LOGIN)
@@ -4596,14 +4596,21 @@ def save_ndvi_to_db(province_name, date_str, ndvi_value, lat=None, lng=None, clo
     try:
         date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
         
+        # Ensure cloud_cover is a float or None
+        if cloud_cover is not None:
+            try:
+                cloud_cover = float(cloud_cover)
+            except (ValueError, TypeError):
+                cloud_cover = None
+        
         obj, created = NDVIProvince.objects.update_or_create(
             province=province_name,
             date=date,
             defaults={
-                'ndvi_value': round(ndvi_value, 4),
+                'ndvi_value': round(float(ndvi_value), 4),
                 'source': 'Sentinel-2',
-                'lat': lat,
-                'lng': lng,
+                'lat': float(lat) if lat else None,
+                'lng': float(lng) if lng else None,
                 'cloud_cover': cloud_cover
             }
         )
@@ -4612,7 +4619,6 @@ def save_ndvi_to_db(province_name, date_str, ndvi_value, lat=None, lng=None, clo
         
     except Exception as e:
         return False, f"Error saving: {str(e)}"
-
 
 # =====================================================
 # API: SAVE NDVI DATA TO DATABASE
@@ -4660,6 +4666,9 @@ def api_save_ndvi_data(request):
                     ndvi_value = item['ndvi']
                     item_cloud_cover = item.get('cloud_cover')
                     
+                    # Debug: Print to console to verify cloud cover is being captured
+                    print(f"Province: {province_name}, Date: {date_str}, Cloud: {item_cloud_cover}")
+                    
                     if overwrite:
                         NDVIProvince.objects.filter(
                             province=province_name,
@@ -4672,7 +4681,7 @@ def api_save_ndvi_data(request):
                         ndvi_value,
                         coords['lat'],
                         coords['lng'],
-                        item_cloud_cover
+                        item_cloud_cover  # This should now be properly saved
                     )
                     
                     if success:
@@ -4715,7 +4724,6 @@ def api_save_ndvi_data(request):
     except Exception as e:
         logger.error(f"Error saving NDVI data: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
 
 # =====================================================
 # API: GET NDVI DATA FROM DATABASE (FAST)
@@ -5034,12 +5042,386 @@ def api_ndvi_export_csv(request):
 #
 #
 # =======================================================================================================================
+# 
+#                               VCI CALCULATION
+#
 # =======================================================================================================================
 #
-#
-#
+## =======================================================================================================================
+#                        VCI DATA - MODIS (Vegetation Condition Index)
+# =======================================================================================================================
+# =======================================================================================================================
+#                        VCI DATA - MODIS (Vegetation Condition Index)
+# =======================================================================================================================
+
+import ee
+import datetime
+import calendar
+import os
+import json
+import logging
+from django.shortcuts import render
+from django.http import JsonResponse
+
+logger = logging.getLogger(__name__)
+
+# Zimbabwe bounds
+ZIMBABWE_BOUNDS = {
+    'west': 25.24,
+    'south': -22.42,
+    'east': 33.07,
+    'north': -15.61
+}
+
+def get_vci_for_month(year, month, region=None):
+    """
+    Calculate VCI for a specific month and year using MODIS MOD13Q1.
+    Returns a dict with 'success' flag, tile_url, stats, or error message.
+    """
+    try:
+        # Use MODIS for long-term reference
+        modis = ee.ImageCollection("MODIS/006/MOD13Q1")
+        
+        # Reference period (adjust as needed)
+        ref_start_year = 2010
+        ref_end_year = 2020
+        
+        # Cloud masking function (as in the original code)
+        def bitwise_extract(input_img, from_bit, to_bit):
+            mask_size = ee.Number(1).add(to_bit).subtract(from_bit)
+            mask = ee.Number(1).leftShift(mask_size).subtract(1)
+            return input_img.rightShift(from_bit).bitwiseAnd(mask)
+        
+        def mask_snow_and_clouds(image):
+            summary_qa = image.select('SummaryQA')
+            qa_mask = bitwise_extract(summary_qa, 0, 1).lte(1)
+            return image.updateMask(qa_mask).copyProperties(image, ['system:index', 'system:time_start'])
+        
+        # Get reference period collection
+        ref_start = ee.Date.fromYMD(ref_start_year, 1, 1)
+        ref_end = ee.Date.fromYMD(ref_end_year, 12, 31)
+        
+        # If region is None, use country bounds
+        if region is None:
+            region = ee.Geometry.Polygon([[
+                [ZIMBABWE_BOUNDS['west'], ZIMBABWE_BOUNDS['south']],
+                [ZIMBABWE_BOUNDS['east'], ZIMBABWE_BOUNDS['south']],
+                [ZIMBABWE_BOUNDS['east'], ZIMBABWE_BOUNDS['north']],
+                [ZIMBABWE_BOUNDS['west'], ZIMBABWE_BOUNDS['north']],
+                [ZIMBABWE_BOUNDS['west'], ZIMBABWE_BOUNDS['south']]
+            ]])
+        
+        filtered_ref = (
+            modis
+            .filterBounds(region)
+            .filterDate(ref_start, ref_end)
+            .map(mask_snow_and_clouds)
+        )
+        
+        # Get NDVI and scale
+        ndvi_ref = filtered_ref.select('NDVI').map(lambda img: img.divide(10000))
+        
+        # Create monthly composites for reference period
+        def create_monthly_composite(year_val, month_val):
+            filtered = ndvi_ref.filter(
+                ee.Filter.calendarRange(year_val, year_val, 'year')
+            ).filter(
+                ee.Filter.calendarRange(month_val, month_val, 'month')
+            )
+            monthly = filtered.mean()
+            return monthly.set({'month': month_val, 'year': year_val})
+        
+        years = ee.List.sequence(ref_start_year, ref_end_year)
+        months = ee.List.sequence(1, 12)
+        
+        monthly_images = years.map(lambda y: months.map(
+            lambda m: create_monthly_composite(y, m)
+        )).flatten()
+        
+        monthly_col = ee.ImageCollection.fromImages(monthly_images)
+        
+        # Calculate min and max for the specific month across all years
+        month_filtered = monthly_col.filter(ee.Filter.eq('month', month))
+        monthly_min = month_filtered.min()
+        monthly_max = month_filtered.max()
+        
+        # Get current month's NDVI
+        current_ndvi = (
+            ndvi_ref
+            .filter(ee.Filter.calendarRange(year, year, 'year'))
+            .filter(ee.Filter.calendarRange(month, month, 'month'))
+            .mean()
+        )
+        
+        # --- ERROR CHECK: Ensure current_ndvi has valid data ---
+        # Use reduceRegion to count valid pixels
+        count = current_ndvi.reduceRegion(
+            reducer=ee.Reducer.count(),
+            geometry=region,
+            scale=250,
+            maxPixels=1e9,
+            bestEffort=True
+        ).get('NDVI')
+        
+        count_val = count.getInfo() if count else 0
+        if count_val == 0:
+            return {
+                'success': False,
+                'error': f'No valid MODIS NDVI data for {calendar.month_name[month]} {year} in the selected region.'
+            }
+        
+        # --- Compute VCI ---
+        vci = current_ndvi.subtract(monthly_min).divide(
+            monthly_max.subtract(monthly_min)
+        ).multiply(100).rename('VCI')
+        
+        # Apply region clip
+        vci = vci.clip(region)
+        
+        # (Optional) Mask out non-cropland using GFSAD if desired
+        # gfsad = ee.Image("USGS/GFSAD1000_V1")
+        # cropland = gfsad.select('landcover').neq(0)
+        # vci = vci.updateMask(cropland)
+        
+        # Get tile URL
+        vci_palette = ['#a50026','#d73027','#f46d43','#fdae61',
+                       '#fee08b','#d9ef8b','#a6d96a','#66bd63','#1a9850','#006837']
+        
+        vis_params = {'min': 0, 'max': 100, 'palette': vci_palette}
+        map_id = vci.getMapId(vis_params)
+        tile_url = map_id['tile_fetcher'].url_format
+        
+        # Get statistics
+        stats = vci.reduceRegion(
+            reducer=ee.Reducer.mean().combine(
+                ee.Reducer.min(), '', True
+            ).combine(
+                ee.Reducer.max(), '', True
+            ).combine(
+                ee.Reducer.stdDev(), '', True
+            ),
+            geometry=region,
+            scale=250,
+            maxPixels=1e9,
+            bestEffort=True
+        )
+        stats_dict = stats.getInfo()
+        
+        return {
+            'success': True,
+            'tile_url': tile_url,
+            'stats': {
+                'mean': round(stats_dict.get('VCI_mean', 0), 2) if stats_dict.get('VCI_mean') is not None else 0,
+                'min': round(stats_dict.get('VCI_min', 0), 2) if stats_dict.get('VCI_min') is not None else 0,
+                'max': round(stats_dict.get('VCI_max', 0), 2) if stats_dict.get('VCI_max') is not None else 0,
+                'std': round(stats_dict.get('VCI_std', 0), 2) if stats_dict.get('VCI_std') is not None else 0,
+            },
+            'year': year,
+            'month': month,
+            'month_name': calendar.month_name[month],
+            'vci_palette': vci_palette
+        }
+        
+    except Exception as e:
+        logger.error(f"Error calculating VCI: {str(e)}")
+        return {
+            'success': False,
+            'error': f"Calculation error: {str(e)}"
+        }
+
+
+def get_vci_for_province(province_name, year, month, geojson_data):
+    """
+    Get VCI for a specific province (or whole country).
+    """
+    try:
+        region = None
+        if province_name == "Zimbabwe" or province_name == "All":
+            region = ee.Geometry.Polygon([[
+                [ZIMBABWE_BOUNDS['west'], ZIMBABWE_BOUNDS['south']],
+                [ZIMBABWE_BOUNDS['east'], ZIMBABWE_BOUNDS['south']],
+                [ZIMBABWE_BOUNDS['east'], ZIMBABWE_BOUNDS['north']],
+                [ZIMBABWE_BOUNDS['west'], ZIMBABWE_BOUNDS['north']],
+                [ZIMBABWE_BOUNDS['west'], ZIMBABWE_BOUNDS['south']]
+            ]])
+        else:
+            for feature in geojson_data.get('features', []):
+                name = feature.get('properties', {}).get('adm1_name', '')
+                if name == province_name:
+                    geom = feature.get('geometry')
+                    if geom:
+                        region = ee.Geometry(geom)
+                    break
+            if region is None:
+                # fallback to country bounds
+                region = ee.Geometry.Polygon([[
+                    [ZIMBABWE_BOUNDS['west'], ZIMBABWE_BOUNDS['south']],
+                    [ZIMBABWE_BOUNDS['east'], ZIMBABWE_BOUNDS['south']],
+                    [ZIMBABWE_BOUNDS['east'], ZIMBABWE_BOUNDS['north']],
+                    [ZIMBABWE_BOUNDS['west'], ZIMBABWE_BOUNDS['north']],
+                    [ZIMBABWE_BOUNDS['west'], ZIMBABWE_BOUNDS['south']]
+                ]])
+        
+        result = get_vci_for_month(year, month, region)
+        result['province'] = province_name
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error getting VCI for province {province_name}: {str(e)}")
+        return {
+            'success': False,
+            'error': str(e),
+            'province': province_name
+        }
+
+
+def vci_view(request):
+    """
+    View to display VCI (Vegetation Condition Index) for Zimbabwe.
+    """
+    try:
+        year = int(request.GET.get('year', 2020))
+        month = int(request.GET.get('month', 5))
+        province = request.GET.get('province', 'Zimbabwe')
+        
+        # Load GeoJSON for province list and bounds
+        geojson_path = os.path.join('static', 'geojson', 'zwe_admin1.geojson')
+        try:
+            with open(geojson_path, 'r', encoding='utf-8') as f:
+                geojson_data = json.load(f)
+        except FileNotFoundError:
+            geojson_data = {'features': []}
+            logger.warning("GeoJSON file not found, using country bounds only")
+        
+        # Build province list
+        provinces = ['Zimbabwe']
+        for feature in geojson_data.get('features', []):
+            name = feature.get('properties', {}).get('adm1_name', '')
+            if name and name not in provinces:
+                provinces.append(name)
+        provinces = sorted(provinces)
+        
+        # Get VCI data
+        vci_data = get_vci_for_province(province, year, month, geojson_data)
+        
+        # Get bounds for map
+        if province == 'Zimbabwe':
+            bounds = [
+                [ZIMBABWE_BOUNDS['south'], ZIMBABWE_BOUNDS['west']],
+                [ZIMBABWE_BOUNDS['north'], ZIMBABWE_BOUNDS['east']]
+            ]
+        else:
+            # Try to get bounds from GeoJSON
+            bounds = [
+                [-22.42, 25.24],
+                [-15.61, 33.07]
+            ]
+            for feature in geojson_data.get('features', []):
+                name = feature.get('properties', {}).get('adm1_name', '')
+                if name == province:
+                    geom = feature.get('geometry', {})
+                    if geom and geom.get('type') == 'Polygon':
+                        coords = geom.get('coordinates', [[]])[0]
+                        if coords:
+                            lats = [c[1] for c in coords]
+                            lngs = [c[0] for c in coords]
+                            bounds = [
+                                [min(lats), min(lngs)],
+                                [max(lats), max(lngs)]
+                            ]
+                    break
+        
+        context = {
+            'tile_url': vci_data.get('tile_url', ''),
+            'year': year,
+            'month': month,
+            'month_name': vci_data.get('month_name', calendar.month_name[month]),
+            'province': province,
+            'provinces': provinces,
+            'bounds': bounds,
+            'stats': vci_data.get('stats', {}),
+            'vci_palette': vci_data.get('vci_palette', []),
+            'error': vci_data.get('error') if not vci_data.get('success') else None,
+            'date_label': f"{calendar.month_name[month]} {year}",
+            'vci_legend': [
+                {'label': '0-10', 'color': '#a50026'},
+                {'label': '10-20', 'color': '#d73027'},
+                {'label': '20-30', 'color': '#f46d43'},
+                {'label': '30-40', 'color': '#fdae61'},
+                {'label': '40-50', 'color': '#fee08b'},
+                {'label': '50-60', 'color': '#d9ef8b'},
+                {'label': '60-70', 'color': '#a6d96a'},
+                {'label': '70-80', 'color': '#66bd63'},
+                {'label': '80-90', 'color': '#1a9850'},
+                {'label': '90-100', 'color': '#006837'}
+            ],
+            'years': list(range(2010, datetime.date.today().year + 1)),
+            'months': [
+                (1, 'January'), (2, 'February'), (3, 'March'),
+                (4, 'April'), (5, 'May'), (6, 'June'),
+                (7, 'July'), (8, 'August'), (9, 'September'),
+                (10, 'October'), (11, 'November'), (12, 'December')
+            ],
+            'metadata': {
+                'source': 'MODIS/006/MOD13Q1',
+                'reference_period': '2010-2020',
+                'processed_at': datetime.datetime.now().isoformat()
+            }
+        }
+        
+        return render(request, 'fields_admin/vci_view.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error in vci_view: {str(e)}")
+        context = {
+            'error': str(e),
+            'years': list(range(2010, datetime.date.today().year + 1)),
+            'months': [
+                (1, 'January'), (2, 'February'), (3, 'March'),
+                (4, 'April'), (5, 'May'), (6, 'June'),
+                (7, 'July'), (8, 'August'), (9, 'September'),
+                (10, 'October'), (11, 'November'), (12, 'December')
+            ],
+            'provinces': ['Zimbabwe']
+        }
+        return render(request, 'fields_admin/vci_view.html', context)
+
+
+# =====================================================
+# API: GET VCI DATA (JSON)
+# =====================================================
+
+def api_vci_data(request):
+    """
+    API endpoint to get VCI data as JSON.
+    """
+    try:
+        year = int(request.GET.get('year', 2020))
+        month = int(request.GET.get('month', 5))
+        province = request.GET.get('province', 'Zimbabwe')
+        
+        geojson_path = os.path.join('static', 'geojson', 'zwe_admin1.geojson')
+        try:
+            with open(geojson_path, 'r', encoding='utf-8') as f:
+                geojson_data = json.load(f)
+        except FileNotFoundError:
+            geojson_data = {'features': []}
+        
+        vci_data = get_vci_for_province(province, year, month, geojson_data)
+        return JsonResponse(vci_data, status=200 if vci_data.get('success') else 500)
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 #
 ##
+#
+#
+# 
+#
+#
+#
+# 
+#
 #
 #
 # 
@@ -7017,73 +7399,72 @@ from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 
 
-def get_ndvi_at_point(lat, lng, start_date=None, end_date=None, cloud_cover=20):
+def get_ndvi_at_point(lat, lng, start_date, end_date, cloud_cover=30):
     """
-    Get NDVI at a specific point (lat/lng) using Sentinel-2.
-    Returns the NDVI value and image date.
+    Get NDVI (Sentinel-2) at a specific point for a date range.
+    Returns daily NDVI values with cloud cover.
     """
-    # Set default dates (last 30 days)
-    if not start_date or not end_date:
-        end_date = datetime.date.today()
-        start_date = end_date - datetime.timedelta(days=30)
-    
-    # Create point geometry
-    point = ee.Geometry.Point([lng, lat])
-    
-    # Get Sentinel-2 collection
-    collection = (
-        ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-        .filterBounds(point)
-        .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
-        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_cover))
-        .sort('system:time_start', False)  # Most recent first
-        .limit(10)  # Get last 10 images for averaging
-    )
-    
-    # Calculate NDVI for each image
-    def add_ndvi(img):
-        ndvi = img.normalizedDifference(['B8', 'B4']).rename('ndvi')
-        return img.addBands(ndvi)
-    
-    collection = collection.map(add_ndvi)
-    
-    # Extract NDVI at point for each image
-    def extract_ndvi(img):
-        date = ee.Date(img.get('system:time_start')).format('YYYY-MM-dd')
-        ndvi = img.select('ndvi').reduceRegion(
-            reducer=ee.Reducer.mean(),
-            geometry=point,
-            scale=10,
-            maxPixels=1e9
-        )
-        return ee.Feature(None, {
-            'date': date,
-            'ndvi': ndvi.get('ndvi')
-        })
-    
-    features = collection.map(extract_ndvi)
-    
     try:
-        # Get the data
-        feature_list = features.getInfo()
+        point = ee.Geometry.Point([lng, lat])
+        
+        # Get Sentinel-2 collection with cloud filter
+        collection = (
+            ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+            .filterBounds(point)
+            .filterDate(start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
+            .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", cloud_cover))
+        )
+        
+        # Calculate NDVI
+        def add_ndvi(img):
+            ndvi = img.normalizedDifference(['B8', 'B4']).rename('ndvi')
+            return img.addBands(ndvi)
+        
+        collection = collection.map(add_ndvi)
+        
+        # Get the list of image IDs and dates
+        image_list = collection.toList(collection.size())
         
         results = []
-        for feature in feature_list.get('features', []):
-            props = feature.get('properties', {})
-            date = props.get('date')
-            ndvi = props.get('ndvi')
+        
+        # Iterate through images
+        for i in range(image_list.size().getInfo()):
+            img = ee.Image(image_list.get(i))
             
-            if date and ndvi is not None:
+            # Get date
+            date = ee.Date(img.get('system:time_start')).format('YYYY-MM-dd')
+            date_str = date.getInfo()
+            
+            # Get NDVI
+            ndvi = img.select('ndvi').reduceRegion(
+                reducer=ee.Reducer.mean(),
+                geometry=point,
+                scale=100,
+                maxPixels=1e9
+            )
+            ndvi_val = ndvi.get('ndvi').getInfo()
+            
+            # Get cloud cover - use getInfo() directly
+            cloud_val = None
+            try:
+                cloud_val = img.get('CLOUDY_PIXEL_PERCENTAGE').getInfo()
+                if cloud_val is not None:
+                    cloud_val = round(float(cloud_val), 1)
+            except:
+                cloud_val = None
+            
+            if ndvi_val is not None:
                 results.append({
-                    'date': date,
-                    'ndvi': round(float(ndvi), 4)
+                    'date': date_str,
+                    'ndvi': round(float(ndvi_val), 4),
+                    'cloud_cover': cloud_val
                 })
         
         return results
         
     except Exception as e:
+        logger.error(f"Error in get_ndvi_at_point: {str(e)}")
         raise Exception(f"Failed to extract NDVI: {str(e)}")
-
 
 def get_ndvi_for_geometry(geometry, start_date=None, end_date=None, cloud_cover=20):
     """

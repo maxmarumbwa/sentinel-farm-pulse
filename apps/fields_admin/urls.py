@@ -4,6 +4,7 @@ from . import views
 app_name = 'fields_admin'
 
 urlpatterns = [
+    path('a/', views.sentinel_truecolour, name='sentinel_truecolour-test'),
     path('test/', views.test, name='test'),
     path('fields/digitize/', views.digitize_field, name='digitize_field'),
     path("fields/digitize-sentinel/",views.sentinel_truecolour,name="sentinel_truecolour"),

@@ -233,10 +233,10 @@ def sentinel_truecolour(request):
         # -------------------------------
 
         start_year = int(request.GET.get("start_year", 2025))
-        start_month = int(request.GET.get("start_month", 1))
+        start_month = int(request.GET.get("start_month", 4))
 
         end_year = int(request.GET.get("end_year", 2025))
-        end_month = int(request.GET.get("end_month", 1))
+        end_month = int(request.GET.get("end_month", 5))
 
         cloud_cover = int(request.GET.get("cloud", 20))
 
@@ -7315,26 +7315,21 @@ def test_rainfall_view(request):
     """Test view for Rainfall API"""
     return render(request, 'fields_admin/test_rainfall.html', {})
 def rainfall_db(request):
-    """Test view for Rainfall API"""
     return render(request, 'fields_admin/view_rainfall_db.html', {})
 def rainfall_db_all(request):
-    """Test view for Rainfall API"""
     return render(request, 'fields_admin/view_rainfall_db_all.html', {})
 def rainfall_db_all_paged(request):
-    """Test view for Rainfall API"""
     return render(request, 'fields_admin/view_rainfall_db_all_paged.html', {})
 
 def rainfall_dashboad(request):
-    """Test view for Rainfall API"""
     return render(request, 'fields_admin/rainfall_dashboard.html', {})
-
-
 def rainfall_to_db(request):
-    """Test view for Rainfall API"""
     return render(request, 'fields_admin/save_rain_to_db.html', {})
+def chart_rain(request):
+    return render(request, 'fields_admin/chart_rain_compa_avg.html', {})
+
 
 def ndvi_to_db(request):
-    """Test view for Rainfall API"""
     return render(request, 'fields_admin/save_ndvi_to_db.html', {})
 
 

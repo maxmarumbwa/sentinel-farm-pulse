@@ -24,6 +24,37 @@
         .header-info span { display: flex; align-items: center; gap: 5px; }
         .header-info strong { color: white; }
         
+        
+        #header-links{
+            display:flex;
+            gap:20px;
+            align-items:center;
+        }
+
+        #header-links a{
+            color:white;
+            text-decoration:none;
+            font-size:14px;
+            font-weight:500;
+            padding:6px 12px;
+            border-radius:4px;
+            transition:background 0.2s ease;
+        }
+
+        #header-links a:hover{
+            background:rgba(255,255,255,0.15);
+        }
+
+        #header-links a.disabled-link{
+            color:#95a5a6;
+            cursor:not-allowed;
+        }
+
+        #header-links a.disabled-link:hover{
+            background:transparent;
+        }
+
+
         /* ========== MAIN LAYOUT ========== */
         .main { display: flex; flex: 1; overflow: hidden; }
         
@@ -252,11 +283,14 @@
 
 <!-- ===== HEADER ===== -->
 <header class="header">
-    <h1><i>🌧️</i> Dekadal Rainfall Dashboard</h1>
-    <div class="header-info">
-        <span>📊 <strong id="hdrRecords">-</strong> records</span>
-        <span>📅 <strong id="hdrRange">-</strong></span>
-        <span>📍 <strong id="hdrProvinces">-</strong> provinces</span>
+    <h1><i>🌧️</i> Rainfall Monitoring Dashboard</h1>
+    <div id="header-links">
+        <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
+        <a href="{% url 'fields_admin:ndvi_map' %}">📊 Monitor fields  </a>
+        <a href="{% url 'fields_admin:sentinel_truecolour' %}">
+                <i class="fas fa-plus-circle"></i> New Field
+        </a>
+        <a href="#" class="disabled-link">🔗 </a>
     </div>
 </header>
 

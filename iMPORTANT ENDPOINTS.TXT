@@ -1,12 +1,35 @@
 
-http://localhost:8000/fields/digitize-sentinel/          >>>       digitise fields
+http://localhost:8000/fields/digitize-sentinel/         >>>       digitise fields
 
-http://localhost:8000/fields/dashboard/                  >>>    dashboard to view digitised fields
+http://localhost:8000/fields/dashboard/                 >>>    dashboard to view digitised fields
+
+http://localhost:8000/ndvi-map/                         >>>   View ndvi fot the fields
+
+http://localhost:8000/view/ndvi-graph/#                 >>>  compare ndvi graphs for up to 5 files 
+
+http://localhost:8000/view/ndvi-graph/#                 >>>
+
+
+
 
 
 
 Web pages
-fields/admin/digitize_sentinel_truecolour.html
-templates\fields_admin\dashboard.html
+fields/admin/digitize_sentinel_truecolour.html      >>> digitise fields
+templates\fields_admin\dashboard.html               >>> view and edit fields
+templates\fields_admin\ndvi_map.html                >>> view field ndvi
+templates\fields_admin\field_ndvi_graph.html        >>> 
+templates\fields_admin\view_rainfall_db_all_paged.html >>> table with rainfall for point provinces select by date and donwload
+MERge the above 2 functions
+templates\fields_admin\chart_rain_compa_avg.html     >>> chart rainfall compared to avg for point location select drop dwon menu
+@@@@ Extend to sho on map
 
 
+
+
+
+
+
+API
+Get AOI for ndvi for each field- based on field_id
+http://localhost:8000/api/fields/ndvi-single/?field_id=151&start_date=2026-01-01&end_date=2026-08-01&format=full

@@ -7,7 +7,8 @@ urlpatterns = [
     path('a/', views.sentinel_truecolour, name='sentinel_truecolour-test'),
     path('test/', views.test, name='test'),
     path('fields/digitize/', views.digitize_field, name='digitize_field'),
-    path("fields/digitize-sentinel/",views.sentinel_truecolour,name="sentinel_truecolour"),
+    path('',views.sentinel_truecolour,name='sentinel_truecolour'),
+    #path("fields/digitize-sentinel/",views.sentinel_truecolour,name="sentinel_truecolour"),
     path('fields/digitize2/', views.digitize_field2, name='digitize_field2'),
     path('api/fields/', views.api_create_field, name='api_create_field'),
     path('api/admin2/', views.api_admin2, name='api_admin2'),
@@ -53,6 +54,9 @@ urlpatterns = [
     
     
     ############################################## Rainfall API URLs ##############################################
+    
+    path('chart-rainfall/', views.chart_rain, name='chart_rain'), 
+    
     path('api/rainfall/provinces/', views.api_rainfall_all_provinces, name='api_rainfall_all_provinces'),
     path('api/rainfall/point/', views.api_rainfall_single_point, name='api_rainfall_single_point'),
         # Rainfall Database URLs

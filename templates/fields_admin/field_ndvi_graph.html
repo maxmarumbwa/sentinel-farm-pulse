@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FAO Sentinel Field Dashboard - Time-Lapse</title>
+    <title>Sentinel Field Dashboard - Time-Lapse</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -1013,7 +1013,7 @@
         <div class="header-left">
             <h1>
                 <i class="fas fa-satellite-dish"></i> Sentinel Field Pulse
-                <span class="badge">FAO DSS | Time-Lapse</span>
+                <span class="badge">Farm DSS | Time-Lapse</span>
             </h1>
         </div>
         
@@ -1322,7 +1322,7 @@
 
         function initMap() {
             map = L.map('map').setView([DEFAULT_LAT, DEFAULT_LON], 6);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            L.tileLayer('https://tiles.openfreemap.org/styles/liberty/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap',
                 maxZoom: 19
             }).addTo(map);

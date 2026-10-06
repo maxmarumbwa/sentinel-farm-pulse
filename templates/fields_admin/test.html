@@ -1,609 +1,783 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zimbabwe VCI - Ultra Fast</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <title>Dekadal Rainfall Dashboard</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: Arial, sans-serif;
-            background: #f0f2f5;
-        }
-        #map {
-            height: 100vh;
-            width: 100%;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; height: 100vh; display: flex; flex-direction: column; }
         
+        /* ========== HEADER ========== */
         .header {
-            position: absolute;
-            top: 15px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            background: rgba(255,255,255,0.95);
-            padding: 8px 16px;
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-            text-align: center;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
-            white-space: nowrap;
-        }
-        .header h1 {
-            font-size: 16px;
-            color: #1a202c;
-        }
-        .header h1 span {
-            color: #48bb78;
-        }
-        .header p {
-            font-size: 11px;
-            color: #718096;
-            margin-top: 2px;
-        }
-        
-        .controls {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            background: rgba(255,255,255,0.95);
-            padding: 10px 14px;
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            background: #2c3e50;
+            color: white;
+            padding: 12px 25px;
             display: flex;
-            gap: 6px;
+            justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
-            max-width: 95%;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 10;
         }
-        .controls select {
-            padding: 5px 8px;
-            border: 2px solid #e2e8f0;
-            border-radius: 6px;
-            font-size: 12px;
+        .header h1 { font-size: 20px; font-weight: 600; }
+        .header h1 i { margin-right: 10px; }
+        .header-info { display: flex; gap: 20px; font-size: 13px; color: #bdc3c7; }
+        .header-info span { display: flex; align-items: center; gap: 5px; }
+        .header-info strong { color: white; }
+        
+        /* ========== MAIN LAYOUT ========== */
+        .main { display: flex; flex: 1; overflow: hidden; }
+        
+        /* ========== LEFT PANEL ========== */
+        .left-panel {
+            width: 320px;
+            min-width: 320px;
             background: white;
-            cursor: pointer;
-            font-family: Arial, sans-serif;
-        }
-        .controls select:focus {
-            outline: none;
-            border-color: #48bb78;
-        }
-        .controls button {
-            padding: 5px 12px;
-            border: none;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-family: Arial, sans-serif;
-        }
-        .btn-primary {
-            background: #48bb78;
-            color: white;
-        }
-        .btn-primary:hover {
-            background: #38a169;
-        }
-        .btn-primary:disabled {
-            background: #a0aec0;
-            cursor: not-allowed;
-        }
-        .btn-secondary {
-            background: #edf2f7;
-            color: #2d3748;
-        }
-        .btn-secondary:hover {
-            background: #e2e8f0;
-        }
-        .btn-danger {
-            background: #fc8181;
-            color: white;
-        }
-        .btn-danger:hover {
-            background: #f56565;
-        }
-        
-        .legend {
-            position: absolute;
-            bottom: 80px;
-            right: 10px;
-            z-index: 1000;
-            background: rgba(255,255,255,0.95);
-            padding: 8px 12px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
-            min-width: 110px;
-        }
-        .legend-title {
-            font-weight: 600;
-            font-size: 11px;
-            margin-bottom: 4px;
-            color: #2d3748;
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 2px 0;
-            font-size: 10px;
-            color: #4a5568;
-        }
-        .legend-color {
-            width: 14px;
-            height: 14px;
-            border-radius: 3px;
-            border: 1px solid rgba(0,0,0,0.1);
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 1px solid #e0e0e0;
             flex-shrink: 0;
         }
-        
-        .loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 2000;
-            background: rgba(255,255,255,0.95);
-            padding: 20px 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-            display: none;
-            text-align: center;
+        .left-panel h3 {
+            font-size: 14px;
+            color: #2c3e50;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #ecf0f1;
         }
-        .loading.active {
+        
+        .control-group {
+            margin-bottom: 18px;
+        }
+        .control-group label {
             display: block;
-        }
-        .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #48bb78;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
-        }
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-        .loading p {
-            color: #4a5568;
-            font-size: 13px;
-            font-weight: 500;
-        }
-        
-        .status {
-            position: absolute;
-            bottom: 75px;
-            left: 10px;
-            z-index: 1000;
-            font-size: 10px;
-            color: #718096;
-            background: rgba(255,255,255,0.9);
-            padding: 2px 8px;
-            border-radius: 4px;
-            backdrop-filter: blur(5px);
-        }
-        
-        .info-box {
-            position: absolute;
-            top: 75px;
-            right: 10px;
-            z-index: 1000;
-            background: rgba(255,255,255,0.95);
-            padding: 10px 12px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-            min-width: 100px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-        .info-box .label {
-            font-size: 10px;
-            color: #718096;
+            font-size: 12px;
+            font-weight: 600;
+            color: #7f8c8d;
+            margin-bottom: 4px;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .control-group input[type="date"],
+        .control-group select {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            background: white;
+        }
+        .control-group input[type="date"]:focus,
+        .control-group select:focus {
+            outline: none;
+            border-color: #2c3e50;
+        }
+        
+        .date-range {
+            display: flex;
+            gap: 8px;
+        }
+        .date-range .field { flex: 1; }
+        .date-range .field label { font-size: 11px; text-transform: none; color: #95a5a6; }
+        .date-range .field input { width: 100%; padding: 5px 8px; font-size: 12px; }
+        
+        .btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: 0.2s;
+            width: 100%;
+            margin-top: 4px;
+        }
+        .btn-primary { background: #2c3e50; color: white; }
+        .btn-primary:hover { background: #1a252f; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #229954; }
+        .btn-secondary { background: #95a5a6; color: white; }
+        .btn-secondary:hover { background: #7f8c8d; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; width: auto; }
+        
+        .btn-group { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+        .btn-group .btn { flex: 1; min-width: 60px; padding: 5px 10px; font-size: 12px; }
+        
+        .btn-lta { background: #fdedec; color: #e74c3c; border: 1px solid #e74c3c; }
+        .btn-lta:hover { background: #e74c3c; color: white; }
+        .btn-lta.active { background: #e74c3c; color: white; }
+        
+        .btn-obs { background: #ebf5fb; color: #3498db; border: 1px solid #3498db; }
+        .btn-obs:hover { background: #3498db; color: white; }
+        .btn-obs.active { background: #3498db; color: white; }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
             font-weight: 600;
         }
-        .info-box .value {
-            font-size: 16px;
-            font-weight: 700;
-            color: #2d3748;
-            margin: 2px 0;
+        .badge.obs { background: #3498db; color: white; }
+        .badge.lta { background: #e74c3c; color: white; }
+        
+        .db-stats {
+            background: #f8f9fa;
+            padding: 10px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 8px;
         }
-        .info-box .sub {
-            font-size: 10px;
-            color: #718096;
-            margin-top: 2px;
+        .db-stats span { display: block; }
+        .db-stats strong { color: #2c3e50; }
+        
+        /* ========== RIGHT PANEL ========== */
+        .right-panel {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f0f2f5;
         }
         
-        @media (max-width: 768px) {
-            .header {
-                width: 90%;
-                padding: 6px 12px;
-                top: 10px;
-                white-space: normal;
-            }
-            .header h1 {
-                font-size: 14px;
-            }
-            .header p {
-                font-size: 10px;
-            }
-            .controls {
-                padding: 8px;
-                gap: 4px;
-            }
-            .controls select {
-                font-size: 11px;
-                padding: 4px 6px;
-            }
-            .controls button {
-                font-size: 11px;
-                padding: 4px 8px;
-            }
-            .legend {
-                bottom: 70px;
-                right: 8px;
-                padding: 6px 8px;
-                min-width: 90px;
-            }
-            .info-box {
-                top: 65px;
-                right: 8px;
-                padding: 8px;
-                min-width: 80px;
-            }
-            .info-box .value {
-                font-size: 14px;
-            }
+        .chart-wrapper {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            height: 100%;
+            min-height: 500px;
         }
+        .chart-wrapper .chart-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+        .chart-wrapper .chart-subtitle {
+            font-size: 13px;
+            color: #95a5a6;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .chart-container { position: relative; width: 100%; height: 400px; }
         
-        @media (max-width: 480px) {
-            .controls select {
-                font-size: 10px;
-                padding: 3px 5px;
-            }
-            .controls button {
-                font-size: 10px;
-                padding: 3px 6px;
-            }
-            .legend-item {
-                font-size: 9px;
-            }
-            .legend-color {
-                width: 12px;
-                height: 12px;
-            }
+        /* ========== LEGEND - CLICKABLE TOGGLES ========== */
+        .legend-toggle {
+            display: flex;
+            gap: 25px;
+            justify-content: center;
+            padding: 8px 0 12px 0;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #ecf0f1;
+            margin-bottom: 12px;
+        }
+        .legend-toggle .item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            padding: 4px 12px;
+            border-radius: 4px;
+            transition: 0.2s;
+            user-select: none;
+        }
+        .legend-toggle .item:hover { background: #f0f0f0; }
+        .legend-toggle .item .color {
+            width: 20px;
+            height: 4px;
+            border-radius: 2px;
+            display: inline-block;
+        }
+        .legend-toggle .item .color.bar { height: 14px; width: 14px; border-radius: 3px; background: #3498db; }
+        .legend-toggle .item .color.line { width: 25px; background: #e74c3c; }
+        .legend-toggle .item.hidden { opacity: 0.3; text-decoration: line-through; }
+        
+        .stats-mini {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .stats-mini .card {
+            background: #f8f9fa;
+            padding: 10px 12px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .stats-mini .card .num { font-size: 18px; font-weight: bold; color: #2c3e50; }
+        .stats-mini .card .lbl { font-size: 10px; color: #95a5a6; text-transform: uppercase; letter-spacing: 0.3px; }
+        
+        .table-container { max-height: 250px; overflow: auto; margin-top: 15px; }
+        .table-container table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .table-container th { background: #2c3e50; color: white; padding: 6px 8px; text-align: left; position: sticky; top: 0; }
+        .table-container td { padding: 5px 8px; border-bottom: 1px solid #ecf0f1; }
+        .table-container tr:hover { background: #f8f9fa; }
+        .positive { color: #e74c3c; }
+        .negative { color: #3498db; }
+        
+        .loading { text-align: center; padding: 40px; color: #95a5a6; }
+        .spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #ecf0f1;
+            border-top: 3px solid #2c3e50;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .error { color: #e74c3c; padding: 15px; background: #fdf2f2; border-radius: 4px; border-left: 4px solid #e74c3c; }
+        .no-data { color: #7f8c8d; padding: 20px; text-align: center; }
+        
+        /* ========== SCROLLBAR ========== */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #ecf0f1; }
+        ::-webkit-scrollbar-thumb { background: #bdc3c7; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #95a5a6; }
+        
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 900px) {
+            .main { flex-direction: column; }
+            .left-panel { width: 100%; min-width: unset; max-height: 300px; border-right: none; border-bottom: 1px solid #e0e0e0; }
+            .right-panel { padding: 15px; }
+            .header { flex-wrap: wrap; gap: 8px; }
+            .header-info { flex-wrap: wrap; font-size: 12px; }
+            .chart-container { height: 300px; }
         }
     </style>
 </head>
 <body>
 
-    <div id="map"></div>
+<!-- ===== HEADER ===== -->
+<header class="header">
+    <h1><i>🌧️</i> Dekadal Rainfall Dashboard</h1>
+    <div class="header-info">
+        <span>📊 <strong id="hdrRecords">-</strong> records</span>
+        <span>📅 <strong id="hdrRange">-</strong></span>
+        <span>📍 <strong id="hdrProvinces">-</strong> provinces</span>
+    </div>
+</header>
 
-    <!-- Header -->
-    <div class="header">
-        <h1>🌿 Zimbabwe <span>VCI</span></h1>
-        <p>12km resolution • Sentinel-2</p>
+<!-- ===== MAIN ===== -->
+<div class="main">
+
+    <!-- LEFT PANEL -->
+    <div class="left-panel">
+
+        <!-- Observation Period -->
+        <div class="control-group">
+            <label>🔵 Observation Period <span class="badge obs">Selected</span></label>
+            <div class="date-range">
+                <div class="field">
+                    <label>Start</label>
+                    <input type="date" id="obsStart">
+                </div>
+                <div class="field">
+                    <label>End</label>
+                    <input type="date" id="obsEnd">
+                </div>
+            </div>
+        </div>
+
+        <!-- LTA Period -->
+        <div class="control-group">
+            <label>🔴 LTA Period <span class="badge lta">Selected</span></label>
+            <div class="date-range">
+                <div class="field">
+                    <label>Start</label>
+                    <input type="date" id="ltaStart">
+                </div>
+                <div class="field">
+                    <label>End</label>
+                    <input type="date" id="ltaEnd">
+                </div>
+            </div>
+            <div style="margin-top:4px;">
+                <button class="btn btn-lta btn-sm" onclick="setLTADefault()">📅 Full Database</button>
+                <button class="btn btn-lta btn-sm" onclick="setLTAPrevYear()">📅 Previous Year</button>
+                <button class="btn btn-lta btn-sm" onclick="setLTA5Year()">📅 Last 5 Years</button>
+            </div>
+        </div>
+
+        <!-- Province -->
+        <div class="control-group">
+            <label>📍 Province</label>
+            <select id="provinceSelect">
+                <option value="">All</option>
+                <option value="Harare" selected>Harare</option>
+                <option value="Bulawayo">Bulawayo</option>
+                <option value="Manicaland">Manicaland</option>
+                <option value="Mashonaland Central">Mashonaland Central</option>
+                <option value="Mashonaland East">Mashonaland East</option>
+                <option value="Mashonaland West">Mashonaland West</option>
+                <option value="Masvingo">Masvingo</option>
+                <option value="Matabeleland North">Matabeleland North</option>
+                <option value="Matabeleland South">Matabeleland South</option>
+                <option value="Midlands">Midlands</option>
+            </select>
+        </div>
+
+        <!-- Actions -->
+        <div class="control-group">
+            <button class="btn btn-primary" onclick="loadData()">📊 Load Data</button>
+            <div style="display:flex; gap:6px; margin-top:4px;">
+                <button class="btn btn-success btn-sm" onclick="exportCSV()" style="flex:1;">📥 CSV</button>
+                <button class="btn btn-secondary btn-sm" onclick="loadDefault()" style="flex:1;">🔄 Reset</button>
+            </div>
+        </div>
+
+        <!-- DB Info -->
+        <div class="db-stats" id="dbInfo" style="display:none;">
+            <span>📊 <strong id="dbRecordCount">-</strong> total records</span>
+            <span>📅 <strong id="dbDateRange">-</strong> full range</span>
+            <span>📍 <strong id="dbProvinceCount">-</strong> provinces</span>
+            <span style="color:#f39c12; margin-top:3px; font-size:11px;">💡 LTA defaults to full database</span>
+        </div>
     </div>
 
-    <!-- Info Box -->
-    <div class="info-box">
-        <div class="label">Images</div>
-        <div class="value" id="imageCount">--</div>
-        <div class="sub" id="monthInfo">Loading...</div>
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+
+        <!-- Chart Card -->
+        <div class="chart-wrapper" id="chartCard">
+            <div id="loadingState" style="display:none;">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p style="margin-top:12px;">Loading data...</p>
+                </div>
+            </div>
+
+            <div id="contentState">
+                <!-- Chart Title -->
+                <div class="chart-title" id="chartTitle">Harare</div>
+                <div class="chart-subtitle" id="periodInfo">Select date ranges and click Load Data</div>
+
+                <!-- Clickable Legend Toggles -->
+                <div class="legend-toggle" id="legendToggles">
+                    <div class="item active" data-dataset="0" onclick="toggleDataset(0)">
+                        <span class="color bar"></span> Observed Rainfall
+                    </div>
+                    <div class="item active" data-dataset="1" onclick="toggleDataset(1)">
+                        <span class="color line"></span> LTA
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="rainfallChart"></canvas>
+                </div>
+
+                <div class="stats-mini" id="statsGrid"></div>
+
+                <div id="tableContainer" style="display:none;">
+                    <div class="table-container" id="tableWrapper"></div>
+                </div>
+            </div>
+
+            <div id="noDataState" style="display:none;">
+                <div class="no-data">No data found. Please adjust your date range.</div>
+            </div>
+        </div>
+
     </div>
+</div>
 
-    <!-- Legend -->
-    <div class="legend">
-        <div class="legend-title">VCI</div>
-        <div class="legend-item">
-            <div class="legend-color" style="background:#8b0000;"></div>
-            <span>Extreme</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background:#ff4500;"></div>
-            <span>Severe</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background:#ffd700;"></div>
-            <span>Moderate</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background:#7CFC00;"></div>
-            <span>Healthy</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background:#006400;"></div>
-            <span>Excellent</span>
-        </div>
-    </div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let chart = null;
+    let currentData = null;
+    let dbInfo = null;
+    let datasetVisibility = [true, true]; // [rainfall, lta]
 
-    <!-- Controls -->
-    <div class="controls">
-        <select id="yearSelect">
-            <option value="2026" selected>2026</option>
-            <option value="2025">2025</option>
-            <option value="2024">2024</option>
-            <option value="2023">2023</option>
-            <option value="2022">2022</option>
-            <option value="2021">2021</option>
-            <option value="2020">2020</option>
-        </select>
+    // ============================================================
+    // GET DATABASE INFO
+    // ============================================================
 
-        <select id="monthSelect">
-            <option value="1">Jan</option>
-            <option value="2">Feb</option>
-            <option value="3">Mar</option>
-            <option value="4">Apr</option>
-            <option value="5">May</option>
-            <option value="6">Jun</option>
-            <option value="7" selected>Jul</option>
-            <option value="8">Aug</option>
-            <option value="9">Sep</option>
-            <option value="10">Oct</option>
-            <option value="11">Nov</option>
-            <option value="12">Dec</option>
-        </select>
-
-        <button class="btn-primary" id="loadBtn" onclick="loadVCI()">Load</button>
-        <button class="btn-secondary" onclick="centerZimbabwe()">📍</button>
-        <button class="btn-danger" onclick="clearLayer()">✕</button>
-    </div>
-
-    <!-- Loading -->
-    <div class="loading" id="loading">
-        <div class="spinner"></div>
-        <p id="loadingText">Loading VCI...</p>
-    </div>
-
-    <div class="status" id="status">Ready</div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
-    </script>
-    <script>
-        // ============================================
-        // CONFIG
-        // ============================================
-        const CONFIG = {
-            scale: 12000,
-            maxPixels: 1e7,
-            baselineStart: 2018,
-            baselineEnd: 2025,
-            timeout: 30000,
-            apiUrl: '/api/vci/calculate/'
-        };
-
-        // ============================================
-        // GET CSRF TOKEN
-        // ============================================
-        function getCsrfToken() {
-            const cookieValue = document.cookie
-                .split('; ')
-                .find(row => row.startsWith('csrftoken='));
-            return cookieValue ? cookieValue.split('=')[1] : '';
+    async function getDatabaseInfo() {
+        try {
+            const response = await fetch('/api/rainfall/db/info/');
+            const data = await response.json();
+            if (data.success) {
+                dbInfo = data;
+                document.getElementById('dbInfo').style.display = 'block';
+                document.getElementById('dbRecordCount').textContent = data.total_records.toLocaleString();
+                document.getElementById('dbDateRange').textContent = `${data.min_date} to ${data.max_date}`;
+                document.getElementById('dbProvinceCount').textContent = data.province_count;
+                document.getElementById('hdrRecords').textContent = data.total_records.toLocaleString();
+                document.getElementById('hdrRange').textContent = `${data.min_date} to ${data.max_date}`;
+                document.getElementById('hdrProvinces').textContent = data.province_count;
+                return data;
+            }
+        } catch (error) {
+            console.error('Error fetching DB info:', error);
+            return null;
         }
+    }
 
-        // ============================================
-        // MAP INITIALIZATION
-        // ============================================
-        const map = L.map('map', {
-            center: [-19.0154, 29.1549],
-            zoom: 6,
-            zoomControl: true
+    // ============================================================
+    // DATE HELPERS
+    // ============================================================
+
+    function getToday() {
+        const d = new Date();
+        return d.toISOString().split('T')[0];
+    }
+
+    function getDateYearStart(year) {
+        return `${year}-01-01`;
+    }
+
+    function getDateYearEnd(year) {
+        return `${year}-12-31`;
+    }
+
+    // ============================================================
+    // TOGGLE DATASET (Clickable Legend)
+    // ============================================================
+
+    function toggleDataset(index) {
+        if (!chart) return;
+        const meta = chart.getDatasetMeta(index);
+        meta.hidden = !meta.hidden;
+        chart.update();
+
+        // Update legend item style
+        const items = document.querySelectorAll('.legend-toggle .item');
+        items.forEach((item, i) => {
+            if (i === index) {
+                item.classList.toggle('hidden');
+            }
+        });
+    }
+
+    // ============================================================
+    // SET DEFAULT
+    // ============================================================
+
+    function loadDefault() {
+        const year = new Date().getFullYear();
+        document.getElementById('obsStart').value = getDateYearStart(year);
+        document.getElementById('obsEnd').value = getToday();
+
+        setLTADefault();
+
+        // Reset legend toggles
+        document.querySelectorAll('.legend-toggle .item').forEach((el, i) => {
+            el.classList.remove('hidden');
+            datasetVisibility[i] = true;
         });
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap',
-            maxZoom: 19
-        }).addTo(map);
+        loadData();
+    }
 
-        const zimbabweBounds = [
-            [-22.4, 25.2],
-            [-15.6, 33.0]
-        ];
-        let currentLayer = null;
-        let isLoading = false;
+    function setLTADefault() {
+        if (dbInfo) {
+            document.getElementById('ltaStart').value = dbInfo.min_date;
+            document.getElementById('ltaEnd').value = dbInfo.max_date;
+        } else {
+            document.getElementById('ltaStart').value = '2000-01-01';
+            document.getElementById('ltaEnd').value = '2024-12-31';
+        }
+    }
 
-        // ============================================
-        // UTILITY FUNCTIONS
-        // ============================================
-        function centerZimbabwe() {
-            map.fitBounds(zimbabweBounds);
+    function setLTAPrevYear() {
+        const year = new Date().getFullYear() - 1;
+        document.getElementById('ltaStart').value = getDateYearStart(year);
+        document.getElementById('ltaEnd').value = getDateYearEnd(year);
+    }
+
+    function setLTA5Year() {
+        const currentYear = new Date().getFullYear();
+        const startYear = currentYear - 5;
+        const endYear = currentYear - 1;
+        document.getElementById('ltaStart').value = getDateYearStart(startYear);
+        document.getElementById('ltaEnd').value = getDateYearEnd(endYear);
+    }
+
+    // ============================================================
+    // LOAD DATA
+    // ============================================================
+
+    async function loadData() {
+        const obsStart = document.getElementById('obsStart').value;
+        const obsEnd = document.getElementById('obsEnd').value;
+        const ltaStart = document.getElementById('ltaStart').value;
+        const ltaEnd = document.getElementById('ltaEnd').value;
+        const province = document.getElementById('provinceSelect').value;
+
+        if (!obsStart || !obsEnd) {
+            alert('Please select observation period dates.');
+            return;
+        }
+        if (!ltaStart || !ltaEnd) {
+            alert('Please select LTA period dates.');
+            return;
         }
 
-        function clearLayer() {
-            if (currentLayer) {
-                map.removeLayer(currentLayer);
-                currentLayer = null;
-                document.getElementById('imageCount').textContent = '--';
-                document.getElementById('monthInfo').textContent = 'Cleared';
-                setStatus('Cleared');
+        const chartCard = document.getElementById('chartCard');
+        const loadingState = document.getElementById('loadingState');
+        const contentState = document.getElementById('contentState');
+        const noDataState = document.getElementById('noDataState');
+
+        loadingState.style.display = 'block';
+        contentState.style.display = 'none';
+        noDataState.style.display = 'none';
+
+        try {
+            let url = `/api/rainfall/dekadal/?start_date=${obsStart}&end_date=${obsEnd}&lta_start=${ltaStart.split('-')[0]}&lta_end=${ltaEnd.split('-')[0]}`;
+            if (province) {
+                url += `&province=${province}`;
             }
+
+            console.log('Fetching:', url);
+            const response = await fetch(url);
+            const data = await response.json();
+            console.log('Data:', data);
+
+            loadingState.style.display = 'none';
+
+            if (data.success && data.data && data.data.length > 0) {
+                currentData = data;
+                contentState.style.display = 'block';
+                noDataState.style.display = 'none';
+
+                // Update chart title with province name
+                const displayProvince = province || data.provinces[0] || 'All';
+                document.getElementById('chartTitle').textContent = displayProvince;
+
+                // Update period info (only show LTA period)
+                document.getElementById('periodInfo').textContent = `LTA: ${data.lta_period.description}`;
+
+                renderChart(data, province);
+                renderStats(data, province);
+                renderTable(data, province);
+            } else {
+                contentState.style.display = 'none';
+                noDataState.style.display = 'block';
+                noDataState.innerHTML = `<div class="no-data">No data found. Please adjust your date range.</div>`;
+            }
+        } catch (error) {
+            loadingState.style.display = 'none';
+            contentState.style.display = 'none';
+            noDataState.style.display = 'block';
+            noDataState.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            console.error('Error:', error);
+        }
+    }
+
+    // ============================================================
+    // RENDER CHART
+    // ============================================================
+
+    function renderChart(data, province) {
+        const p = province || data.provinces[0];
+
+        const labels = data.data.map(d => d.period);
+        const rainfall = data.data.map(d => d[p] || 0);
+        const lta = data.data.map(d => d[`${p}_lta`] || 0);
+
+        const ctx = document.getElementById('rainfallChart').getContext('2d');
+
+        if (chart) {
+            chart.destroy();
         }
 
-        function setStatus(text) {
-            document.getElementById('status').textContent = text;
-        }
-
-        function getMonthName(month) {
-            const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-            ];
-            return names[parseInt(month) - 1] || month;
-        }
-
-        // ============================================
-        // LOAD VCI - MAIN FUNCTION
-        // ============================================
-        async function loadVCI() {
-            if (isLoading) return;
-
-            const year = document.getElementById('yearSelect').value;
-            const month = document.getElementById('monthSelect').value;
-
-            const loading = document.getElementById('loading');
-            const loadBtn = document.getElementById('loadBtn');
-
-            isLoading = true;
-            loading.classList.add('active');
-            loadBtn.disabled = true;
-            loadBtn.textContent = '⏳';
-            document.getElementById('loadingText').textContent = 'Loading 12km VCI...';
-            setStatus('Loading...');
-
-            try {
-                // Get current map bounds
-                const bounds = map.getBounds();
-                const geometry = {
-                    type: 'Polygon',
-                    coordinates: [
-                        [
-                            [bounds.getSouth(), bounds.getWest()],
-                            [bounds.getSouth(), bounds.getEast()],
-                            [bounds.getNorth(), bounds.getEast()],
-                            [bounds.getNorth(), bounds.getWest()],
-                            [bounds.getSouth(), bounds.getWest()]
-                        ]
-                    ]
-                };
-
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), CONFIG.timeout);
-
-                const csrfToken = getCsrfToken();
-
-                console.log('🚀 Sending request to:', CONFIG.apiUrl);
-                console.log('📦 Year:', year, 'Month:', month);
-
-                const response = await fetch(CONFIG.apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken,
+        chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Observed Rainfall',
+                        data: rainfall,
+                        backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 1,
+                        order: 1,
+                        yAxisID: 'y',
                     },
-                    credentials: 'include',
-                    body: JSON.stringify({
-                        geometry: geometry,
-                        year: parseInt(year),
-                        month: parseInt(month),
-                        baseline_start: CONFIG.baselineStart,
-                        baseline_end: CONFIG.baselineEnd,
-                        scale: CONFIG.scale,
-                        maxPixels: CONFIG.maxPixels
-                    }),
-                    signal: controller.signal
-                });
-
-                clearTimeout(timeoutId);
-
-                console.log('📡 Response status:', response.status);
-
-                // Handle 404
-                if (response.status === 404) {
-                    setStatus('❌ API endpoint not found');
-                    throw new Error('API endpoint not found. Please check:\n' +
-                        '1. Django server is running\n' +
-                        '2. URL pattern is correct\n' +
-                        '3. URL: ' + CONFIG.apiUrl);
-                }
-
-                if (!response.ok) {
-                    throw new Error(`Server error (${response.status})`);
-                }
-
-                const data = await response.json();
-                console.log('📥 Response data:', data);
-
-                if (data.success) {
-                    // Update map with tile layer
-                    if (currentLayer) {
-                        map.removeLayer(currentLayer);
+                    {
+                        label: 'LTA',
+                        data: lta,
+                        type: 'bar',
+                        borderColor: 'rgba(231, 76, 60, 1)',
+                        backgroundColor: 'rgba(231, 76, 60, 1)',
+                        borderWidth: 3,
+                        pointBackgroundColor: 'rgba(231, 76, 60, 1)',
+                        pointBorderColor: 'white',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        fill: false,
+                        tension: 0.3,
+                        order: 0,
+                        yAxisID: 'y',
                     }
-
-                    currentLayer = L.tileLayer(data.tile_url, {
-                        opacity: 0.85,
-                        attribution: 'VCI © Sentinel-2',
-                        maxZoom: 19
-                    }).addTo(map);
-
-                    // Update info
-                    document.getElementById('imageCount').textContent = data.metadata.image_count || '--';
-                    document.getElementById('monthInfo').textContent = getMonthName(month) + ' ' + year;
-
-                    setStatus('✓ VCI loaded');
-                } else {
-                    throw new Error(data.error || 'Unknown error');
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false, // Hide built-in legend
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                let value = context.raw;
+                                if (value !== null && value !== undefined && value > 0) {
+                                    label += `: ${value.toFixed(1)} mm`;
+                                } else {
+                                    label += ': No data';
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            maxRotation: 90,
+                            minRotation: 45,
+                            font: { size: 9 }
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Rainfall (mm)', font: { size: 12 } },
+                        grid: { color: 'rgba(0,0,0,0.05)' }
+                    }
                 }
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    setStatus('⏱ Timeout');
-                    alert('Request timed out. Please try again.');
-                } else {
-                    console.error('❌ Error:', error);
-                    setStatus('✗ ' + error.message);
-                    alert('Error: ' + error.message);
-                }
-            } finally {
-                isLoading = false;
-                loading.classList.remove('active');
-                loadBtn.disabled = false;
-                loadBtn.textContent = 'Load';
             }
+        });
+
+        // Apply visibility from toggles
+        chart.getDatasetMeta(0).hidden = !datasetVisibility[0];
+        chart.getDatasetMeta(1).hidden = !datasetVisibility[1];
+        chart.update();
+
+        setTimeout(() => { chart.resize(); }, 100);
+    }
+
+    // ============================================================
+    // RENDER STATS
+    // ============================================================
+
+    function renderStats(data, province) {
+        const p = province || data.provinces[0];
+
+        const rainfallValues = data.data.map(d => d[p] || 0).filter(v => v > 0);
+        const ltaValues = data.data.map(d => d[`${p}_lta`] || 0).filter(v => v > 0);
+        const anomalies = data.data.map(d => d[`${p}_anomaly`] || 0);
+
+        const totalRainfall = rainfallValues.reduce((a, b) => a + b, 0);
+        const avgLTA = ltaValues.reduce((a, b) => a + b, 0) / (ltaValues.length || 1);
+        const avgAnomaly = anomalies.reduce((a, b) => a + b, 0) / (anomalies.length || 1);
+        const maxRainfall = Math.max(...rainfallValues, 0);
+        const minRainfall = Math.min(...rainfallValues, 0);
+
+
+    }
+
+    // ============================================================
+    // RENDER TABLE
+    // ============================================================
+
+    function renderTable(data, province) {
+        const p = province || data.provinces[0];
+        const tableWrapper = document.getElementById('tableWrapper');
+        const tableContainer = document.getElementById('tableContainer');
+
+        tableContainer.style.display = 'block';
+
+        let html = `
+            <table>
+                <thead><tr>
+                    <th>Period</th>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Rainfall (mm)</th>
+                    <th>LTA (mm)</th>
+                    <th>Anomaly (mm)</th>
+                    <th>% Avg</th>
+                </tr></thead>
+                <tbody>
+        `;
+
+        data.data.forEach(d => {
+            const rainfall = d[p] || 0;
+            const lta = d[`${p}_lta`] || 0;
+            const anomaly = d[`${p}_anomaly`] || 0;
+            const pctAvg = d[`${p}_pct_avg`] || 0;
+            const cls = anomaly >= 0 ? 'positive' : 'negative';
+
+            html += `
+                <tr>
+                    <td><strong>${d.period}</strong></td>
+                    <td>${d.start_date}</td>
+                    <td>${d.end_date}</td>
+                    <td>${rainfall.toFixed(1)}</td>
+                    <td>${lta.toFixed(1)}</td>
+                    <td class="${cls}">${anomaly >= 0 ? '+' : ''}${anomaly.toFixed(1)}</td>
+                    <td>${pctAvg.toFixed(1)}%</td>
+                </tr>
+            `;
+        });
+
+        html += `</tbody></table>`;
+        tableWrapper.innerHTML = html;
+    }
+
+    // ============================================================
+    // EXPORT CSV
+    // ============================================================
+
+    function exportCSV() {
+        if (!currentData) {
+            alert('Please load data first.');
+            return;
         }
 
-        // ============================================
-        // AUTO-RELOAD ON MAP MOVE
-        // ============================================
-        let moveTimeout = null;
-        map.on('moveend', function() {
-            clearTimeout(moveTimeout);
-            moveTimeout = setTimeout(() => {
-                if (currentLayer && !isLoading) {
-                    loadVCI();
-                }
-            }, 3000);
+        const province = document.getElementById('provinceSelect').value || currentData.provinces[0];
+        const obsStart = document.getElementById('obsStart').value;
+        const obsEnd = document.getElementById('obsEnd').value;
+
+        let csv = 'Period,Start Date,End Date,Rainfall (mm),LTA (mm),Anomaly (mm),% of Average\n';
+
+        currentData.data.forEach(d => {
+            const rainfall = d[province] || 0;
+            const lta = d[`${province}_lta`] || 0;
+            const anomaly = d[`${province}_anomaly`] || 0;
+            const pctAvg = d[`${province}_pct_avg`] || 0;
+            csv += `${d.period},${d.start_date},${d.end_date},${rainfall.toFixed(1)},${lta.toFixed(1)},${anomaly.toFixed(1)},${pctAvg.toFixed(1)}%\n`;
         });
 
-        // ============================================
-        // INITIALIZATION
-        // ============================================
-        setTimeout(centerZimbabwe, 300);
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `dekadal_rainfall_${province}_${obsStart}_to_${obsEnd}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
 
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(loadVCI, 500);
-        });
+    // ============================================================
+    // INIT
+    // ============================================================
 
-        // Keyboard shortcuts
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !isLoading) loadVCI();
-            if (e.key === 'r' || e.key === 'R') centerZimbabwe();
-            if (e.key === 'c' || e.key === 'C') clearLayer();
-        });
+    async function init() {
+        await getDatabaseInfo();
+        loadDefault();
+    }
 
-        // Console info
-        console.log('🚀 Zimbabwe VCI - Ultra Fast (12km)');
-        console.log('📊 Shortcuts: Enter=Load, R=Center, C=Clear');
-        console.log('🔗 API URL:', CONFIG.apiUrl);
-        console.log('⚡ Resolution: 12km for maximum speed');
-    </script>
+    window.onload = init;
+</script>
 
 </body>
 </html>

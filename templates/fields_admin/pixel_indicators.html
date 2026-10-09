@@ -188,7 +188,7 @@
   }
   .map-hint strong { color: var(--accent); }
 
-  /* ---------- Field info panel (NEW) ---------- */
+  /* ---------- Field info panel ---------- */
   .field-panel {
     position: absolute;
     right: 10px;
@@ -372,10 +372,18 @@
   <!-- ================= FORM ================= -->
   <div class="form-card">
     <div class="presets">
-      <button class="preset-chip" data-preset="harare">Harare</button>
-      <button class="preset-chip" data-preset="bulawayo">Bulawayo</button>
-      <button class="preset-chip" data-preset="nairobi">Nairobi</button>
-      <button class="preset-chip" data-preset="capetown">Cape Town</button>
+        <button class="preset-chip" data-preset="harare">Harare</button>
+        <button class="preset-chip" data-preset="bulawayo">Bulawayo</button>
+        <button class="preset-chip" data-preset="mutare">Mutare</button>
+        <button class="preset-chip" data-preset="gweru">Gweru</button>
+        <button class="preset-chip" data-preset="kwekwe">Kwekwe</button>
+        <button class="preset-chip" data-preset="kadoma">Kadoma</button>
+        <button class="preset-chip" data-preset="masvingo">Masvingo</button>
+        <button class="preset-chip" data-preset="chinhoyi">Chinhoyi</button>
+        <button class="preset-chip" data-preset="marondera">Marondera</button>
+        <button class="preset-chip" data-preset="hwange">Hwange</button>
+        <button class="preset-chip" data-preset="victoriafalls">Victoria Falls</button>
+        <button class="preset-chip" data-preset="bindura">Bindura</button>
     </div>
 
     <div class="form-fields">
@@ -411,7 +419,7 @@
       <div class="map-hint">📍 <strong>Click</strong> a field → review attributes → click "Get Climatic Data"</div>
       <div id="map"></div>
 
-      <!-- ============ FIELD INFO PANEL (NEW) ============ -->
+      <!-- ============ FIELD INFO PANEL ============ -->
       <div id="fieldPanel" class="field-panel hidden">
         <div class="field-panel-header">
           <span id="fieldPanelTitle">Field</span>
@@ -467,10 +475,18 @@ const API_URL = "/pixel-timeseries/";
 const FIELDS_GEOJSON_URL = "/static/geojson/fields.geojson";
 
 const PRESETS = {
-  harare:   { lat: -17.8292, lng: 31.0522, zoom: 11 },
-  bulawayo: { lat: -20.1325, lng: 28.6265, zoom: 11 },
-  nairobi:  { lat: -1.2921,  lng: 36.8219, zoom: 11 },
-  capetown: { lat: -33.9249, lng: 18.4241, zoom: 11 },
+  harare:         { lat: -17.8292, lng: 31.0522, zoom: 11 },
+  bulawayo:       { lat: -20.1325, lng: 28.6265, zoom: 11 },
+  mutare:         { lat: -18.9707, lng: 32.6709, zoom: 11 },
+  gweru:          { lat: -19.4500, lng: 29.8167, zoom: 11 },
+  kwekwe:         { lat: -18.9281, lng: 29.8149, zoom: 11 },
+  kadoma:         { lat: -18.3333, lng: 29.9167, zoom: 11 },
+  masvingo:       { lat: -20.0637, lng: 30.8277, zoom: 11 },
+  chinhoyi:       { lat: -17.3667, lng: 30.2000, zoom: 11 },
+  marondera:      { lat: -18.1853, lng: 31.5519, zoom: 11 },
+  hwange:         { lat: -18.3647, lng: 26.4981, zoom: 11 },
+  victoriafalls:  { lat: -17.9243, lng: 25.8572, zoom: 12 },
+  bindura:        { lat: -17.3019, lng: 31.3306, zoom: 11 },
 };
 
 /* ============================================================
@@ -549,10 +565,10 @@ async function loadFields() {
         fillColor: "#22c55e",
         fillOpacity: 0.12,
       },
-      interactive: false,          // clicks pass through to the map
+      interactive: false,
     }).addTo(map);
 
-    // Belt-and-braces: disable pointer events on every SVG path
+    // Disable pointer events on every SVG path
     fieldsLayer.eachLayer((layer) => {
       layer.options.interactive = false;
       if (layer._path) layer._path.style.pointerEvents = "none";
@@ -573,7 +589,7 @@ async function loadFields() {
     }
   } catch (err) {
     console.error(err);
-    setStatus("Could not load fields.geojson — check /static/geojson/fields.geojson", "error");
+    setStatus("Could not load fields.geojson — check " + FIELDS_GEOJSON_URL, "error");
     setTimeout(clearStatus, 6000);
     placeMarker(PRESETS.harare.lat, PRESETS.harare.lng, false);
   }
@@ -635,7 +651,6 @@ function pointInRing(pt, ring) {
    ============================================================ */
 function showFieldPanel(lat, lng) {
   const feature = findFieldAt(lat, lng);
-
   currentField = feature;
 
   const panel  = $("fieldPanel");
@@ -652,7 +667,7 @@ function showFieldPanel(lat, lng) {
   if (!feature) {
     title.textContent = "Outside any field";
     body.innerHTML = `<div style="color:var(--muted);font-style:italic;">
-      Click inside a green field to see its attributes.
+      Click inside a green to see its attributes and indicator data.
     </div>`;
 
     const note = document.createElement("div");
@@ -662,7 +677,6 @@ function showFieldPanel(lat, lng) {
     return;
   }
 
-  // Title: try common name keys, else "Field"
   const props = feature.properties || {};
   const name =
     props.name || props.NAME || props.Name ||
@@ -671,7 +685,6 @@ function showFieldPanel(lat, lng) {
     "Field";
   title.textContent = name;
 
-  // Build key/value list
   body.innerHTML = "";
   const keys = Object.keys(props);
   if (keys.length === 0) {
@@ -724,7 +737,7 @@ function placeMarker(lat, lng, updateInputs = true) {
       const p = marker.getLatLng();
       updateLatLngInputs(p.lat, p.lng);
       showFieldPanel(p.lat, p.lng);
-      // No fetch — user must click the button
+      // No auto-fetch — user must press "Get Climatic Data"
     });
   }
   if (updateInputs) updateLatLngInputs(lat, lng);
@@ -790,7 +803,6 @@ async function fetchData() {
   }
 }
 
-/* Hook the "Get Climatic Data" button */
 $("getDataBtn").addEventListener("click", fetchData);
 
 function extractDaily(data) {
@@ -813,7 +825,7 @@ function extractNdvi(data) {
 }
 
 /* ============================================================
-   CHART  (UNCHANGED)
+   CHART  (Temperature + Rainfall on left; NDVI + Soil on right)
    ============================================================ */
 function renderCombinedChart(data) {
   const daily = extractDaily(data);
@@ -832,6 +844,7 @@ function renderCombinedChart(data) {
     data: {
       labels,
       datasets: [
+        // ---------- LEFT AXIS: Temperature + Rainfall ----------
         {
           label: "Temperature (°C)",
           data: daily.map((d) => d.temperature),
@@ -843,7 +856,32 @@ function renderCombinedChart(data) {
           spanGaps: true,
           yAxisID: "yLeft",
           fill: true,
+          order: 2,
+        },
+        {
+          label: "Rainfall (mm/day)",
+          data: daily.map((d) => d.rainfall),
+          borderColor: "#0284c7",
+          backgroundColor: "rgba(2, 132, 199, 0.55)",
+          borderWidth: 1,
+          type: "bar",
+          yAxisID: "yLeft",
           order: 3,
+        },
+
+        // ---------- RIGHT AXIS: NDVI + Soil Moisture ----------
+        {
+          label: "NDVI",
+          data: ndviSeries,
+          borderColor: "#9333ea",
+          backgroundColor: "rgba(147, 51, 234, 0.10)",
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.25,
+          spanGaps: true,
+          yAxisID: "yRight",
+          fill: false,
+          order: 1,
         },
         {
           label: "Soil Moisture (m³/m³)",
@@ -854,29 +892,8 @@ function renderCombinedChart(data) {
           pointRadius: 1.5,
           tension: 0.25,
           spanGaps: true,
-          yAxisID: "yLeft",
-          order: 2,
-        },
-        {
-          label: "NDVI",
-          data: ndviSeries,
-          borderColor: "#9333ea",
-          backgroundColor: "rgba(147, 51, 234, 0.10)",
-          borderWidth: 2,
-          pointRadius: 3,
-          tension: 0.25,
-          spanGaps: true,
-          yAxisID: "yLeft",
-          order: 1,
-        },
-        {
-          label: "Rainfall (mm/day)",
-          data: daily.map((d) => d.rainfall),
-          borderColor: "#0284c7",
-          backgroundColor: "rgba(2, 132, 199, 0.55)",
-          borderWidth: 1,
-          type: "bar",
           yAxisID: "yRight",
+          fill: false,
           order: 4,
         },
       ],
@@ -910,7 +927,9 @@ function renderCombinedChart(data) {
             label: (item) => {
               const v = item.parsed.y;
               if (v == null) return `${item.dataset.label}: —`;
-              const digits = item.dataset.label.includes("NDVI") || item.dataset.label.includes("Soil") ? 4 : 2;
+              const digits =
+                item.dataset.label.includes("NDVI") ||
+                item.dataset.label.includes("Soil") ? 4 : 2;
               return `${item.dataset.label}: ${Number(v).toFixed(digits)}`;
             },
           },
@@ -930,15 +949,26 @@ function renderCombinedChart(data) {
         yLeft: {
           type: "linear",
           position: "left",
-          title: { display: true, text: "Temp · Soil · NDVI", color: "#64748b", font: { size: 10 } },
-          ticks: { color: "#64748b", font: { size: 10 }, maxTicksLimit: 6 },
+          title: {
+            display: true,
+            text: "Temperature (°C) · Rainfall (mm/day)",
+            color: "#ea580c",
+            font: { size: 10 },
+          },
+          ticks: { color: "#ea580c", font: { size: 10 }, maxTicksLimit: 6 },
           grid: { color: "rgba(15, 23, 42, 0.06)" },
+          beginAtZero: true,
         },
         yRight: {
           type: "linear",
           position: "right",
-          title: { display: true, text: "Rainfall (mm/day)", color: "#0284c7", font: { size: 10 } },
-          ticks: { color: "#0284c7", font: { size: 10 }, maxTicksLimit: 6 },
+          title: {
+            display: true,
+            text: "NDVI · Soil Moisture (m³/m³)",
+            color: "#9333ea",
+            font: { size: 10 },
+          },
+          ticks: { color: "#9333ea", font: { size: 10 }, maxTicksLimit: 6 },
           grid: { drawOnChartArea: false },
           beginAtZero: true,
         },
@@ -948,7 +978,7 @@ function renderCombinedChart(data) {
 }
 
 /* ============================================================
-   TABLE  (UNCHANGED)
+   TABLE
    ============================================================ */
 function fmt(v, digits = 2) {
   if (v == null || isNaN(v)) return '<span class="null-value">—</span>';
@@ -982,7 +1012,7 @@ function renderTable(data) {
 }
 
 /* ============================================================
-   CSV  (UNCHANGED)
+   CSV
    ============================================================ */
 function downloadCsv() {
   if (!lastData) return;

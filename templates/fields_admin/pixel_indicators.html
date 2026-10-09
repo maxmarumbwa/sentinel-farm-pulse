@@ -85,6 +85,57 @@
   }
   .preset-chip:hover { border-color: var(--accent); background: #e0f2fe; }
 
+  /* ---------- Favourite Farms card ---------- */
+  .farms-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    width: 100%;
+  }
+
+  .farms-card-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text);
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .farms-card-title .title-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .farms-card-title .title-left::before {
+    content: "★";
+    color: #f59e0b;
+    font-size: 12px;
+  }
+
+  .farms-card-title .title-hint {
+    font-size: 10px;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .farms-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 6px;
+  }
+
   .form-fields { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; flex: 1; }
 
   .field { min-width: 100px; }
@@ -371,21 +422,31 @@
 
   <!-- ================= FORM ================= -->
   <div class="form-card">
-    <div class="presets">
-        <button class="preset-chip" data-preset="harare">Harare</button>
-        <button class="preset-chip" data-preset="bulawayo">Bulawayo</button>
-        <button class="preset-chip" data-preset="mutare">Mutare</button>
-        <button class="preset-chip" data-preset="gweru">Gweru</button>
-        <button class="preset-chip" data-preset="kwekwe">Kwekwe</button>
-        <button class="preset-chip" data-preset="kadoma">Kadoma</button>
+
+    <!-- ========== FAVOURITE FARMS CARD ========== -->
+    <div class="farms-card">
+      <div class="farms-card-title">
+        <span class="title-left">Favourite Farms</span>
+        <span class="title-hint">click a town to jump</span>
+      </div>
+
+      <div class="farms-grid">
+        <button class="preset-chip" data-preset="harare">Harare farm</button>
+        <button class="preset-chip" data-preset="bulawayo">Bulawayo farm</button>
+        <button class="preset-chip" data-preset="mutare">Mutare farm</button>
+        <button class="preset-chip" data-preset="gweru">Gweru farm</button>
+        <button class="preset-chip" data-preset="kwekwe">Kwekwe farm</button>
+        <button class="preset-chip" data-preset="kadoma">Kadoma farm</button>
         <button class="preset-chip" data-preset="masvingo">Masvingo</button>
-        <button class="preset-chip" data-preset="chinhoyi">Chinhoyi</button>
-        <button class="preset-chip" data-preset="marondera">Marondera</button>
-        <button class="preset-chip" data-preset="hwange">Hwange</button>
-        <button class="preset-chip" data-preset="victoriafalls">Victoria Falls</button>
-        <button class="preset-chip" data-preset="bindura">Bindura</button>
+        <button class="preset-chip" data-preset="chinhoyi">Chinhoyi farm</button>
+        <button class="preset-chip" data-preset="marondera">Marondera farm</button>
+        <button class="preset-chip" data-preset="hwange">Hwange farm</button>
+        <button class="preset-chip" data-preset="victoriafalls">Victoria Falls farm</button>
+        <button class="preset-chip" data-preset="bindura">Bindura farm</button>
+      </div>
     </div>
 
+    <!-- ========== FIELDS ROW ========== -->
     <div class="form-fields">
       <div class="field">
         <label for="lat">Latitude</label>

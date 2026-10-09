@@ -9,7 +9,7 @@ http://localhost:8000/view/ndvi-graph/#                 >>>  compare ndvi graphs
 
 http://localhost:8000/view/ndvi-graph/#                 >>>
 
-
+http://localhost:8000/ndvi-to-db/                       >>> extract ndvi for province point and save to db
 
 
 
@@ -24,12 +24,18 @@ MERge the above 2 functions
 templates\fields_admin\chart_rain_compa_avg.html     >>> chart rainfall compared to avg for point location select drop dwon menu
 @@@@ Extend to sho on map
 
+templates/fields_admin/extract_rainfall_from fixed points.html >>> extract rainfall for aall latlo provinces 
+##  Now extract rainfall for all farm Centroid-based
 
+templates\fields_admin\field_ndvi_graph.html         >>>  plot ndvi for fields and also compare field 
 
-
+http://localhost:8000/ndvi-to-db/              >>> save field province ndvi to db
 
 
 
 API
 Get AOI for ndvi for each field- based on field_id
 http://localhost:8000/api/fields/ndvi-single/?field_id=151&start_date=2026-01-01&end_date=2026-08-01&format=full
+
+
+http://localhost:8000/api/ndvi/db/?start_date=2026-01-01&end_date=2026-08-01&format=full >>> aapi to view ndvi from db

@@ -1423,6 +1423,8 @@ def api_ndvi_single_field(request):
             'error': str(e)
         }, status=500)
  
+ 
+
  ###
  #
  #
@@ -1580,6 +1582,191 @@ def api_ndvi_single_field(request):
 # from django.db.models import Max
 # from .models import Field, FieldNDVI
 # import datetime
+
+
+
+########################### APIto get all indicators ################################
+####################################################################################
+import ee
+
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+
+from drf_spectacular.utils import (
+    extend_schema,
+    OpenApiParameter,
+)
+
+
+@extend_schema(
+    summary="Pixel Time Series",
+    description="""
+    Returns daily rainfall, temperature, soil moisture,
+    and NDVI time series for a specified coordinate.
+    """,
+    parameters=[
+        OpenApiParameter(
+            name="lat",
+            type=float,
+            location=OpenApiParameter.QUERY,
+            required=True,
+            description="Latitude",
+        ),
+        OpenApiParameter(
+            name="lng",
+            type=float,
+            location=OpenApiParameter.QUERY,
+            required=True,
+            description="Longitude",
+        ),
+        OpenApiParameter(
+            name="start_date",
+            type=str,
+            location=OpenApiParameter.QUERY,
+            required=True,
+            description="Start date (YYYY-MM-DD)",
+        ),
+        OpenApiParameter(
+            name="end_date",
+            type=str,
+            location=OpenApiParameter.QUERY,
+            required=True,
+            description="End date (YYYY-MM-DD)",
+        ),
+    ],
+)
+@api_view(["GET"])
+def pixel_timeseries(request):
+
+    lat = float(request.GET.get("lat"))
+    lng = float(request.GET.get("lng"))
+
+    start_date = request.GET.get("start_date")
+    end_date = request.GET.get("end_date")
+
+    point = ee.Geometry.Point([lng, lat])
+
+    # =====================================================
+    # DAILY DATASETS
+    # =====================================================
+
+    era5 = (
+        ee.ImageCollection("ECMWF/ERA5_LAND/DAILY_AGGR")
+        .filterDate(start_date, end_date)
+        .select(
+            [
+                "temperature_2m",
+                "volumetric_soil_water_layer_1",
+            ]
+        )
+    )
+
+    chirps = (
+        ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
+        .filterDate(start_date, end_date)
+        .select("precipitation")
+    )
+
+    # =====================================================
+    # DAILY FEATURES
+    # =====================================================
+
+    def extract_daily(image):
+
+        date = image.date().format("YYYY-MM-dd")
+
+        temp = image.reduceRegion(
+            ee.Reducer.mean(),
+            point,
+            5000,
+        ).get("temperature_2m")
+
+        soil = image.reduceRegion(
+            ee.Reducer.mean(),
+            point,
+            5000,
+        ).get("volumetric_soil_water_layer_1")
+
+        rain_image = chirps.filterDate(
+            image.date(),
+            image.date().advance(1, "day"),
+        ).first()
+
+        rainfall = ee.Algorithms.If(
+            rain_image,
+            rain_image.reduceRegion(
+                ee.Reducer.sum(),
+                point,
+                5500,
+            ).get("precipitation"),
+            None,
+        )
+
+        return ee.Feature(
+            None,
+            {
+                "date": date,
+                "temperature": temp,
+                "soil_moisture": soil,
+                "rainfall": rainfall,
+            },
+        )
+
+    daily_fc = ee.FeatureCollection(era5.map(extract_daily))
+
+    daily_features = daily_fc.getInfo()["features"]
+
+    # =====================================================
+    # NDVI (NATIVE 16-DAY DATES)
+    # =====================================================
+
+    ndvi_collection = (
+        ee.ImageCollection("MODIS/061/MOD13A2")
+        .filterDate(start_date, end_date)
+        .select("NDVI")
+    )
+
+    def extract_ndvi(image):
+
+        value = (
+            image.multiply(0.0001)
+            .reduceRegion(
+                ee.Reducer.mean(),
+                point,
+                1000,
+            )
+            .get("NDVI")
+        )
+
+        return ee.Feature(
+            None,
+            {
+                "date": image.date().format("YYYY-MM-dd"),
+                "ndvi": value,
+            },
+        )
+
+    ndvi_fc = ee.FeatureCollection(ndvi_collection.map(extract_ndvi))
+
+    ndvi_features = ndvi_fc.getInfo()["features"]
+
+    # =====================================================
+    # RESPONSE
+    # =====================================================
+
+    return Response(
+        {
+            "lat": lat,
+            "lng": lng,
+            "start_date": start_date,
+            "end_date": end_date,
+            "daily": daily_features,
+            "ndvi": ndvi_features,
+        }
+    )
+
+##################################### End################################@###########
+#################################################################################
 
 # #removed @login_required
 def api_fields_latest_health(request):
@@ -7328,10 +7515,14 @@ def rainfall_to_db(request):
 def chart_rain(request):
     return render(request, 'fields_admin/chart_rain_compa_avg.html', {})
 
-
+def field_ndvi_graph(request):
+    return render(request, 'fields_admin/field_ndvi_graph.html', {})
 def ndvi_to_db(request):
     return render(request, 'fields_admin/save_ndvi_to_db.html', {})
 
+
+def pixel_indicators(request):
+    return render(request, "fields_admin/pixel_indicators.html")
 
 
 
@@ -7923,3 +8114,4 @@ def api_load_points(request):
             'success': False,
             'error': str(e)
         }, status=500)
+        

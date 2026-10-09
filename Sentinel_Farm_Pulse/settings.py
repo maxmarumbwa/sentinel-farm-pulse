@@ -50,7 +50,8 @@ INSTALLED_APPS = [
     'apps.fields_admin',
     'rest_framework',
     'django.contrib.gis',  # For GeoDjango
-    'leaflet',             # For maps
+    'leaflet',   
+    'drf_spectacular',
 ]
 
 MIDDLEWARE = [

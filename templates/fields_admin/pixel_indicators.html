@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pixel Time Series — Harare</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<style>
+  :root {
+    --bg: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #f8fafc;
+    --panel-3: #f1f5f9;
+    --text: #0f172a;
+    --muted: #64748b;
+    --accent: #0284c7;
+    --danger: #dc2626;
+    --success: #16a34a;
+    --warn: #b45309;
+    --border: #e2e8f0;
+    --border-strong: #cbd5e1;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 10px 14px;
+    overflow: hidden;
+  }
+
+  .header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  h1 { margin: 0; font-size: 17px; font-weight: 600; }
+  .subtitle { color: var(--muted); font-size: 11px; }
+
+  /* ============================================================
+     GRID LAYOUT  (UNCHANGED — table stays at 550px)
+     ============================================================ */
+  .layout {
+    max-width: 1800px;
+    height: calc(100vh - 62px);
+    margin: 0 auto;
+    display: grid;
+    grid-template-rows: auto 1fr 550px;
+    gap: 8px;
+    min-height: 0;
+  }
+
+  /* ---------- Form ---------- */
+  .form-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+
+  .presets { display: flex; gap: 5px; flex-wrap: wrap; }
+
+  .preset-chip {
+    background: var(--panel-3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .preset-chip:hover { border-color: var(--accent); background: #e0f2fe; }
+
+  .form-fields { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; flex: 1; }
+
+  .field { min-width: 100px; }
+  .field label {
+    display: block;
+    font-size: 9.5px;
+    color: var(--muted);
+    margin-bottom: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+  .field input {
+    width: 100%;
+    padding: 6px 8px;
+    background: #ffffff;
+    border: 1px solid var(--border-strong);
+    border-radius: 5px;
+    color: var(--text);
+    font-size: 12px;
+    outline: none;
+  }
+  .field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15); }
+
+  .form-actions { display: flex; gap: 6px; align-items: flex-end; }
+
+  button {
+    padding: 6px 12px;
+    border-radius: 5px;
+    border: none;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-secondary { background: #ffffff; color: var(--text); border: 1px solid var(--border-strong); }
+  .btn-secondary:hover:not(:disabled) { background: var(--panel-3); }
+
+  .btn-primary { background: var(--accent); color: #ffffff; }
+  .btn-primary:hover:not(:disabled) { background: #0369a1; }
+
+  .loading-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 5px;
+    vertical-align: middle;
+    animation: pulse 1s infinite ease-in-out;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.3; }
+    50%      { opacity: 1; }
+  }
+
+  /* ---------- Middle: map + chart ---------- */
+  .middle {
+    display: grid;
+    grid-template-columns: 1fr 1.25fr;
+    gap: 8px;
+    min-height: 0;
+  }
+
+  .map-card, .chart-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .card-title {
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-3);
+    flex: 0 0 auto;
+  }
+
+  #map { flex: 1; min-height: 0; }
+  .chart-wrap { position: relative; flex: 1; min-height: 0; padding: 4px 8px 8px; }
+
+  .map-hint {
+    position: absolute;
+    top: 32px;
+    left: 10px;
+    z-index: 500;
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 4px 8px;
+    font-size: 10.5px;
+    pointer-events: none;
+  }
+  .map-hint strong { color: var(--accent); }
+
+  /* ---------- Field info panel (NEW) ---------- */
+  .field-panel {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    z-index: 600;
+    background: #ffffff;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+    width: 260px;
+    max-width: calc(100% - 20px);
+    overflow: hidden;
+    font-size: 11.5px;
+  }
+  .field-panel.hidden { display: none; }
+
+  .field-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: var(--panel-3);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 11px;
+  }
+  .field-panel-header .close-x {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0 2px;
+  }
+  .field-panel-header .close-x:hover { color: var(--danger); }
+
+  .field-panel-body {
+    padding: 8px 10px;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+  .field-panel-body .kv {
+    display: grid;
+    grid-template-columns: 45% 55%;
+    gap: 4px 6px;
+    margin-bottom: 6px;
+  }
+  .field-panel-body .kv .k {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .field-panel-body .kv .v {
+    color: var(--text);
+    font-size: 11.5px;
+    word-break: break-word;
+  }
+  .field-panel-body .kv .v.empty {
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .field-panel-footer {
+    padding: 8px 10px;
+    border-top: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .field-panel-footer button {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 12px;
+    background: var(--accent);
+    color: #ffffff;
+    border-radius: 5px;
+  }
+  .field-panel-footer button:hover:not(:disabled) { background: #0369a1; }
+
+  .field-panel-footer .outside-note {
+    font-size: 10.5px;
+    color: var(--warn);
+    margin-bottom: 6px;
+    text-align: center;
+    font-style: italic;
+  }
+
+  /* ---------- Toast ---------- */
+  .status { display: none; }
+  .status.show {
+    display: block;
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 11.5px;
+    z-index: 9999;
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.1);
+    max-width: 320px;
+  }
+  .status.loading { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
+  .status.error   { background: #fef2f2; border: 1px solid #fecaca; color: var(--danger); }
+  .status.warn    { background: #fffbeb; border: 1px solid #fde68a; color: var(--warn); }
+  .status.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: var(--success); }
+
+  /* ---------- Table (550px — UNCHANGED) ---------- */
+  .table-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+
+  .table-scroll {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: auto;
+    min-height: 0;
+  }
+  .table-scroll::-webkit-scrollbar { width: 7px; height: 7px; }
+  .table-scroll::-webkit-scrollbar-track { background: var(--panel-2); }
+  .table-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    background: var(--panel-3);
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 9.5px;
+    letter-spacing: 0.5px;
+    text-align: left;
+    padding: 4px 10px;
+    border-bottom: 1px solid var(--border);
+    z-index: 1;
+  }
+
+  tbody td {
+    padding: 2px 10px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    line-height: 1.5;
+  }
+  tbody tr:nth-child(even) td { background: var(--panel-2); }
+  tbody tr:hover td { background: #e0f2fe; }
+  tbody tr.ndvi-row td { background: #faf5ff; }
+  tbody tr.ndvi-row td:first-child { border-left: 3px solid #9333ea; padding-left: 7px; }
+  tbody tr.ndvi-row:hover td { background: #f3e8ff; }
+
+  .null-value { color: var(--muted); font-style: italic; }
+
+  @media (max-width: 1000px) {
+    body { overflow: auto; }
+    .layout { height: auto; grid-template-rows: auto auto auto; }
+    .middle { grid-template-columns: 1fr; }
+    .map-card { height: 340px; }
+    .chart-card { height: 400px; }
+    .table-card { height: 200px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <div class="header">
+    <h1>Pixel Time Series</h1>
+    <div class="subtitle">Click a field on the map → review its attributes → fetch the climate data.</div>
+  </div>
+
+  <!-- ================= FORM ================= -->
+  <div class="form-card">
+    <div class="presets">
+      <button class="preset-chip" data-preset="harare">Harare</button>
+      <button class="preset-chip" data-preset="bulawayo">Bulawayo</button>
+      <button class="preset-chip" data-preset="nairobi">Nairobi</button>
+      <button class="preset-chip" data-preset="capetown">Cape Town</button>
+    </div>
+
+    <div class="form-fields">
+      <div class="field">
+        <label for="lat">Latitude</label>
+        <input id="lat" type="number" step="0.0001" value="-17.8292" />
+      </div>
+      <div class="field">
+        <label for="lng">Longitude</label>
+        <input id="lng" type="number" step="0.0001" value="31.0522" />
+      </div>
+      <div class="field">
+        <label for="start_date">Start Date</label>
+        <input id="start_date" type="date" value="2024-01-01" />
+      </div>
+      <div class="field">
+        <label for="end_date">End Date</label>
+        <input id="end_date" type="date" value="2024-03-31" />
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button id="csvBtn" class="btn-secondary" disabled>
+        <span id="csvStatus"></span>CSV
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= MIDDLE ================= -->
+  <div class="middle">
+    <div class="map-card">
+      <div class="card-title">Map — click a field to inspect it</div>
+      <div class="map-hint">📍 <strong>Click</strong> a field → review attributes → click "Get Climatic Data"</div>
+      <div id="map"></div>
+
+      <!-- ============ FIELD INFO PANEL (NEW) ============ -->
+      <div id="fieldPanel" class="field-panel hidden">
+        <div class="field-panel-header">
+          <span id="fieldPanelTitle">Field</span>
+          <span class="close-x" id="fieldPanelClose" title="Close">×</span>
+        </div>
+        <div class="field-panel-body" id="fieldPanelBody"></div>
+        <div class="field-panel-footer">
+          <button id="getDataBtn" class="btn-primary">Get Climatic Data</button>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="chart-card">
+      <div class="card-title">Time Series</div>
+      <div class="chart-wrap">
+        <canvas id="combinedChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= TABLE ================= -->
+  <div class="table-card">
+    <div class="card-title">
+      Raw Daily Data
+      <span id="rowCount" style="color:var(--muted);font-weight:400;margin-left:6px;"></span>
+    </div>
+    <div class="table-scroll">
+      <table id="dataTable">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Temp (°C)</th>
+            <th>Rain (mm)</th>
+            <th>Soil (m³/m³)</th>
+            <th>NDVI</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div id="status" class="status"></div>
+
+<script>
+/* ============================================================
+   CONFIG
+   ============================================================ */
+const API_URL = "/pixel-timeseries/";
+const FIELDS_GEOJSON_URL = "/static/geojson/fields.geojson";
+
+const PRESETS = {
+  harare:   { lat: -17.8292, lng: 31.0522, zoom: 11 },
+  bulawayo: { lat: -20.1325, lng: 28.6265, zoom: 11 },
+  nairobi:  { lat: -1.2921,  lng: 36.8219, zoom: 11 },
+  capetown: { lat: -33.9249, lng: 18.4241, zoom: 11 },
+};
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let combinedChart = null;
+let lastData = null;
+let map = null;
+let marker = null;
+
+let fieldsLayer = null;
+let fieldsBounds = null;
+
+/* Currently selected field (or null if the click was outside) */
+let currentField = null;
+
+const $ = (id) => document.getElementById(id);
+
+function setStatus(msg, type = "loading") {
+  const el = $("status");
+  el.className = "status show " + type;
+  el.textContent = msg;
+}
+function clearStatus() { $("status").className = "status"; }
+
+function setLoading(on) {
+  $("csvStatus").innerHTML = on ? '<span class="loading-dot"></span>' : "";
+  $("csvBtn").disabled = on || !lastData;
+  $("getDataBtn").disabled = on;
+  $("getDataBtn").textContent = on ? "Loading…" : "Get Climatic Data";
+}
+
+/* ============================================================
+   MAP
+   ============================================================ */
+function initMap() {
+  map = L.map("map", { zoomControl: true })
+    .setView([PRESETS.harare.lat, PRESETS.harare.lng], 6);
+
+  L.tileLayer(
+    "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_41f3_1_8a11efede1b79cb6a69ed225",
+    {
+      maxZoom: 19,
+      subdomains: "abcd",
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> ' +
+        '&copy; <a href="https://carto.com/attributions">CARTO</a>',
+    }
+  ).addTo(map);
+
+  loadFields();
+
+  // Click anywhere → marker moves, coords update, panel shows field info.
+  // NO API call yet — the user must press "Get Climatic Data".
+  map.on("click", (e) => {
+    const { lat, lng } = e.latlng;
+    placeMarker(lat, lng, true);
+    showFieldPanel(lat, lng);
+  });
+}
+
+/* ============================================================
+   FIELDS GEOJSON
+   ============================================================ */
+async function loadFields() {
+  try {
+    const res = await fetch(FIELDS_GEOJSON_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${FIELDS_GEOJSON_URL}`);
+    const geojson = await res.json();
+
+    fieldsLayer = L.geoJSON(geojson, {
+      style: {
+        color: "#16a34a",
+        weight: 2,
+        opacity: 0.9,
+        fillColor: "#22c55e",
+        fillOpacity: 0.12,
+      },
+      interactive: false,          // clicks pass through to the map
+    }).addTo(map);
+
+    // Belt-and-braces: disable pointer events on every SVG path
+    fieldsLayer.eachLayer((layer) => {
+      layer.options.interactive = false;
+      if (layer._path) layer._path.style.pointerEvents = "none";
+    });
+
+    fieldsBounds = fieldsLayer.getBounds();
+    if (fieldsBounds.isValid()) {
+      map.fitBounds(fieldsBounds, { padding: [30, 30] });
+    }
+
+    // Starter marker at the first field's centroid; show its info panel
+    // but do NOT auto-fetch.
+    const firstLayer = fieldsLayer.getLayers()[0];
+    if (firstLayer && firstLayer.getBounds) {
+      const c = firstLayer.getBounds().getCenter();
+      placeMarker(c.lat, c.lng, true);
+      showFieldPanel(c.lat, c.lng);
+    }
+  } catch (err) {
+    console.error(err);
+    setStatus("Could not load fields.geojson — check /static/geojson/fields.geojson", "error");
+    setTimeout(clearStatus, 6000);
+    placeMarker(PRESETS.harare.lat, PRESETS.harare.lng, false);
+  }
+}
+
+/* ============================================================
+   FIELD HIT-TEST  (returns the feature that contains the point, or null)
+   ============================================================ */
+function findFieldAt(lat, lng) {
+  if (!fieldsLayer) return null;
+  const pt = L.latLng(lat, lng);
+
+  for (const layer of fieldsLayer.getLayers()) {
+    if (!layer.getBounds().contains(pt)) continue;
+    if (layer instanceof L.Polygon && pointInPolygon(pt, layer.getLatLngs())) {
+      return layer.feature || null;
+    }
+  }
+  return null;
+}
+
+function pointInPolygon(pt, rings) {
+  const isMulti =
+    Array.isArray(rings) &&
+    Array.isArray(rings[0]) &&
+    Array.isArray(rings[0][0]) &&
+    rings[0][0][0] instanceof L.LatLng;
+
+  const polyRings = isMulti ? rings : [rings];
+
+  for (const polygonRings of polyRings) {
+    if (pointInRing(pt, polygonRings[0])) {
+      let insideHole = false;
+      for (let i = 1; i < polygonRings.length; i++) {
+        if (pointInRing(pt, polygonRings[i])) { insideHole = true; break; }
+      }
+      if (!insideHole) return true;
+    }
+  }
+  return false;
+}
+
+function pointInRing(pt, ring) {
+  const x = pt.lng, y = pt.lat;
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i].lng, yi = ring[i].lat;
+    const xj = ring[j].lng, yj = ring[j].lat;
+    const intersect =
+      (yi > y) !== (yj > y) &&
+      x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/* ============================================================
+   FIELD INFO PANEL
+   ============================================================ */
+function showFieldPanel(lat, lng) {
+  const feature = findFieldAt(lat, lng);
+
+  currentField = feature;
+
+  const panel  = $("fieldPanel");
+  const title  = $("fieldPanelTitle");
+  const body   = $("fieldPanelBody");
+  const footer = document.querySelector(".field-panel-footer");
+  const btn    = $("getDataBtn");
+
+  panel.classList.remove("hidden");
+
+  // Remove any previous "outside" note
+  footer.querySelectorAll(".outside-note").forEach((n) => n.remove());
+
+  if (!feature) {
+    title.textContent = "Outside any field";
+    body.innerHTML = `<div style="color:var(--muted);font-style:italic;">
+      Click inside a green field to see its attributes.
+    </div>`;
+
+    const note = document.createElement("div");
+    note.className = "outside-note";
+    note.textContent = "You can still fetch climatic data for this point.";
+    footer.insertBefore(note, btn);
+    return;
+  }
+
+  // Title: try common name keys, else "Field"
+  const props = feature.properties || {};
+  const name =
+    props.name || props.NAME || props.Name ||
+    props.field_id || props.FIELD_ID ||
+    props.id || props.ID ||
+    "Field";
+  title.textContent = name;
+
+  // Build key/value list
+  body.innerHTML = "";
+  const keys = Object.keys(props);
+  if (keys.length === 0) {
+    body.innerHTML = `<div style="color:var(--muted);font-style:italic;">
+      No attributes on this feature.
+    </div>`;
+    return;
+  }
+
+  const kv = document.createElement("div");
+  kv.className = "kv";
+  keys.forEach((k) => {
+    const kEl = document.createElement("div");
+    kEl.className = "k";
+    kEl.textContent = k;
+    kEl.title = k;
+
+    const vEl = document.createElement("div");
+    vEl.className = "v";
+    const val = props[k];
+    if (val === null || val === undefined || val === "") {
+      vEl.classList.add("empty");
+      vEl.textContent = "—";
+    } else {
+      vEl.textContent = String(val);
+    }
+
+    kv.appendChild(kEl);
+    kv.appendChild(vEl);
+  });
+  body.appendChild(kv);
+}
+
+function hideFieldPanel() {
+  $("fieldPanel").classList.add("hidden");
+  currentField = null;
+}
+
+$("fieldPanelClose").addEventListener("click", hideFieldPanel);
+
+/* ============================================================
+   MARKER
+   ============================================================ */
+function placeMarker(lat, lng, updateInputs = true) {
+  if (marker) {
+    marker.setLatLng([lat, lng]);
+  } else {
+    marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+    marker.on("dragend", () => {
+      const p = marker.getLatLng();
+      updateLatLngInputs(p.lat, p.lng);
+      showFieldPanel(p.lat, p.lng);
+      // No fetch — user must click the button
+    });
+  }
+  if (updateInputs) updateLatLngInputs(lat, lng);
+}
+
+function updateLatLngInputs(lat, lng) {
+  $("lat").value = Number(lat).toFixed(4);
+  $("lng").value = Number(lng).toFixed(4);
+}
+
+/* ============================================================
+   PRESETS
+   ============================================================ */
+document.querySelectorAll(".preset-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    const p = PRESETS[chip.dataset.preset];
+    if (!p || !map) return;
+    map.setView([p.lat, p.lng], p.zoom || 10);
+    placeMarker(p.lat, p.lng, true);
+    showFieldPanel(p.lat, p.lng);
+  });
+});
+
+/* ============================================================
+   FETCH  (triggered ONLY by the "Get Climatic Data" button)
+   ============================================================ */
+async function fetchData() {
+  const lat = parseFloat($("lat").value);
+  const lng = parseFloat($("lng").value);
+  const start_date = $("start_date").value;
+  const end_date = $("end_date").value;
+
+  if (isNaN(lat) || isNaN(lng) || !start_date || !end_date) {
+    setStatus("Please fill in all fields.", "error");
+    setTimeout(clearStatus, 3000);
+    return;
+  }
+  if (new Date(start_date) >= new Date(end_date)) {
+    setStatus("End date must be after start date.", "error");
+    setTimeout(clearStatus, 3000);
+    return;
+  }
+
+  setLoading(true);
+  setStatus("Loading data… (10–30s)", "loading");
+
+  const params = new URLSearchParams({ lat, lng, start_date, end_date });
+  const url = `${API_URL}?${params.toString()}`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const data = await res.json();
+    lastData = data;
+    renderCombinedChart(data);
+    renderTable(data);
+    clearStatus();
+  } catch (err) {
+    setStatus("Failed: " + err.message, "error");
+    setTimeout(clearStatus, 5000);
+  } finally {
+    setLoading(false);
+  }
+}
+
+/* Hook the "Get Climatic Data" button */
+$("getDataBtn").addEventListener("click", fetchData);
+
+function extractDaily(data) {
+  return (data.daily || []).map((f) => {
+    const p = f.properties || {};
+    return {
+      date: p.date,
+      temperature: p.temperature != null ? p.temperature - 273.15 : null,
+      soil_moisture: p.soil_moisture,
+      rainfall: p.rainfall,
+    };
+  });
+}
+
+function extractNdvi(data) {
+  return (data.ndvi || []).map((f) => {
+    const p = f.properties || {};
+    return { date: p.date, ndvi: p.ndvi };
+  });
+}
+
+/* ============================================================
+   CHART  (UNCHANGED)
+   ============================================================ */
+function renderCombinedChart(data) {
+  const daily = extractDaily(data);
+  const ndvi = extractNdvi(data);
+  const labels = daily.map((d) => d.date);
+
+  const ndviByDate = {};
+  ndvi.forEach((n) => { if (n.date) ndviByDate[n.date] = n.ndvi; });
+  const ndviSeries = labels.map((dt) => ndviByDate[dt] ?? null);
+
+  if (combinedChart) combinedChart.destroy();
+  const ctx = document.getElementById("combinedChart").getContext("2d");
+
+  combinedChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Temperature (°C)",
+          data: daily.map((d) => d.temperature),
+          borderColor: "#ea580c",
+          backgroundColor: "rgba(234, 88, 12, 0.10)",
+          borderWidth: 2,
+          pointRadius: 1.5,
+          tension: 0.25,
+          spanGaps: true,
+          yAxisID: "yLeft",
+          fill: true,
+          order: 3,
+        },
+        {
+          label: "Soil Moisture (m³/m³)",
+          data: daily.map((d) => d.soil_moisture),
+          borderColor: "#16a34a",
+          backgroundColor: "rgba(22, 163, 74, 0.08)",
+          borderWidth: 2,
+          pointRadius: 1.5,
+          tension: 0.25,
+          spanGaps: true,
+          yAxisID: "yLeft",
+          order: 2,
+        },
+        {
+          label: "NDVI",
+          data: ndviSeries,
+          borderColor: "#9333ea",
+          backgroundColor: "rgba(147, 51, 234, 0.10)",
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.25,
+          spanGaps: true,
+          yAxisID: "yLeft",
+          order: 1,
+        },
+        {
+          label: "Rainfall (mm/day)",
+          data: daily.map((d) => d.rainfall),
+          borderColor: "#0284c7",
+          backgroundColor: "rgba(2, 132, 199, 0.55)",
+          borderWidth: 1,
+          type: "bar",
+          yAxisID: "yRight",
+          order: 4,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          position: "bottom",
+          align: "center",
+          labels: {
+            usePointStyle: true,
+            boxWidth: 8,
+            boxHeight: 8,
+            padding: 12,
+            font: { size: 11 },
+            color: "#0f172a",
+          },
+        },
+        tooltip: {
+          backgroundColor: "#ffffff",
+          borderColor: "#cbd5e1",
+          borderWidth: 1,
+          titleColor: "#0f172a",
+          bodyColor: "#334155",
+          callbacks: {
+            label: (item) => {
+              const v = item.parsed.y;
+              if (v == null) return `${item.dataset.label}: —`;
+              const digits = item.dataset.label.includes("NDVI") || item.dataset.label.includes("Soil") ? 4 : 2;
+              return `${item.dataset.label}: ${Number(v).toFixed(digits)}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: "#64748b",
+            maxRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 12,
+            font: { size: 10 },
+          },
+          grid: { color: "rgba(15, 23, 42, 0.06)" },
+        },
+        yLeft: {
+          type: "linear",
+          position: "left",
+          title: { display: true, text: "Temp · Soil · NDVI", color: "#64748b", font: { size: 10 } },
+          ticks: { color: "#64748b", font: { size: 10 }, maxTicksLimit: 6 },
+          grid: { color: "rgba(15, 23, 42, 0.06)" },
+        },
+        yRight: {
+          type: "linear",
+          position: "right",
+          title: { display: true, text: "Rainfall (mm/day)", color: "#0284c7", font: { size: 10 } },
+          ticks: { color: "#0284c7", font: { size: 10 }, maxTicksLimit: 6 },
+          grid: { drawOnChartArea: false },
+          beginAtZero: true,
+        },
+      },
+    },
+  });
+}
+
+/* ============================================================
+   TABLE  (UNCHANGED)
+   ============================================================ */
+function fmt(v, digits = 2) {
+  if (v == null || isNaN(v)) return '<span class="null-value">—</span>';
+  return Number(v).toFixed(digits);
+}
+
+function renderTable(data) {
+  const daily = extractDaily(data);
+  const ndvi = extractNdvi(data);
+  const ndviByDate = {};
+  ndvi.forEach((n) => { if (n.date) ndviByDate[n.date] = n.ndvi; });
+
+  const tbody = document.querySelector("#dataTable tbody");
+  tbody.innerHTML = "";
+
+  daily.forEach((d) => {
+    const hasNdvi = Object.prototype.hasOwnProperty.call(ndviByDate, d.date);
+    const tr = document.createElement("tr");
+    if (hasNdvi) tr.classList.add("ndvi-row");
+    tr.innerHTML = `
+      <td>${d.date}</td>
+      <td>${fmt(d.temperature, 2)}</td>
+      <td>${fmt(d.rainfall, 2)}</td>
+      <td>${fmt(d.soil_moisture, 4)}</td>
+      <td>${hasNdvi ? fmt(ndviByDate[d.date], 4) : '<span class="null-value">—</span>'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  $("rowCount").textContent = `${daily.length} days`;
+}
+
+/* ============================================================
+   CSV  (UNCHANGED)
+   ============================================================ */
+function downloadCsv() {
+  if (!lastData) return;
+  const daily = extractDaily(lastData);
+  const ndvi = extractNdvi(lastData);
+  const ndviByDate = {};
+  ndvi.forEach((n) => { if (n.date) ndviByDate[n.date] = n.ndvi; });
+
+  let csv = "type,date,temperature_c,rainfall_mm,soil_moisture,ndvi\n";
+  daily.forEach((d) => {
+    const nv = Object.prototype.hasOwnProperty.call(ndviByDate, d.date) ? ndviByDate[d.date] : "";
+    csv += `daily,${d.date},${d.temperature ?? ""},${d.rainfall ?? ""},${d.soil_moisture ?? ""},${nv}\n`;
+  });
+  const dailyDates = new Set(daily.map((d) => d.date));
+  ndvi.forEach((n) => { if (!dailyDates.has(n.date)) csv += `ndvi,${n.date},,,,${n.ndvi ?? ""}\n`; });
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `pixel_timeseries_${lastData.lat}_${lastData.lng}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+$("csvBtn").addEventListener("click", downloadCsv);
+
+/* ============================================================
+   WIRE UP
+   ============================================================ */
+window.addEventListener("DOMContentLoaded", () => {
+  initMap();
+});
+</script>
+</body>
+</html>

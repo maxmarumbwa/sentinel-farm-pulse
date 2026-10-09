@@ -60,7 +60,7 @@ urlpatterns = [
     path('api/rainfall/provinces/', views.api_rainfall_all_provinces, name='api_rainfall_all_provinces'),
     path('api/rainfall/point/', views.api_rainfall_single_point, name='api_rainfall_single_point'),
         # Rainfall Database URLs
-    path(' ', views.api_save_rainfall_data, name='api_save_rainfall_data'),
+    path(' c/', views.api_save_rainfall_data, name='api_save_rainfall_data'),
     path('api/rainfall/db/', views.api_rainfall_from_db, name='api_rainfall_from_db'),
     path('test/rainfall/', views.test_rainfall_view, name='test_rainfall'),  
     path('save/rainfall/', views.rainfall_to_db, name='rainfall_to_db'),
@@ -87,6 +87,8 @@ urlpatterns = [
     
     
     #################### NDVI calc ###################################
+    path('field_ndvi_graph/', views.field_ndvi_graph, name='field_ndvi_graph'), 
+    
     path('api/ndvi/point-range/', views.api_ndvi_point_date_range, name='api_ndvi_point_date_range'),
     path('api/ndvi/point/', views.api_ndvi_point, name='api_ndvi_point'), 
     path('api/ndvi/default/', views.api_ndvi_default, name='api_ndvi_default'),  
@@ -96,6 +98,17 @@ urlpatterns = [
     #save lat/lon points
     path('api/points/save/', views.api_save_points, name='api_save_points'),
     path('api/points/load/', views.api_load_points, name='api_load_points'),
+    
+    
+    ######################################API to extract indocators per point #############################
+    path("chart_latlon/",
+            views.pixel_indicators,
+            name="pixel_indicators"
+        ),
+    path("pixel-timeseries/",
+        views.pixel_timeseries,
+        name="pixel_timeseries")
+        ,
     
 ]
 

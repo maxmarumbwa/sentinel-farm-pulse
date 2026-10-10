@@ -2,6 +2,13 @@
 <html>
 <head>
     <title>Dekadal Rainfall Dashboard</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- MapLibre GL CSS (for OpenFreeMap vector tiles) -->
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; height: 100vh; display: flex; flex-direction: column; }
@@ -23,7 +30,6 @@
         .header-info { display: flex; gap: 20px; font-size: 13px; color: #bdc3c7; }
         .header-info span { display: flex; align-items: center; gap: 5px; }
         .header-info strong { color: white; }
-        
         
         #header-links{
             display:flex;
@@ -53,7 +59,6 @@
         #header-links a.disabled-link:hover{
             background:transparent;
         }
-
 
         /* ========== MAIN LAYOUT ========== */
         .main { display: flex; flex: 1; overflow: hidden; }
@@ -167,6 +172,9 @@
             padding: 20px;
             overflow-y: auto;
             background: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
         
         .chart-wrapper {
@@ -174,8 +182,10 @@
             border-radius: 8px;
             padding: 20px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            height: 100%;
-            min-height: 500px;
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
         }
         .chart-wrapper .chart-title {
             font-size: 18px;
@@ -190,7 +200,103 @@
             text-align: center;
             margin-bottom: 15px;
         }
-        .chart-container { position: relative; width: 100%; height: 400px; }
+        .chart-container { position: relative; width: 100%; height: 320px; }
+        
+        /* ========== BOTTOM ROW: MAP (1/3) + TABLE (2/3) ========== */
+        .bottom-row {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 15px;
+            flex: 0 0 340px;
+            min-height: 0;
+        }
+
+        .map-wrapper,
+        .table-side {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .map-wrapper .map-header,
+        .table-side .table-header {
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #2c3e50;
+            border-bottom: 1px solid #ecf0f1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .map-wrapper .map-header .map-hint {
+            font-size: 11px;
+            color: #95a5a6;
+            font-weight: 400;
+            font-style: italic;
+        }
+
+        #rainfallMap {
+            flex: 1 1 auto;
+            min-height: 0;
+            background: #eef2f7;
+        }
+
+        /* Table side: scrollable full-height table */
+        .table-side .table-scroll {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: auto;
+        }
+
+        .table-side table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .table-side thead th {
+            background: #2c3e50;
+            color: white;
+            padding: 6px 8px;
+            text-align: left;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            font-weight: 600;
+        }
+
+        .table-side tbody td {
+            padding: 5px 8px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        .table-side tbody tr:hover { background: #f8f9fa; }
+
+        /* Province labels */
+        .province-label {
+            background: rgba(255, 255, 255, 0.0);
+            border: none;
+            box-shadow: none;
+            color: #1e293b;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            text-shadow: 0 0 3px #ffffff, 0 0 5px #ffffff;
+            padding: 0;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .province-label::before {
+            display: none;
+        }
         
         /* ========== LEGEND - CLICKABLE TOGGLES ========== */
         .legend-toggle {
@@ -239,11 +345,6 @@
         .stats-mini .card .num { font-size: 18px; font-weight: bold; color: #2c3e50; }
         .stats-mini .card .lbl { font-size: 10px; color: #95a5a6; text-transform: uppercase; letter-spacing: 0.3px; }
         
-        .table-container { max-height: 250px; overflow: auto; margin-top: 15px; }
-        .table-container table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        .table-container th { background: #2c3e50; color: white; padding: 6px 8px; text-align: left; position: sticky; top: 0; }
-        .table-container td { padding: 5px 8px; border-bottom: 1px solid #ecf0f1; }
-        .table-container tr:hover { background: #f8f9fa; }
         .positive { color: #e74c3c; }
         .negative { color: #3498db; }
         
@@ -275,7 +376,13 @@
             .right-panel { padding: 15px; }
             .header { flex-wrap: wrap; gap: 8px; }
             .header-info { flex-wrap: wrap; font-size: 12px; }
-            .chart-container { height: 300px; }
+            .chart-container { height: 260px; }
+            .bottom-row {
+                grid-template-columns: 1fr;
+                flex: 0 0 auto;
+            }
+            .map-wrapper { height: 240px; }
+            .table-side { height: 220px; }
         }
     </style>
 </head>
@@ -290,7 +397,6 @@
             <a href="{% url 'fields_admin:ndvi_map' %}">🛰️ Monitor Fields</a>
             <a href="{% url 'fields_admin:chart_rain' %}">🌧️ Rainfall station</a>
             <a href="{% url 'fields_admin:pixel_indicators' %}" class="active">📈 Farm indicators</a>
-
     </div>
 </header>
 
@@ -403,10 +509,6 @@
                 </div>
 
                 <div class="stats-mini" id="statsGrid"></div>
-
-                <div id="tableContainer" style="display:none;">
-                    <div class="table-container" id="tableWrapper"></div>
-                </div>
             </div>
 
             <div id="noDataState" style="display:none;">
@@ -414,15 +516,255 @@
             </div>
         </div>
 
+        <!-- BOTTOM ROW: map (1/3) + table (2/3) -->
+        <div class="bottom-row" id="bottomRow">
+
+            <!-- MAP — 1/3 width -->
+            <div class="map-wrapper">
+                <div class="map-header">
+                    <span>🗺️ Click a Province</span>
+                    <span class="map-hint">click to select</span>
+                </div>
+                <div id="rainfallMap"></div>
+            </div>
+
+            <!-- TABLE — 2/3 width -->
+            <div class="table-side" id="tableContainer" style="display:none;">
+                <div class="table-header">
+                    <span>📋 Dekadal Rainfall Data</span>
+                    <span class="map-hint" id="tableRowCount"></span>
+                </div>
+                <div class="table-scroll" id="tableWrapper"></div>
+            </div>
+
+        </div>
+
     </div>
 </div>
 
+<!-- ============================================================
+     SCRIPTS
+     ============================================================ -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.20/leaflet-maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
     let chart = null;
     let currentData = null;
     let dbInfo = null;
     let datasetVisibility = [true, true]; // [rainfall, lta]
+
+    // ============================================================
+    // MAP — OpenFreeMap (vector) + province boundaries + click
+    // ============================================================
+    let map = null;
+    let provinceLayer = null;
+    let selectedProvinceLayer = null;
+    const PROVINCES_GEOJSON_URL = "/static/geojson/zwe_admin1.geojson";
+
+    function initMap() {
+        if (map) return;
+
+        map = L.map('rainfallMap', {
+            zoomControl: true,
+            attributionControl: false,
+            scrollWheelZoom: false
+        }).setView([-19.0, 29.5], 6);
+
+        // ============================================================
+        // OpenFreeMap vector basemap (completely free, no limits,
+        // no API key, no registration)
+        // ============================================================
+        L.maplibreGL({
+            style: 'https://tiles.openfreemap.org/styles/liberty'
+        }).addTo(map);
+
+        // Manual attribution (OpenFreeMap requires it)
+        L.control.attribution({
+            position: 'bottomright',
+            prefix: false
+        }).addAttribution(
+            '&copy; <a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> ' +
+            '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+        ).addTo(map);
+
+        // Load province boundaries
+        fetch(PROVINCES_GEOJSON_URL)
+            .then(function (res) {
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                return res.json();
+            })
+            .then(function (geojson) {
+                provinceLayer = L.geoJSON(geojson, {
+                    style: function () {
+                        return {
+                            color: "#2c3e50",
+                            weight: 1.3,
+                            opacity: 0.75,
+                            fillColor: "#3498db",
+                            fillOpacity: 0.10
+                        };
+                    },
+                    onEachFeature: function (feature, layer) {
+                        var props = feature.properties || {};
+                        var name =
+                            props.adm1_name ||
+                            props.ADM1_NAME ||
+                            props.PROVINCE ||
+                            props.province ||
+                            props.NAME_1 ||
+                            props.name ||
+                            props.NAME ||
+                            null;
+
+                        if (name) {
+                            layer.feature.properties.__name = name;
+
+                            // Permanent label
+                            layer.bindTooltip(name, {
+                                permanent: true,
+                                direction: "center",
+                                className: "province-label",
+                                opacity: 1
+                            });
+                        }
+
+                        // Hover highlight
+                        layer.on("mouseover", function () {
+                            if (layer !== selectedProvinceLayer) {
+                                layer.setStyle({
+                                    weight: 2.5,
+                                    fillOpacity: 0.30,
+                                    color: "#2980b9"
+                                });
+                            }
+                        });
+                        layer.on("mouseout", function () {
+                            if (layer !== selectedProvinceLayer) {
+                                layer.setStyle({
+                                    weight: 1.3,
+                                    fillOpacity: 0.10,
+                                    color: "#2c3e50"
+                                });
+                            }
+                        });
+
+                        // Click → select + load data
+                        layer.on("click", function () {
+                            selectProvinceOnMap(layer);
+                        });
+                    }
+                }).addTo(map);
+
+                syncMapToDropdown();
+            })
+            .catch(function (err) {
+                console.warn("Could not load province boundaries:", err.message);
+            });
+
+        // Fix Leaflet's size on initial render
+        setTimeout(function () { map.invalidateSize(); }, 200);
+    }
+
+    /* Highlight the selected province on the map and load data */
+    function selectProvinceOnMap(layer) {
+        var name = (layer.feature && layer.feature.properties && layer.feature.properties.__name) || "";
+
+        if (selectedProvinceLayer && selectedProvinceLayer !== layer) {
+            selectedProvinceLayer.setStyle({
+                weight: 1.3,
+                fillOpacity: 0.10,
+                color: "#2c3e50",
+                fillColor: "#3498db"
+            });
+        }
+
+        selectedProvinceLayer = layer;
+        layer.setStyle({
+            weight: 3,
+            fillOpacity: 0.40,
+            color: "#e74c3c",
+            fillColor: "#e74c3c"
+        });
+
+        var dropdown = document.getElementById('provinceSelect');
+        var found = false;
+        for (var i = 0; i < dropdown.options.length; i++) {
+            if (dropdown.options[i].value === name) {
+                dropdown.selectedIndex = i;
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            var opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            dropdown.appendChild(opt);
+            dropdown.value = name;
+        }
+
+        document.getElementById('chartTitle').textContent = name || 'All';
+
+        loadData();
+    }
+
+    function syncMapToDropdown() {
+        if (!provinceLayer) return;
+
+        var selected = document.getElementById('provinceSelect').value;
+        if (!selected) return;
+
+        provinceLayer.eachLayer(function (layer) {
+            var name = (layer.feature && layer.feature.properties && layer.feature.properties.__name) || "";
+            if (name === selected) {
+                selectedProvinceLayer = layer;
+                layer.setStyle({
+                    weight: 3,
+                    fillOpacity: 0.40,
+                    color: "#e74c3c",
+                    fillColor: "#e74c3c"
+                });
+            }
+        });
+    }
+
+    function bindDropdownSync() {
+        var dropdown = document.getElementById('provinceSelect');
+        if (!dropdown) return;
+        dropdown.addEventListener('change', function () {
+            if (!provinceLayer) return;
+            var selected = dropdown.value;
+
+            if (selectedProvinceLayer) {
+                selectedProvinceLayer.setStyle({
+                    weight: 1.3,
+                    fillOpacity: 0.10,
+                    color: "#2c3e50",
+                    fillColor: "#3498db"
+                });
+                selectedProvinceLayer = null;
+            }
+
+            if (!selected) return;
+
+            provinceLayer.eachLayer(function (layer) {
+                var name = (layer.feature && layer.feature.properties && layer.feature.properties.__name) || "";
+                if (name === selected) {
+                    selectedProvinceLayer = layer;
+                    layer.setStyle({
+                        weight: 3,
+                        fillOpacity: 0.40,
+                        color: "#e74c3c",
+                        fillColor: "#e74c3c"
+                    });
+                }
+            });
+        });
+    }
 
     // ============================================================
     // GET DATABASE INFO
@@ -438,9 +780,6 @@
                 document.getElementById('dbRecordCount').textContent = data.total_records.toLocaleString();
                 document.getElementById('dbDateRange').textContent = `${data.min_date} to ${data.max_date}`;
                 document.getElementById('dbProvinceCount').textContent = data.province_count;
-                document.getElementById('hdrRecords').textContent = data.total_records.toLocaleString();
-                document.getElementById('hdrRange').textContent = `${data.min_date} to ${data.max_date}`;
-                document.getElementById('hdrProvinces').textContent = data.province_count;
                 return data;
             }
         } catch (error) {
@@ -476,7 +815,6 @@
         meta.hidden = !meta.hidden;
         chart.update();
 
-        // Update legend item style
         const items = document.querySelectorAll('.legend-toggle .item');
         items.forEach((item, i) => {
             if (i === index) {
@@ -496,7 +834,6 @@
 
         setLTADefault();
 
-        // Reset legend toggles
         document.querySelectorAll('.legend-toggle .item').forEach((el, i) => {
             el.classList.remove('hidden');
             datasetVisibility[i] = true;
@@ -576,11 +913,9 @@
                 contentState.style.display = 'block';
                 noDataState.style.display = 'none';
 
-                // Update chart title with province name
                 const displayProvince = province || data.provinces[0] || 'All';
                 document.getElementById('chartTitle').textContent = displayProvince;
 
-                // Update period info (only show LTA period)
                 document.getElementById('periodInfo').textContent = `LTA: ${data.lta_period.description}`;
 
                 renderChart(data, province);
@@ -590,12 +925,14 @@
                 contentState.style.display = 'none';
                 noDataState.style.display = 'block';
                 noDataState.innerHTML = `<div class="no-data">No data found. Please adjust your date range.</div>`;
+                document.getElementById('tableContainer').style.display = 'none';
             }
         } catch (error) {
             loadingState.style.display = 'none';
             contentState.style.display = 'none';
             noDataState.style.display = 'block';
             noDataState.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            document.getElementById('tableContainer').style.display = 'none';
             console.error('Error:', error);
         }
     }
@@ -654,7 +991,7 @@
                 maintainAspectRatio: false,
                 plugins: {
                     legend: {
-                        display: false, // Hide built-in legend
+                        display: false,
                     },
                     tooltip: {
                         callbacks: {
@@ -689,7 +1026,6 @@
             }
         });
 
-        // Apply visibility from toggles
         chart.getDatasetMeta(0).hidden = !datasetVisibility[0];
         chart.getDatasetMeta(1).hidden = !datasetVisibility[1];
         chart.update();
@@ -714,7 +1050,7 @@
         const maxRainfall = Math.max(...rainfallValues, 0);
         const minRainfall = Math.min(...rainfallValues, 0);
 
-
+        // (original: no return value — kept as-is)
     }
 
     // ============================================================
@@ -725,8 +1061,9 @@
         const p = province || data.provinces[0];
         const tableWrapper = document.getElementById('tableWrapper');
         const tableContainer = document.getElementById('tableContainer');
+        const rowCount = document.getElementById('tableRowCount');
 
-        tableContainer.style.display = 'block';
+        tableContainer.style.display = 'flex';
 
         let html = `
             <table>
@@ -764,6 +1101,8 @@
 
         html += `</tbody></table>`;
         tableWrapper.innerHTML = html;
+
+        if (rowCount) rowCount.textContent = `${data.data.length} rows`;
     }
 
     // ============================================================
@@ -806,11 +1145,17 @@
     // ============================================================
 
     async function init() {
+        initMap();
+        bindDropdownSync();
         await getDatabaseInfo();
         loadDefault();
     }
 
     window.onload = init;
+
+    window.addEventListener('resize', function () {
+        if (map) map.invalidateSize();
+    });
 </script>
 
 </body>

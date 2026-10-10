@@ -151,25 +151,43 @@
         .layer-control label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
         .layer-control input[type="checkbox"] { cursor: pointer; }
 
-        /* --- NEW CSS FOR SCROLLABLE NDVI LIST --- */
+        /* --- Province labels (permanent tooltips) --- */
+        .province-label {
+            background: rgba(255, 255, 255, 0.0);
+            border: none;
+            box-shadow: none;
+            color: #1e293b;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            text-shadow: 0 0 3px #ffffff, 0 0 5px #ffffff;
+            padding: 0;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .province-label::before {
+            display: none;
+        }
+
+        /* --- SCROLLABLE NDVI LIST --- */
         .ndvi-scroll-container {
-            max-height: 180px;       /* Limits height to 180px */
-            overflow-y: auto;        /* Adds a scrollbar when content exceeds height */
+            max-height: 180px;
+            overflow-y: auto;
             margin-top: 6px;
             border-top: 1px solid #eee;
             padding-top: 4px;
         }
         .ndvi-scroll-container::-webkit-scrollbar {
-            width: 6px;              /* Thin scrollbar */
+            width: 6px;
         }
         .ndvi-scroll-container::-webkit-scrollbar-thumb {
-            background: #1a237e;     /* Blue scrollbar handle */
+            background: #1a237e;
             border-radius: 10px;
         }
         .ndvi-scroll-container::-webkit-scrollbar-track {
-            background: #f1f1f1;     /* Light gray track */
+            background: #f1f1f1;
         }
-        /* ---------------------------------------- */
         
         @media (max-width: 768px) {
             .header { flex-direction: column; align-items: stretch; text-align: center; }
@@ -241,6 +259,10 @@
                 <input type="checkbox" id="showFields" checked onchange="toggleFields()">
                 Show Field Boundaries
             </label>
+            <label style="margin-top:4px;">
+                <input type="checkbox" id="showProvinces" checked onchange="toggleProvinces()">
+                Show Provinces
+            </label>
         </div>
         
         <div class="map-legend">
@@ -259,13 +281,19 @@
     
     <script>
         var map, fieldLayer, ndviTileLayer = null;
+        var provinceLayer = null;
         var fields = [];
         var tileCache = {};
+
+        /* =====================================================
+           PROVINCE BOUNDARIES GEOJSON URL
+           ===================================================== */
+        const PROVINCES_GEOJSON_URL = "/static/geojson/zwe_admin1.geojson";
 
         function initMap() {
             map = L.map('map').setView([-19.0, 29.5], 6);
             
-            L.tileLayer('https://tiles.openfreemap.org/styles/liberty/{z}/{x}/{y}.png', {
+            L.tileLayer('https://tiles.openfreemap.org/styles/terrain/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap',
                 maxZoom: 19
             }).addTo(map);
@@ -277,8 +305,76 @@
             document.getElementById('endDate').value = today.toISOString().split('T')[0];
             document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
             
+            // Load province boundaries in the background (behind everything else)
+            loadProvinces();
+            
             loadFields();
             window.addEventListener('resize', function() { map.invalidateSize(); });
+        }
+
+        /* =====================================================
+           PROVINCE BOUNDARIES — background, non-interactive
+           ===================================================== */
+        function loadProvinces() {
+            // Create a dedicated pane so provinces sit BELOW
+            // the field layer and NDVI raster.
+            if (!map.getPane("provincePane")) {
+                map.createPane("provincePane");
+                map.getPane("provincePane").style.zIndex = 250;
+                map.getPane("provincePane").style.pointerEvents = "none";
+            }
+
+            fetch(PROVINCES_GEOJSON_URL)
+                .then(function (res) {
+                    if (!res.ok) throw new Error("HTTP " + res.status);
+                    return res.json();
+                })
+                .then(function (geojson) {
+                    provinceLayer = L.geoJSON(geojson, {
+                        pane: "provincePane",
+                        interactive: false,
+                        style: {
+                            color: "#0c0304",
+                            weight: 1.5,
+                            opacity: 0.65,
+                            fill: false,
+                            fillOpacity: 0,
+                            dashArray: null
+                        },
+                        onEachFeature: function (feature, layer) {
+                            var props = feature.properties || {};
+                            var name =
+                                props.adm1_name ||
+                                props.ADM1_NAME ||
+                                props.PROVINCE ||
+                                props.province ||
+                                props.NAME_1 ||
+                                props.name ||
+                                props.NAME ||
+                                null;
+
+                            if (!name) return;
+
+                            layer.bindTooltip(name, {
+                                permanent: true,
+                                direction: "center",
+                                className: "province-label",
+                                opacity: 1,
+                            });
+                        },
+                    }).addTo(map);
+                })
+                .catch(function (err) {
+                    console.warn("Could not load province boundaries:", err.message);
+                });
+        }
+
+        function toggleProvinces() {
+            var show = document.getElementById('showProvinces').checked;
+            if (provinceLayer) {
+                if (show) { map.addLayer(provinceLayer); }
+                else { map.removeLayer(provinceLayer); }
+            }
         }
         
         function loadFields() {

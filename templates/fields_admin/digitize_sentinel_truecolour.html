@@ -18,7 +18,7 @@ html,body{
     color:white;
     display:flex;
     align-items:center;
-    justify-content:space-between;   /* pushes links to far right */
+    justify-content:space-between;
     padding:0 20px;
     font-size:18px;
 }
@@ -274,24 +274,20 @@ button:hover{
     white-space: nowrap;
 }
 .province-label::before {
-    display: none;   /* removes Leaflet's default tooltip arrow */
+    display: none;
 }
-
-
 </style>
 </head>
 <body>
 
-
 <div id="header">
     <h3>Sentinel-2 Monthly True Colour Composite & Field Digitization</h3>
     <div id="header-links">
-            <a href="{% url 'fields_admin:sentinel_truecolour' %}">📊 Home - digitise fields</a>  
+            <a href="{% url 'fields_admin:sentinel_truecolour' %}">📊 Home - digitise fields</a>
             <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
             <a href="{% url 'fields_admin:ndvi_map' %}">🛰️ Monitor Fields</a>
             <a href="{% url 'fields_admin:chart_rain' %}">🌧️ Rainfall station</a>
             <a href="{% url 'fields_admin:pixel_indicators' %}" class="active">📈 Farm indicators</a>
-
     </div>
 </div>
 
@@ -365,15 +361,15 @@ button:hover{
     <button class="close-panel" onclick="toggleDigitize()">×</button>
     <h3>✏️ Digitize Field</h3>
     <p style="font-size:12px;color:#666;margin:0 0 10px 0;">Draw your field on the map and fill in the details</p>
-    
+
     <div id="status-message" class="status-message"></div>
-    
+
     <form id="field-form">
         <div class="form-group">
             <label for="field_name">Field Name *</label>
             <input type="text" id="field_name" placeholder="e.g., North Field" required>
         </div>
-        
+
         <div class="form-group">
             <label for="crop">Crop *</label>
             <select id="crop">
@@ -391,7 +387,7 @@ button:hover{
                 <option value="Other">Other</option>
             </select>
         </div>
-        
+
         <div class="form-group">
             <label for="production_system">Production System *</label>
             <select id="production_system">
@@ -399,7 +395,7 @@ button:hover{
                 <option value="Irrigated">Irrigated</option>
             </select>
         </div>
-        
+
         <div class="form-group">
             <label for="adm1">Province</label>
             <select id="adm1">
@@ -411,19 +407,19 @@ button:hover{
                 {% endfor %}
             </select>
         </div>
-        
+
         <div class="form-group">
             <label for="adm2">District</label>
             <select id="adm2">
                 <option value="">Select District</option>
             </select>
         </div>
-        
+
         <div class="coordinates-info">
             <strong>Area:</strong> <span id="area-display">0.00 ha</span><br>
             <strong>Coordinates:</strong> <span id="coords-display">Draw a polygon</span>
         </div>
-        
+
         <div class="btn-group">
             <button type="button" class="btn-clear" onclick="clearPolygon()">Clear</button>
             <button type="button" class="btn-save" onclick="saveField()">Save Field</button>
@@ -450,22 +446,44 @@ button:hover{
 {% if not error %}
 
 <script>
-// Map initialization
-// Map initialization
+/* =====================================================
+   CONFIG CONSTANTS
+   ===================================================== */
+const PROVINCES_GEOJSON_URL = "/static/geojson/zwe_admin1.geojson";
+
+const API_URLS = {
+    createField: '/api/fields/',
+    admin2: '/api/admin2/',
+    test: '/api/test/'
+};
+
+/* =====================================================
+   MAP INIT
+   ===================================================== */
 var map = L.map('map', {
     drawControl: false
 });
 
-// Focus on Kariba Dam
-map.setView([-17.765855, 30.648373], 14);
+/* =====================================================
+   FOCUS — read lat/lng/zoom from Django only.
+   `bounds` is intentionally ignored here.
+   ===================================================== */
+var focus = {
+    lat:  {{ focus.lat|default:"-17.765855" }},
+    lng:  {{ focus.lng|default:"30.648373" }},
+    zoom: {{ focus.zoom|default:"14" }}
+};
+
+map.setView([focus.lat, focus.lng], focus.zoom);
 
 // Make sure Leaflet recalculates size after CSS takes effect
 setTimeout(function () {
     map.invalidateSize();
 }, 200);
 
-
-// Base tile layer
+/* =====================================================
+   BASE TILE LAYER — OpenFreeMap (fallback)
+   ===================================================== */
 L.tileLayer(
     'https://tiles.openfreemap.org/styles/liberty/{z}/{x}/{y}.png',
     {
@@ -474,65 +492,61 @@ L.tileLayer(
     }
 ).addTo(map);
 
-// Sentinel imagery tile layer
+/* =====================================================
+   SENTINEL TILE LAYER
+   Earth Engine serves tiles up to zoom ~15. Above that,
+   Leaflet must stretch the z15 tiles, otherwise the
+   imagery "disappears" when users zoom in past that level.
+
+   maxZoom:15        -> Leaflet stops requesting new tiles above z15
+   maxNativeZoom:15  -> Leaflet upscales z15 tiles for display at z16+
+   ===================================================== */
 L.tileLayer(
     '{{ tile_url }}',
     {
-        attribution:'Google Earth Engine'
+        attribution: 'Google Earth Engine',
+        maxZoom: 15,
+        maxNativeZoom: 15,
+        opacity: 1.0
     }
 ).addTo(map);
 
-// =====================================================
-// DIGITIZATION FUNCTIONALITY
-// =====================================================
-
+/* =====================================================
+   DIGITIZATION FUNCTIONALITY
+   ===================================================== */
 var drawnItems = L.featureGroup().addTo(map);
 var currentPolygon = null;
 var drawControl = null;
 
-// API URLs - Updated to match your urlpatterns
-// Province boundaries (background, non-interactive)
-const PROVINCES_GEOJSON_URL = "/static/geojson/zwe_admin1.geojson";
-const API_URLS = {
-    createField: '/api/fields/',  // This matches your urlpattern
-    admin2: '/api/admin2/',
-    test: '/api/test/'
-};
-
-// =====================================================
-// PROVINCE BOUNDARIES (background, non-interactive, with labels)
-// =====================================================
+/* =====================================================
+   PROVINCE BOUNDARIES (background, non-interactive, with labels)
+   ===================================================== */
 function loadProvinces() {
-    // Create a dedicated pane below overlayPane (which holds drawn features)
     if (!map.getPane("provincePane")) {
         map.createPane("provincePane");
-        map.getPane("provincePane").style.zIndex = 250;   // above tiles, below overlay
+        map.getPane("provincePane").style.zIndex = 250;
         map.getPane("provincePane").style.pointerEvents = "none";
     }
 
     fetch(PROVINCES_GEOJSON_URL)
         .then(function (res) {
-            if (!res.ok) {
-                throw new Error("HTTP " + res.status + " for " + PROVINCES_GEOJSON_URL);
-            }
+            if (!res.ok) throw new Error("HTTP " + res.status);
             return res.json();
         })
         .then(function (geojson) {
             L.geoJSON(geojson, {
                 pane: "provincePane",
-                interactive: false,          // completely inert — no clicks, no hover
+                interactive: false,
                 style: {
-                    color: "#e90f21",        // dark slate
+                    color: "#e90f21",
                     weight: 1.5,
                     opacity: 0.65,
-                    fill: false,             // fully transparent interior
+                    fill: false,
                     fillOpacity: 0,
-                    dashArray: null          // subtle dashed reference line
+                    dashArray: null
                 },
                 onEachFeature: function (feature, layer) {
                     var props = feature.properties || {};
-
-                    // Primary key is adm1_name
                     var name =
                         props.adm1_name ||
                         props.ADM1_NAME ||
@@ -559,8 +573,9 @@ function loadProvinces() {
         });
 }
 
-
-// Initialize draw control
+/* =====================================================
+   DRAW CONTROL
+   ===================================================== */
 function initDrawControl() {
     drawControl = new L.Control.Draw({
         position: 'topleft',
@@ -591,7 +606,9 @@ function initDrawControl() {
     map.addControl(drawControl);
 }
 
-// Handle drawing events
+/* =====================================================
+   DRAW EVENTS
+   ===================================================== */
 map.on(L.Draw.Event.CREATED, function(event) {
     var layer = event.layer;
     drawnItems.clearLayers();
@@ -617,7 +634,9 @@ map.on(L.Draw.Event.DELETED, function(event) {
     hideStatus();
 });
 
-// Toggle digitize panel
+/* =====================================================
+   TOGGLE DIGITIZE PANEL
+   ===================================================== */
 function toggleDigitize() {
     var panel = document.getElementById('digitize-panel');
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
@@ -634,24 +653,27 @@ function toggleDigitize() {
     hideStatus();
 }
 
-// Update field info display
+/* =====================================================
+   FIELD INFO DISPLAY
+   ===================================================== */
 function updateFieldInfo(layer) {
     if (!layer) return;
-    
+
     var latlngs = layer.getLatLngs()[0];
     var coordsStr = latlngs.map(function(p) {
         return '[' + p.lat.toFixed(5) + ', ' + p.lng.toFixed(5) + ']';
     }).join(', ');
-    
+
     document.getElementById('coords-display').textContent = coordsStr.substring(0, 100) + '...';
-    
-    // Calculate area in hectares
+
     var area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
     var areaHa = (area / 10000).toFixed(2);
     document.getElementById('area-display').textContent = areaHa + ' ha';
 }
 
-// Show status message
+/* =====================================================
+   STATUS MESSAGES
+   ===================================================== */
 function showStatus(message, type) {
     var statusDiv = document.getElementById('status-message');
     statusDiv.innerHTML = message;
@@ -664,16 +686,18 @@ function hideStatus() {
     statusDiv.innerHTML = '';
 }
 
-// Load districts when province changes
+/* =====================================================
+   DISTRICTS — load on province change
+   ===================================================== */
 document.getElementById('adm1').addEventListener('change', function() {
     var admin1Id = this.value;
     var districtSelect = document.getElementById('adm2');
     districtSelect.innerHTML = '<option value="">Select District</option>';
-    
+
     if (admin1Id) {
         var url = API_URLS.admin2 + '?admin1=' + admin1Id;
         console.log('Fetching districts from:', url);
-        
+
         fetch(url)
             .then(response => {
                 if (!response.ok) {
@@ -696,7 +720,9 @@ document.getElementById('adm1').addEventListener('change', function() {
     }
 });
 
-// Clear polygon
+/* =====================================================
+   CLEAR POLYGON
+   ===================================================== */
 function clearPolygon() {
     drawnItems.clearLayers();
     currentPolygon = null;
@@ -705,65 +731,58 @@ function clearPolygon() {
     hideStatus();
 }
 
-// Save field
+/* =====================================================
+   SAVE FIELD
+   ===================================================== */
 function saveField() {
     var fieldName = document.getElementById('field_name').value.trim();
     var crop = document.getElementById('crop').value;
     var productionSystem = document.getElementById('production_system').value;
     var adm1 = document.getElementById('adm1').value;
     var adm2 = document.getElementById('adm2').value;
-    
-    // Validate
+
     if (!fieldName) {
         showStatus('Please enter a field name', 'error');
         return;
     }
-    
+
     if (!currentPolygon) {
         showStatus('Please draw a polygon on the map', 'error');
         return;
     }
-    
-    // Get polygon coordinates
+
     var latlngs = currentPolygon.getLatLngs()[0];
     var coordinates = latlngs.map(function(p) {
         return [p.lng, p.lat];
     });
-    
-    // Make sure polygon is closed
+
     if (coordinates[0][0] !== coordinates[coordinates.length-1][0] ||
         coordinates[0][1] !== coordinates[coordinates.length-1][1]) {
         coordinates.push(coordinates[0]);
     }
-    
+
     var geojson = {
         type: 'Polygon',
         coordinates: [coordinates]
     };
-    
-    // Prepare data
+
     var data = {
         field_name: fieldName,
         crop: crop,
         production_system: productionSystem,
         geometry: geojson
     };
-    
+
     if (adm1) data.adm1 = parseInt(adm1);
     if (adm2) data.adm2 = parseInt(adm2);
-    
-    // Show loading status
+
     showStatus('<span class="spinner"></span> Saving field...', 'loading');
-    
-    // Get CSRF token
+
     var csrftoken = getCookie('csrftoken');
-    
-    // Use the correct URL from API_URLS
     var url = API_URLS.createField;
     console.log('Sending to:', url);
     console.log('Data:', data);
-    
-    // Send to server
+
     fetch(url, {
         method: 'POST',
         headers: {
@@ -791,7 +810,7 @@ function saveField() {
             showStatus('✅ Field "' + fieldName + '" created successfully! Area: ' + data.area_ha + ' ha', 'success');
             setTimeout(function () {
                 clearPolygon();
-                }, 2000);   // Message stays for 4 seconds
+            }, 2000);
             document.getElementById('field_name').value = '';
             document.getElementById('crop').value = 'Maize';
             document.getElementById('production_system').value = 'Rainfed';
@@ -805,7 +824,9 @@ function saveField() {
     });
 }
 
-// Helper function to get CSRF token
+/* =====================================================
+   HELPERS
+   ===================================================== */
 function getCookie(name) {
     var cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -820,13 +841,17 @@ function getCookie(name) {
     }
     return cookieValue;
 }
+
+/* =====================================================
+   BOOTSTRAP
+   ===================================================== */
 // Background province boundaries
 loadProvinces();
+
 // Initialize draw control when page loads - expanded by default
 document.addEventListener('DOMContentLoaded', function() {
     initDrawControl();
 });
-
 </script>
 {% endif %}
 

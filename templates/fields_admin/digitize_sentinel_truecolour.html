@@ -258,7 +258,24 @@ button:hover{
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
-
+/* Province labels (permanent tooltips) */
+.province-label {
+    background: rgba(255, 255, 255, 0.0);
+    border: none;
+    box-shadow: none;
+    color: #1e293b;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    text-shadow: 0 0 3px #ffffff, 0 0 5px #ffffff;
+    padding: 0;
+    pointer-events: none;
+    white-space: nowrap;
+}
+.province-label::before {
+    display: none;   /* removes Leaflet's default tooltip arrow */
+}
 
 
 </style>
@@ -434,19 +451,19 @@ button:hover{
 
 <script>
 // Map initialization
+// Map initialization
 var map = L.map('map', {
     drawControl: false
 });
 
-{% if bounds %}
-var provinceBounds = [
-    [{{ bounds.0.0 }}, {{ bounds.0.1 }}],
-    [{{ bounds.1.0 }}, {{ bounds.1.1 }}]
-];
-map.fitBounds(provinceBounds);
-{% else %}
-map.setView([-19.0,29.5],6);
-{% endif %}
+// Focus on Kariba Dam
+map.setView([-17.765855, 30.648373], 14);
+
+// Make sure Leaflet recalculates size after CSS takes effect
+setTimeout(function () {
+    map.invalidateSize();
+}, 200);
+
 
 // Base tile layer
 L.tileLayer(
@@ -482,43 +499,65 @@ const API_URLS = {
     test: '/api/test/'
 };
 
-    // =====================================================
-    // PROVINCE BOUNDARIES (background, non-interactive)
-    // =====================================================
-    function loadProvinces() {
-        // Create a dedicated pane below overlayPane (which holds drawn features)
-        if (!map.getPane("provincePane")) {
-            map.createPane("provincePane");
-            map.getPane("provincePane").style.zIndex = 250;   // above tiles, below overlay
-            map.getPane("provincePane").style.pointerEvents = "none";
-        }
-
-        fetch(PROVINCES_GEOJSON_URL)
-            .then(function (res) {
-                if (!res.ok) {
-                    throw new Error("HTTP " + res.status + " for " + PROVINCES_GEOJSON_URL);
-                }
-                return res.json();
-            })
-            .then(function (geojson) {
-                L.geoJSON(geojson, {
-                    pane: "provincePane",
-                    interactive: true,          // completely inert — no clicks, no hover
-                    style: {
-                        color: "#e31818",        // dark slate
-                        weight: 1.2,
-                        opacity: 0.65,
-                        fill: false,             // fully transparent interior
-                        fillOpacity: 0,
-                        dashArray: null         // subtle dashed reference line
-                    }
-                }).addTo(map);
-            })
-            .catch(function (err) {
-                // Fail silently — the page still works without the province overlay
-                console.warn("Could not load province boundaries:", err.message);
-            });
+// =====================================================
+// PROVINCE BOUNDARIES (background, non-interactive, with labels)
+// =====================================================
+function loadProvinces() {
+    // Create a dedicated pane below overlayPane (which holds drawn features)
+    if (!map.getPane("provincePane")) {
+        map.createPane("provincePane");
+        map.getPane("provincePane").style.zIndex = 250;   // above tiles, below overlay
+        map.getPane("provincePane").style.pointerEvents = "none";
     }
+
+    fetch(PROVINCES_GEOJSON_URL)
+        .then(function (res) {
+            if (!res.ok) {
+                throw new Error("HTTP " + res.status + " for " + PROVINCES_GEOJSON_URL);
+            }
+            return res.json();
+        })
+        .then(function (geojson) {
+            L.geoJSON(geojson, {
+                pane: "provincePane",
+                interactive: false,          // completely inert — no clicks, no hover
+                style: {
+                    color: "#e90f21",        // dark slate
+                    weight: 1.5,
+                    opacity: 0.65,
+                    fill: false,             // fully transparent interior
+                    fillOpacity: 0,
+                    dashArray: null          // subtle dashed reference line
+                },
+                onEachFeature: function (feature, layer) {
+                    var props = feature.properties || {};
+
+                    // Primary key is adm1_name
+                    var name =
+                        props.adm1_name ||
+                        props.ADM1_NAME ||
+                        props.PROVINCE ||
+                        props.province ||
+                        props.NAME_1 ||
+                        props.name ||
+                        props.NAME ||
+                        null;
+
+                    if (!name) return;
+
+                    layer.bindTooltip(name, {
+                        permanent: true,
+                        direction: "center",
+                        className: "province-label",
+                        opacity: 1,
+                    });
+                },
+            }).addTo(map);
+        })
+        .catch(function (err) {
+            console.warn("Could not load province boundaries:", err.message);
+        });
+}
 
 
 // Initialize draw control

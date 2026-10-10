@@ -285,12 +285,12 @@
 <header class="header">
     <h1><i>🌧️</i> Rainfall Monitoring Dashboard</h1>
     <div id="header-links">
-        <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
-        <a href="{% url 'fields_admin:ndvi_map' %}">📊 Monitor fields  </a>
-        <a href="{% url 'fields_admin:sentinel_truecolour' %}">
-                <i class="fas fa-plus-circle"></i> New Field
-        </a>
-        <a href="#" class="disabled-link">🔗 </a>
+            <a href="{% url 'fields_admin:sentinel_truecolour' %}">📊 Home - digitise fields</a>  
+            <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
+            <a href="{% url 'fields_admin:ndvi_map' %}">🛰️ Monitor Fields</a>
+            <a href="{% url 'fields_admin:chart_rain' %}">🌧️ Rainfall station</a>
+            <a href="{% url 'fields_admin:pixel_indicators' %}" class="active">📈 Farm indicators</a>
+
     </div>
 </header>
 

@@ -267,13 +267,14 @@ button:hover{
 
 
 <div id="header">
-    <span>Sentinel-2 Monthly True Colour Composite & Field Digitization</span>
+    <h3>Sentinel-2 Monthly True Colour Composite & Field Digitization</h3>
     <div id="header-links">
-        <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
-        <a href="{% url 'fields_admin:ndvi_map' %}">📊 Monitor fields  </a>
-        <a href="{% url 'fields_admin:chart_rain' %}">📊 Rainfall Records </a>
-        <a href="{% url 'fields_admin:chart_rain' %}">📊 Extract field NDVI </a>
-        <a href="#" class="disabled-link">🔗 </a>
+            <a href="{% url 'fields_admin:sentinel_truecolour' %}">📊 Home - digitise fields</a>  
+            <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
+            <a href="{% url 'fields_admin:ndvi_map' %}">🛰️ Monitor Fields</a>
+            <a href="{% url 'fields_admin:chart_rain' %}">🌧️ Rainfall station</a>
+            <a href="{% url 'fields_admin:pixel_indicators' %}" class="active">📈 Farm indicators</a>
+
     </div>
 </div>
 
@@ -473,11 +474,52 @@ var currentPolygon = null;
 var drawControl = null;
 
 // API URLs - Updated to match your urlpatterns
+// Province boundaries (background, non-interactive)
+const PROVINCES_GEOJSON_URL = "/static/geojson/zwe_admin1.geojson";
 const API_URLS = {
     createField: '/api/fields/',  // This matches your urlpattern
     admin2: '/api/admin2/',
     test: '/api/test/'
 };
+
+    // =====================================================
+    // PROVINCE BOUNDARIES (background, non-interactive)
+    // =====================================================
+    function loadProvinces() {
+        // Create a dedicated pane below overlayPane (which holds drawn features)
+        if (!map.getPane("provincePane")) {
+            map.createPane("provincePane");
+            map.getPane("provincePane").style.zIndex = 250;   // above tiles, below overlay
+            map.getPane("provincePane").style.pointerEvents = "none";
+        }
+
+        fetch(PROVINCES_GEOJSON_URL)
+            .then(function (res) {
+                if (!res.ok) {
+                    throw new Error("HTTP " + res.status + " for " + PROVINCES_GEOJSON_URL);
+                }
+                return res.json();
+            })
+            .then(function (geojson) {
+                L.geoJSON(geojson, {
+                    pane: "provincePane",
+                    interactive: true,          // completely inert — no clicks, no hover
+                    style: {
+                        color: "#e31818",        // dark slate
+                        weight: 1.2,
+                        opacity: 0.65,
+                        fill: false,             // fully transparent interior
+                        fillOpacity: 0,
+                        dashArray: null         // subtle dashed reference line
+                    }
+                }).addTo(map);
+            })
+            .catch(function (err) {
+                // Fail silently — the page still works without the province overlay
+                console.warn("Could not load province boundaries:", err.message);
+            });
+    }
+
 
 // Initialize draw control
 function initDrawControl() {
@@ -739,7 +781,8 @@ function getCookie(name) {
     }
     return cookieValue;
 }
-
+// Background province boundaries
+loadProvinces();
 // Initialize draw control when page loads - expanded by default
 document.addEventListener('DOMContentLoaded', function() {
     initDrawControl();

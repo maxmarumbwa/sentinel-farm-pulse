@@ -150,11 +150,34 @@
         }
         .btn-clear:hover { background: #e74c3c; color: white; }
         
+        /* Table toolbar (new) */
+        .table-toolbar {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            padding: 8px 15px 0 15px;
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            gap: 10px;
+        }
+        .table-toolbar .btn-export-selected-top {
+            background: #9b59b6;
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .table-toolbar .btn-export-selected-top:hover { background: #8e44ad; }
+        .table-toolbar .btn-export-selected-top i { margin-right: 5px; }
+        
         /* Table */
         .table-container {
             flex: 1;
             overflow: auto;
-            padding: 10px 15px;
+            padding: 0 15px 10px 15px;
         }
         .table-container table {
             width: 100%;
@@ -516,22 +539,14 @@
     <header class="header">
         <h1><i class="fas fa-map-marked-alt"></i> My Fields</h1>
         <div class="header-actions">
-            <a href="{% url 'fields_admin:sentinel_truecolour' %}">
-                <i class="fas fa-plus-circle"></i> New Field
-            </a>
-            <button class="btn-import" onclick="openImportModal()">
-                <i class="fas fa-upload"></i> Import
-            </button>
-            <button class="btn-export-all" onclick="exportAll()">
-                <i class="fas fa-download"></i> Export All
-            </button>
-            <button class="btn-export-selected" onclick="exportSelected()">
-                <i class="fas fa-check-square"></i> Export Selected
-            </button>
-        </div>
+            <a href="{% url 'fields_admin:sentinel_truecolour' %}">📊 Home - digitise fields</a>  
+            <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
+            <a href="{% url 'fields_admin:ndvi_map' %}">🛰️ Monitor Fields</a>
+            <a href="{% url 'fields_admin:chart_rain' %}">🌧️ Rainfall station</a>
+            <a href="{% url 'fields_admin:pixel_indicators' %}" class="active">📈 Farm indicators</a>
+                    
+    </div>
     </header>
-
-    <!-- Statistics -->
     <div class="stats-panel" id="statsPanel">
         <div class="stat-card">
             <div class="number" id="totalFields">0</div>
@@ -587,6 +602,19 @@
                 </div>
                 
                 <button class="btn-clear" onclick="clearFilters()"><i class="fas fa-times"></i> Clear</button>
+            </div>
+            
+            <!-- New: Table toolbar with Export Selected button on top of the table -->
+            <div class="table-toolbar">
+                <button class="btn-export-selected-top" onclick="exportSelected()">
+                    <i class="fas fa-check-square"></i> Export Selected
+                </button>
+                            <button class="btn-import" onclick="openImportModal()">
+                <i class="fas fa-upload"></i> Import
+                </button>
+                <button class="btn-export-all" onclick="exportAll()">
+                    <i class="fas fa-download"></i> Export All
+                </button>
             </div>
             
             <!-- Selection Info -->
@@ -778,7 +806,6 @@
         function initMap() {
             map = L.map('map').setView([-19.0, 29.5], 6);
             
-            https://tiles.openfreemap.org/styles/liberty/{z}/{x}/{y}.png
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_41f3_1_8a11efede1b79cb6a69ed225', {
                 attribution: '© OpenStreetMap',
                 maxZoom: 19

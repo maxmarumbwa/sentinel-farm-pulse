@@ -185,15 +185,11 @@
     <header class="header">
         <h1><i class="fas fa-satellite"></i> Field NDVI</h1>
         <div class="header-actions">
-            <a href="{% url 'fields_admin:sentinel_truecolour' %}">
-                <i class="fas fa-plus-circle"></i> New Field
-            </a>
-            <a href="{% url 'fields_admin:sentinel_truecolour' %}">
-                <i class="fas fa-table"></i> Home
-            </a>
-            <a href="{% url 'fields_admin:field_dashboard' %}">
-                <i class="fas fa-table"></i> Fields Dashboard
-            </a>            
+            <a href="{% url 'fields_admin:sentinel_truecolour' %}">📊 Home - digitise fields</a>  
+            <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
+            <a href="{% url 'fields_admin:ndvi_map' %}">🛰️ Monitor Fields</a>
+            <a href="{% url 'fields_admin:chart_rain' %}">🌧️ Rainfall station</a>
+            <a href="{% url 'fields_admin:pixel_indicators' %}" class="active">📈 Farm indicators</a>           
         </div>
     </header>
 

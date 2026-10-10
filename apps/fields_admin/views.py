@@ -622,17 +622,17 @@ def api_field_list(request):
         }
         
         crop_colors = {
-            'Maize': '#f1c40f',
-            'Groundnuts': '#e67e22',
+            'Maize': "#214304",
+            'Groundnuts': "#f0f8d5",
             'Soybeans': '#2ecc71',
             'Cotton': '#ecf0f1',
-            'Tobacco': '#e74c3c',
-            'Sunflower': '#f39c12',
-            'Sorghum': '#d35400',
+            'Tobacco': "#eff77e",
+            'Sunflower': "#a9aba1",
+            'Sorghum': "#d30e00",
             'Millet': '#f1c40f',
             'Beans': '#27ae60',
-            'Potatoes': '#8e44ad',
-            'Tomatoes': '#e74c3c',
+            'Potatoes': "#6b1192",
+            'Tomatoes': "#e7e70d4b",
             'Other': '#95a5a6',
         }
         

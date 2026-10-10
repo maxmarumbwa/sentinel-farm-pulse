@@ -111,11 +111,11 @@
             <p>Get rainfall data for all Zimbabwe provinces (latlon)</p>
             
             <div class="controls">
-                <label>Start: <input type="date" id="startDate"></label>
-                <label>End: <input type="date" id="endDate"></label>
-                <button class="btn btn-primary" onclick="getRainfall()">🌧️ Get Rainfall Data</button>
-                <button class="btn btn-info" onclick="setLastMonth()">📅 Last Month</button>
-                <button class="btn btn-info" onclick="setYearToDate()">📅 Year to Date</button>
+                <a href="{% url 'fields_admin:sentinel_truecolour' %}">📊 Home - digitise fields</a>  
+                <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
+                <a href="{% url 'fields_admin:ndvi_map' %}">🛰️ Monitor Fields</a>
+                <a href="{% url 'fields_admin:chart_rain' %}">🌧️ Rainfall station</a>
+                <a href="{% url 'fields_admin:pixel_indicators' %}" class="active">📈 Farm indicators</a>           
             </div>
             
             <div id="result" class="result" style="display:none;"></div>

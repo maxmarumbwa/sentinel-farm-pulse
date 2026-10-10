@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Pixel Time Series — Harare</title>
+<title>Farm level indicator Time Series</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -32,28 +32,98 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: var(--bg);
     color: var(--text);
-    padding: 10px 14px;
+    padding: 0;           /* header goes edge-to-edge */
     overflow: hidden;
   }
 
-  .header {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    margin-bottom: 8px;
+  /* ============================================================
+     HEADER — with navigation links
+     ============================================================ */
+  #header{
+    height:55px;
+    background:#2c3e50;
+    color:white;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 20px;
+    font-size:15px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.15);
+    position:relative;
+    z-index:1100;
   }
-  h1 { margin: 0; font-size: 17px; font-weight: 600; }
-  .subtitle { color: var(--muted); font-size: 11px; }
+
+  #header-title{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-weight:600;
+    letter-spacing:0.2px;
+  }
+
+  #header-title .header-icon{
+    font-size:20px;
+  }
+
+  #header-links{
+    display:flex;
+    gap:6px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+
+  #header-links a{
+    color:#e2e8f0;
+    text-decoration:none;
+    font-size:13px;
+    font-weight:500;
+    padding:7px 12px;
+    border-radius:5px;
+    transition:background 0.15s ease, color 0.15s ease;
+    white-space:nowrap;
+  }
+
+  #header-links a:hover{
+    background:rgba(255,255,255,0.12);
+    color:#ffffff;
+  }
+
+  #header-links a.active{
+    background:rgba(255,255,255,0.18);
+    color:#ffffff;
+    font-weight:600;
+  }
+
+  #header-links a.disabled-link{
+    color:#7f8c99;
+    cursor:not-allowed;
+    pointer-events:none;
+  }
+
+  @media (max-width: 900px){
+    #header{
+      height:auto;
+      flex-direction:column;
+      align-items:flex-start;
+      gap:8px;
+      padding:10px 16px;
+    }
+    #header-links{
+      gap:4px;
+    }
+  }
 
   /* ============================================================
      GRID LAYOUT  (UNCHANGED — table stays at 550px)
+     Body padding moved from body to .layout to make room for header
      ============================================================ */
   .layout {
     max-width: 1800px;
-    height: calc(100vh - 62px);
+    height: calc(100vh - 75px);   /* 55px header + 20px padding */
     margin: 0 auto;
+    padding: 10px 14px;
     display: grid;
-    grid-template-rows: auto 1fr 550px;
+    grid-template-rows: auto 1fr 450px;
     gap: 8px;
     min-height: 0;
   }
@@ -334,7 +404,7 @@
   .status.show {
     display: block;
     position: fixed;
-    top: 10px;
+    top: 65px;              /* sits below the header */
     right: 10px;
     padding: 7px 12px;
     border-radius: 8px;
@@ -413,11 +483,28 @@
 </head>
 <body>
 
+<!-- ================= HEADER ================= -->
+<div id="header">
+    <div id="header-title">
+        <span class="header-icon">🛰️</span>
+        <h2>Sentinel-2 True Colour &amp; Field Digitization</h2>
+    </div>
+
+    <div id="header-links">
+            <a href="{% url 'fields_admin:sentinel_truecolour' %}">📊 Home - digitise fields</a>  
+            <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
+            <a href="{% url 'fields_admin:ndvi_map' %}">🛰️ Monitor Fields</a>
+            <a href="{% url 'fields_admin:chart_rain' %}">🌧️ Rainfall station</a>
+            <a href="{% url 'fields_admin:pixel_indicators' %}" class="active">📈 Farm indicators</a>
+
+    </div>
+</div>
+
 <div class="layout">
 
   <div class="header">
-    <h1>Pixel Time Series</h1>
-    <div class="subtitle">Click a field on the map → review its attributes → fetch the climate data.</div>
+    <h2>Farm level indicator Time Series</h2>
+    <div class="subtitle">Click a field on the map → review its attributes & fetch agroclimate indicator data.</div>
   </div>
 
   <!-- ================= FORM ================= -->
@@ -533,7 +620,8 @@
    CONFIG
    ============================================================ */
 const API_URL = "/pixel-timeseries/";
-const FIELDS_GEOJSON_URL = "/static/geojson/fields.geojson";
+const FIELDS_GEOJSON_URL = "/api/fields/list/";
+const PROVINCES_GEOJSON_URL = "/static/geojson/zwe_admin1.geojson";
 
 const PRESETS = {
   harare:         { lat: -17.8292, lng: 31.0522, zoom: 11 },
@@ -598,7 +686,8 @@ function initMap() {
     }
   ).addTo(map);
 
-  loadFields();
+    loadProvinces();   // background layer — drawn first
+    loadFields();      // interactive fields — drawn on top
 
   // Click anywhere → marker moves, coords update, panel shows field info.
   // NO API call yet — the user must press "Get Climatic Data".
@@ -609,6 +698,40 @@ function initMap() {
   });
 }
 
+/* ============================================================
+   PROVINCE BOUNDARIES  (background — non-interactive)
+   ============================================================ */
+async function loadProvinces() {
+  try {
+    // Create a dedicated pane below the overlay pane so province
+    // lines sit under the field polygons.
+    if (!map.getPane("provincePane")) {
+      map.createPane("provincePane");
+      map.getPane("provincePane").style.zIndex = 350;   // below overlayPane (400)
+      map.getPane("provincePane").style.pointerEvents = "none";
+    }
+
+    const res = await fetch(PROVINCES_GEOJSON_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${PROVINCES_GEOJSON_URL}`);
+    const geojson = await res.json();
+
+    L.geoJSON(geojson, {
+      pane: "provincePane",
+      interactive: false,          // disables all mouse events
+      style: {
+        color: "#1e293b",          // dark slate border
+        weight: 2.2,
+        opacity: 0.65,
+        fill: false,               // fully transparent interior
+        fillOpacity: 0,
+        dashArray: null,          // subtle dashed line so it reads as background
+      },
+    }).addTo(map);
+  } catch (err) {
+    // Silent fail — the page still works without the province overlay
+    console.warn("Could not load province boundaries:", err.message);
+  }
+}
 /* ============================================================
    FIELDS GEOJSON
    ============================================================ */

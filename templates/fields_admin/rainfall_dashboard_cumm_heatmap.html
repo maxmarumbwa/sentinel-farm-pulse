@@ -39,38 +39,23 @@
             outline:none; border-color:#2d6a4f; background:white;
             box-shadow:0 0 0 3px rgba(45,106,79,.1);
         }
+        .auto-indicator {
+            font-size:11px; color:#16a34a; font-weight:600;
+            display:flex; align-items:center; gap:5px;
+            padding:5px 10px; background:#dcfce7; border-radius:20px;
+        }
+        .auto-indicator i { font-size:8px; }
 
-        /* Toggle switch for heatmap values */
-        .toggle-switch {
-            display:inline-flex; align-items:center; gap:8px;
-            padding:6px 12px; border-radius:6px; cursor:pointer;
-            background:#f8fafc; border:1px solid #e2e8f0;
-            font-size:13px; font-weight:600; color:#475569;
-            transition:.15s; user-select:none;
-        }
-        .toggle-switch:hover { border-color:#7e9fc7; background:#f0f7ff; }
-        .toggle-switch input { display:none; }
-        .toggle-slider {
-            width:34px; height:19px; background:#cbd5e1;
-            border-radius:100px; display:inline-block;
-            position:relative; transition:.2s; flex-shrink:0;
-        }
-        .toggle-slider::after {
-            content:''; width:15px; height:15px; background:white;
-            border-radius:50%; position:absolute; top:2px; left:2px;
-            transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,.2);
-        }
-        input:checked + .toggle-slider { background:#2d6a4f; }
-        input:checked + .toggle-slider::after { left:17px; }
-
+        /* ─── KPI STRIP — now 5 columns ─── */
         .kpi-strip {
-            display:grid; grid-template-columns:repeat(4,1fr); gap:12px;
+            display:grid; grid-template-columns:repeat(5,1fr); gap:12px;
             padding:12px 24px; background:white; border-bottom:1px solid #e2e8f0;
         }
         .kpi {
             background:linear-gradient(135deg,#f8fafc,#f1f5f9);
             border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px;
             display:flex; justify-content:space-between; align-items:center;
+            min-width:0;
         }
         .kpi.primary {
             background:linear-gradient(135deg,#065f46,#2d6a4f);
@@ -78,10 +63,16 @@
         }
         .kpi.primary .kpi-label { color:#a7f3d0; }
         .kpi.primary .kpi-sub { color:#6ee7b7; }
+        .kpi.dry-run {
+            background:linear-gradient(135deg,#7f1d1d,#991b1b);
+            border-color:#991b1b; color:white;
+        }
+        .kpi.dry-run .kpi-label { color:#fecaca; }
+        .kpi.dry-run .kpi-sub { color:#fca5a5; }
         .kpi-label { font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:#94a3b8; font-weight:600; }
         .kpi-value { font-size:21px; font-weight:700; margin-top:2px; }
         .kpi-sub { font-size:11px; color:#94a3b8; margin-top:2px; }
-        .kpi-icon { font-size:22px; opacity:.35; }
+        .kpi-icon { font-size:22px; opacity:.35; flex-shrink:0; }
 
         .main-layout {
             flex:1; display:grid; grid-template-columns:42% 58%;
@@ -128,6 +119,7 @@
             margin-bottom:8px;
             border-bottom:1px solid #e2e8f0;
             flex-shrink:0;
+            align-items:center;
         }
         .heatmap-tab {
             padding:6px 14px;
@@ -148,31 +140,32 @@
             border-bottom-color:#2d6a4f;
         }
 
-        /* Heatmap controls row (start month + value toggle) */
-        .heatmap-controls {
-            display:flex;
-            align-items:center;
-            gap:14px;
-            flex-wrap:wrap;
-            padding:6px 0 10px 0;
-            border-bottom:1px solid #f1f5f9;
-            margin-bottom:8px;
-            flex-shrink:0;
+        /* Toggle switch for heatmap values — refined slider */
+        .heatmap-toggle-wrap {
+            margin-left:auto;
+            padding-bottom:4px;
         }
-        .heatmap-controls .control-group label { font-size:12px; }
-        .heatmap-controls .control-group select {
-            padding:5px 8px; font-size:12px;
+        .toggle-switch {
+            display:inline-flex; align-items:center; gap:8px;
+            padding:5px 12px 5px 10px; border-radius:20px; cursor:pointer;
+            background:#f8fafc; border:1px solid #e2e8f0;
+            font-size:12px; font-weight:600; color:#475569;
+            transition:.15s; user-select:none;
         }
-        .heatmap-controls .toggle-switch {
-            padding:4px 10px; font-size:12px;
+        .toggle-switch:hover { border-color:#7e9fc7; background:#f0f7ff; }
+        .toggle-switch input { display:none; }
+        .toggle-slider {
+            width:34px; height:18px; background:#cbd5e1;
+            border-radius:100px; display:inline-block;
+            position:relative; transition:.2s; flex-shrink:0;
         }
-        .heatmap-controls .toggle-slider {
-            width:30px; height:17px;
+        .toggle-slider::after {
+            content:''; width:14px; height:14px; background:white;
+            border-radius:50%; position:absolute; top:2px; left:2px;
+            transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,.25);
         }
-        .heatmap-controls .toggle-slider::after {
-            width:13px; height:13px;
-        }
-        .heatmap-controls input:checked + .toggle-slider::after { left:15px; }
+        input:checked + .toggle-slider { background:#2d6a4f; }
+        input:checked + .toggle-slider::after { left:18px; }
 
         .heatmap-wrapper {
             flex:1;
@@ -180,22 +173,25 @@
             min-height:0;
             padding-top:4px;
         }
+
+        /* ─── HEATMAP TABLE — BLACK BORDERS ─── */
         .heatmap-table {
-            border-collapse:separate;
-            border-spacing:3px;
+            border-collapse: collapse;
             font-size:12px;
             width:100%;
+            border:1px solid #000;
         }
         .heatmap-table th {
             padding:5px 6px;
             font-size:11px;
             font-weight:700;
-            color:#475569;
+            color:#000;
             text-transform:uppercase;
             background:#f1f5f9;
             position:sticky;
             top:0;
             z-index:2;
+            border:1px solid #000;
         }
         .heatmap-table th:first-child {
             position:sticky;
@@ -210,11 +206,11 @@
             min-width:38px;
             height:26px;
             text-align:center;
-            border-radius:3px;
             font-size:11px;
             font-weight:700;
             color:rgba(0,0,0,.75);
             transition:transform .15s;
+            border:1px solid #000;
         }
         .heatmap-table td:hover {
             transform:scale(1.12);
@@ -232,56 +228,47 @@
             padding-right:10px;
             min-width:50px;
             z-index:1;
+            border:1px solid #000;
         }
 
-        /* ─── LEGEND — locked to 2 rows (6 columns × 2 rows) ─── */
+        /* ─── LEGEND ─── */
         .heatmap-legend {
             display:grid;
-            grid-template-columns:repeat(6, 1fr);
-            grid-auto-rows: 1fr;
-            gap:6px 10px;
-            padding:12px 4px 4px;
+            grid-template-columns:repeat(4, 1fr);
+            gap:8px 14px;
+            padding:14px 6px 4px;
             margin-top:8px;
             border-top:1px solid #f1f5f9;
-            font-size:11px;
+            font-size:12px;
             color:#475569;
             flex-shrink:0;
         }
         .legend-block {
             display:flex;
             align-items:center;
-            gap:6px;
-            min-width:0;
+            gap:8px;
         }
         .legend-block .swatch {
-            width:22px;
-            height:22px;
-            border-radius:4px;
+            width:28px;
+            height:28px;
+            border-radius:5px;
             flex-shrink:0;
             border:1px solid rgba(0,0,0,.08);
         }
         .legend-block .info {
             display:flex;
             flex-direction:column;
-            line-height:1.15;
-            min-width:0;
-            overflow:hidden;
+            line-height:1.2;
         }
         .legend-block .info .name {
             font-weight:700;
-            font-size:11px;
+            font-size:12px;
             color:#0f172a;
-            white-space:nowrap;
-            overflow:hidden;
-            text-overflow:ellipsis;
         }
         .legend-block .info .range {
-            font-size:10px;
+            font-size:11px;
             color:#64748b;
             font-weight:500;
-            white-space:nowrap;
-            overflow:hidden;
-            text-overflow:ellipsis;
         }
 
         .loading {
@@ -298,13 +285,14 @@
         @keyframes spin { 0% { transform:rotate(0); } 100% { transform:rotate(360deg); } }
 
         @media (max-width:1200px) {
-            .heatmap-legend { grid-template-columns:repeat(4, 1fr); }
+            .heatmap-legend { grid-template-columns:repeat(3, 1fr); }
+            .kpi-strip { grid-template-columns:repeat(3, 1fr); }
         }
         @media (max-width:1000px) {
             .kpi-strip { grid-template-columns:repeat(2,1fr); }
             .main-layout { grid-template-columns:1fr; grid-template-rows:1fr 1fr; }
             .right-col { border-left:none; border-top:1px solid #e2e8f0; }
-            .heatmap-legend { grid-template-columns:repeat(3, 1fr); }
+            .heatmap-legend { grid-template-columns:repeat(2, 1fr); }
         }
     </style>
 </head>
@@ -346,8 +334,10 @@
             <option value="Midlands">Midlands</option>
         </select>
     </div>
+
 </div>
 
+<!-- ─── KPI STRIP — added new card "Consecutive Below-Normal" ─── -->
 <div class="kpi-strip">
     <div class="kpi primary">
         <div>
@@ -380,6 +370,16 @@
             <div class="kpi-sub">consecutive dekads &lt; 5mm</div>
         </div>
         <i class="fas fa-sun kpi-icon"></i>
+    </div>
+
+    <!-- NEW card: consecutive dekads below normal (no above-normal interruption) -->
+    <div class="kpi dry-run">
+        <div>
+            <div class="kpi-label">Consecutive Below-Normal</div>
+            <div class="kpi-value" id="kpiConsecBelow">—</div>
+            <div class="kpi-sub" id="kpiConsecBelowSub">actual &lt; LTA · unbroken</div>
+        </div>
+        <i class="fas fa-arrow-trend-down kpi-icon"></i>
     </div>
 </div>
 
@@ -416,32 +416,15 @@
                 <button class="heatmap-tab" data-view="actual" onclick="switchHeatmapView('actual')">
                     <i class="fas fa-tint"></i> Actual Rainfall (mm)
                 </button>
-            </div>
 
-            <!-- NEW: heatmap controls row — start month selector + value toggle -->
-            <div class="heatmap-controls">
-                <div class="control-group">
-                    <label for="heatmapStartMonth"><i class="fas fa-calendar-alt" style="color:#94a3b8; margin-right:3px;"></i> Start month:</label>
-                    <select id="heatmapStartMonth">
-                        <option value="0">January</option>
-                        <option value="1">February</option>
-                        <option value="2">March</option>
-                        <option value="3">April</option>
-                        <option value="4">May</option>
-                        <option value="5">June</option>
-                        <option value="6">July</option>
-                        <option value="7">August</option>
-                        <option value="8" selected>September</option>
-                        <option value="9">October</option>
-                        <option value="10">November</option>
-                        <option value="11">December</option>
-                    </select>
+                <!-- Toggle for showing/hiding heatmap values -->
+                <div class="heatmap-toggle-wrap">
+                    <label class="toggle-switch" title="Show or hide values inside heatmap cells">
+                        <input type="checkbox" id="heatmapShowValues" checked>
+                        <span class="toggle-slider"></span>
+                        <span>Values</span>
+                    </label>
                 </div>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="heatmapShowValues" checked>
-                    <span class="toggle-slider"></span>
-                    <span>Show values</span>
-                </label>
             </div>
 
             <div class="heatmap-wrapper">
@@ -465,7 +448,6 @@
         season: 'ONDJFM',
         province: '',
         heatmapView: 'zscore',
-        heatmapStartMonth: 8,     // September (0-based: 8 = September)
         heatmapShowValues: true
     };
     var heatmapLoadedForProvince = null;
@@ -495,9 +477,6 @@
         { name: 'Very wet',      range: '150 to 200 mm',  max: 200,      color: '#2171B5' },
         { name: 'Extremely wet', range: '> 200 mm',       max: Infinity, color: '#05204A' }
     ];
-
-    // Month abbreviations indexed 0-11 (Jan=0, Dec=11)
-    var MONTH_ABBRS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
     function getSPIBand(z) {
         if (z === null) return null;
@@ -540,13 +519,6 @@
             scheduleReload();
         };
 
-        // NEW: heatmap start month selector
-        document.getElementById('heatmapStartMonth').onchange = (e) => {
-            state.heatmapStartMonth = parseInt(e.target.value, 10);
-            if (cachedHeatmapData) renderHeatmap();
-        };
-
-        // NEW: heatmap values toggle
         document.getElementById('heatmapShowValues').onchange = (e) => {
             state.heatmapShowValues = e.target.checked;
             if (cachedHeatmapData) renderHeatmap();
@@ -584,6 +556,15 @@
         return { start, end };
     }
 
+    function getFullLtaRange(season, year) {
+        var months = getSeasonMonths(season, year);
+        var last = months[months.length - 1];
+        var start = `2000-01-01`;
+        var lastDay = new Date(last.year, last.month, 0).getDate();
+        var end = `${last.year}-${String(last.month).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+        return { start, end };
+    }
+
     function showLoading() { document.getElementById('loading').classList.add('show'); }
     function hideLoading() { document.getElementById('loading').classList.remove('show'); }
 
@@ -593,8 +574,10 @@
 
         showLoading();
 
-        var range = getSeasonDateRange(state.season, state.seasonYear);
-        var urlDek = `/api/rainfall/dekadal/?start_date=${range.start}&end_date=${range.end}`;
+        var seasonRange = getSeasonDateRange(state.season, state.seasonYear);
+        var ltaRange = getFullLtaRange(state.season, state.seasonYear);
+
+        var urlDek = `/api/rainfall/dekadal/?start_date=${ltaRange.start}&end_date=${ltaRange.end}`;
         var urlAnn = `/api/rainfall/annual/?start_year=${state.seasonYear-5}&end_year=${state.seasonYear}&season=${state.season}`;
         if (state.province) {
             urlDek += `&province=${encodeURIComponent(state.province)}`;
@@ -606,9 +589,10 @@
             fetch(urlAnn).then(r => r.json())
         ])
         .then(([dekData, annData]) => {
-            renderCumulativeCurve(dekData);
-            renderDekadalBars(dekData);
-            updateKPIs(dekData, annData);
+            var seasonDekData = filterDekadToSeason(dekData, seasonRange);
+            renderCumulativeCurve(seasonDekData);
+            renderDekadalBars(seasonDekData);
+            updateKPIs(seasonDekData, annData);
         })
         .catch(e => console.error(e))
         .finally(() => hideLoading());
@@ -618,6 +602,24 @@
         } else {
             renderHeatmap();
         }
+    }
+
+    function filterDekadToSeason(dekData, range) {
+        if (!dekData || !dekData.data) return dekData;
+        var startStr = range.start;
+        var endStr = range.end;
+        var filtered = dekData.data.filter(r => {
+            var d = r.date || r.start_date;
+            return d >= startStr && d <= endStr;
+        });
+        return {
+            success: dekData.success,
+            provinces: dekData.provinces,
+            data: filtered,
+            aggregation: dekData.aggregation,
+            lta_period: dekData.lta_period,
+            date_range: range
+        };
     }
 
     function loadHeatmap() {
@@ -663,15 +665,6 @@
         }
     }
 
-    // Helper: get re-ordered month indices based on start month
-    function getMonthOrder() {
-        var order = [];
-        for (var i = 0; i < 12; i++) {
-            order.push((state.heatmapStartMonth + i) % 12); // 0-based month index
-        }
-        return order;
-    }
-
     function renderHeatmapSPI() {
         var provinces = cachedHeatmapData.provinces || [];
         var rows = cachedHeatmapData.data;
@@ -679,14 +672,13 @@
         var lookup = {};
         var yearsSet = new Set();
         rows.forEach(r => {
-            var key = `${r.year}-${r.month}`; // r.month is 1-12
+            var key = `${r.year}-${r.month}`;
             var vals = provinces.map(p => r[p] || 0);
             var avg = vals.reduce((a,b) => a+b, 0) / (provinces.length || 1);
             lookup[key] = avg;
             yearsSet.add(r.year);
         });
 
-        // Compute monthly stats using the full dataset (not reordered — stats are per calendar month)
         var monthStats = {};
         for (var m = 1; m <= 12; m++) {
             var vals = [];
@@ -704,7 +696,7 @@
             }
         }
 
-        function spiFor(year, month) { // month 1-12
+        function spiFor(year, month) {
             var v = lookup[`${year}-${month}`];
             if (v === undefined || v === 0) return null;
             var stat = monthStats[month];
@@ -713,18 +705,16 @@
         }
 
         var years = [...yearsSet].sort((a,b) => b - a);
-        var monthOrder = getMonthOrder(); // array of 0-based month indices in display order
+        var months = [1,2,3,4,5,6,7,8,9,10,11,12];
+        var monthAbbr = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
         var html = '<thead><tr><th>Year</th>';
-        monthOrder.forEach(mIdx => {
-            html += `<th>${MONTH_ABBRS[mIdx]}</th>`;
-        });
+        monthAbbr.forEach(m => { html += `<th>${m}</th>`; });
         html += '</tr></thead><tbody>';
 
         years.forEach(y => {
             html += `<tr><td class="year-col">${y}</td>`;
-            monthOrder.forEach(mIdx => {
-                var m = mIdx + 1; // 1-12 for lookup
+            months.forEach(m => {
                 var z = spiFor(y, m);
                 var v = lookup[`${y}-${m}`] || 0;
                 var disp = z !== null ? z.toFixed(1) : (v > 0 ? '·' : '');
@@ -738,10 +728,9 @@
                                   band.color === '#A81A0A' || band.color === '#6B0000')) tc = '#ffffff';
 
                 var title = z !== null
-                    ? `${MONTH_ABBRS[mIdx]} ${y} — ${v.toFixed(1)} mm · SPI=${z.toFixed(2)} (${band ? band.name : '—'})`
-                    : `${MONTH_ABBRS[mIdx]} ${y} — no data`;
+                    ? `${monthAbbr[m-1]} ${y} — ${v.toFixed(1)} mm · SPI=${z.toFixed(2)} (${band ? band.name : '—'})`
+                    : `${monthAbbr[m-1]} ${y} — no data`;
 
-                // Show value only if toggle is on
                 var displayText = state.heatmapShowValues ? disp : '';
                 html += `<td style="background:${bg}; color:${tc};" title="${title}">${displayText}</td>`;
             });
@@ -771,18 +760,16 @@
         });
 
         var years = [...yearsSet].sort((a,b) => b - a);
-        var monthOrder = getMonthOrder();
+        var months = [1,2,3,4,5,6,7,8,9,10,11,12];
+        var monthAbbr = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
         var html = '<thead><tr><th>Year</th>';
-        monthOrder.forEach(mIdx => {
-            html += `<th>${MONTH_ABBRS[mIdx]}</th>`;
-        });
+        monthAbbr.forEach(m => { html += `<th>${m}</th>`; });
         html += '</tr></thead><tbody>';
 
         years.forEach(y => {
             html += `<tr><td class="year-col">${y}</td>`;
-            monthOrder.forEach(mIdx => {
-                var m = mIdx + 1;
+            months.forEach(m => {
                 var v = lookup[`${y}-${m}`] || 0;
                 var disp = v > 0 ? v.toFixed(0) : '';
                 var band = getActualBand(v);
@@ -791,7 +778,7 @@
                     : (band.color === '#6B0000' || band.color === '#A81A0A' ||
                        band.color === '#D23F0F' || band.color === '#05204A') ? '#ffffff'
                     : 'rgba(0,0,0,.75)';
-                var title = `${MONTH_ABBRS[mIdx]} ${y}: ${v.toFixed(1)} mm`;
+                var title = `${monthAbbr[m-1]} ${y}: ${v.toFixed(1)} mm`;
 
                 var displayText = state.heatmapShowValues ? disp : '';
                 html += `<td style="background:${bg}; color:${tc};" title="${title}">${displayText}</td>`;
@@ -992,12 +979,49 @@
         document.getElementById('kpiWettest').textContent = wettest.value.toFixed(0) + ' mm';
         document.getElementById('kpiWettestDate').textContent = wettest.label;
 
+        // ── Longest dry spell (existing): consecutive dekads < 5mm ──
         var maxDry = 0, curDry = 0;
         dekadAvg.forEach(d => {
             if (d.value < 5) { curDry++; maxDry = Math.max(maxDry, curDry); }
             else { curDry = 0; }
         });
         document.getElementById('kpiDrySpell').textContent = maxDry + ' dekads';
+
+        // ── NEW: longest consecutive run of dekads where actual < LTA (unbroken) ──
+        var avgActual = rows.map(r => provinces.reduce((s, p) => s + (r[p] || 0), 0) / (provinces.length || 1));
+        var avgLta    = rows.map(r => provinces.reduce((s, p) => s + (r[`${p}_lta`] || 0), 0) / (provinces.length || 1));
+
+        var maxBelow = 0, curBelow = 0;
+        var maxBelowStart = -1, maxBelowEnd = -1;
+        var curBelowStart = -1;
+
+        for (var i = 0; i < rows.length; i++) {
+            if (avgActual[i] < avgLta[i]) {
+                // below-normal dekad
+                if (curBelow === 0) curBelowStart = i;
+                curBelow++;
+                if (curBelow > maxBelow) {
+                    maxBelow = curBelow;
+                    maxBelowStart = curBelowStart;
+                    maxBelowEnd = i;
+                }
+            } else {
+                // above-normal dekad breaks the run
+                curBelow = 0;
+                curBelowStart = -1;
+            }
+        }
+
+        var consEl = document.getElementById('kpiConsecBelow');
+        var consSubEl = document.getElementById('kpiConsecBelowSub');
+        consEl.textContent = maxBelow + ' dekads';
+        if (maxBelow > 0) {
+            var s = dekadAvg[maxBelowStart].label;
+            var e = dekadAvg[maxBelowEnd].label;
+            consSubEl.textContent = (maxBelow === 1) ? s : `${s} → ${e}`;
+        } else {
+            consSubEl.textContent = 'no below-normal runs';
+        }
     }
 
     document.addEventListener('DOMContentLoaded', () => {

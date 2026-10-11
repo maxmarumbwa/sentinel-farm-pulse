@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dekadal Rainfall Dashboard</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- MapLibre GL CSS (for OpenFreeMap vector tiles) -->
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; height: 100vh; display: flex; flex-direction: column; }
+        
+        /* ========== HEADER ========== */
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 12px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+        .header h1 { font-size: 20px; font-weight: 600; }
+        .header h1 i { margin-right: 10px; }
+        .header-info { display: flex; gap: 20px; font-size: 13px; color: #bdc3c7; }
+        .header-info span { display: flex; align-items: center; gap: 5px; }
+        .header-info strong { color: white; }
+        
+        #header-links{
+            display:flex;
+            gap:20px;
+            align-items:center;
+        }
+
+        #header-links a{
+            color:white;
+            text-decoration:none;
+            font-size:14px;
+            font-weight:500;
+            padding:6px 12px;
+            border-radius:4px;
+            transition:background 0.2s ease;
+        }
+
+        #header-links a:hover{
+            background:rgba(255,255,255,0.15);
+        }
+
+        #header-links a.disabled-link{
+            color:#95a5a6;
+            cursor:not-allowed;
+        }
+
+        #header-links a.disabled-link:hover{
+            background:transparent;
+        }
+
+        /* ========== MAIN LAYOUT ========== */
+        .main { display: flex; flex: 1; overflow: hidden; }
+        
+        /* ========== LEFT PANEL ========== */
+        .left-panel {
+            width: 320px;
+            min-width: 320px;
+            background: white;
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 1px solid #e0e0e0;
+            flex-shrink: 0;
+        }
+        .left-panel h3 {
+            font-size: 14px;
+            color: #2c3e50;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        
+        .control-group {
+            margin-bottom: 18px;
+        }
+        .control-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #7f8c8d;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .control-group input[type="date"],
+        .control-group select {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            background: white;
+        }
+        .control-group input[type="date"]:focus,
+        .control-group select:focus {
+            outline: none;
+            border-color: #2c3e50;
+        }
+        
+        .date-range {
+            display: flex;
+            gap: 8px;
+        }
+        .date-range .field { flex: 1; }
+        .date-range .field label { font-size: 11px; text-transform: none; color: #95a5a6; }
+        .date-range .field input { width: 100%; padding: 5px 8px; font-size: 12px; }
+        
+        .btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: 0.2s;
+            width: 100%;
+            margin-top: 4px;
+        }
+        .btn-primary { background: #2c3e50; color: white; }
+        .btn-primary:hover { background: #1a252f; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #229954; }
+        .btn-secondary { background: #95a5a6; color: white; }
+        .btn-secondary:hover { background: #7f8c8d; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; width: auto; }
+        
+        .btn-group { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+        .btn-group .btn { flex: 1; min-width: 60px; padding: 5px 10px; font-size: 12px; }
+        
+        .btn-lta { background: #fdedec; color: #e74c3c; border: 1px solid #e74c3c; }
+        .btn-lta:hover { background: #e74c3c; color: white; }
+        .btn-lta.active { background: #e74c3c; color: white; }
+        
+        .btn-obs { background: #ebf5fb; color: #3498db; border: 1px solid #3498db; }
+        .btn-obs:hover { background: #3498db; color: white; }
+        .btn-obs.active { background: #3498db; color: white; }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge.obs { background: #3498db; color: white; }
+        .badge.lta { background: #e74c3c; color: white; }
+        
+        .db-stats {
+            background: #f8f9fa;
+            padding: 10px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 8px;
+        }
+        .db-stats span { display: block; }
+        .db-stats strong { color: #2c3e50; }
+        
+        /* ========== RIGHT PANEL ========== */
+        .right-panel {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .chart-wrapper {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .chart-wrapper .chart-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+        .chart-wrapper .chart-subtitle {
+            font-size: 13px;
+            color: #95a5a6;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .chart-container { position: relative; width: 80%; height: 920px; }
+        
+        /* ========== BOTTOM ROW: MAP (1/3) + TABLE (2/3) ========== */
+        .bottom-row {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 15px;
+            flex: 0 0 340px;
+            min-height: 0;
+        }
+
+        .map-wrapper,
+        .table-side {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .map-wrapper .map-header,
+        .table-side .table-header {
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #2c3e50;
+            border-bottom: 1px solid #ecf0f1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .map-wrapper .map-header .map-hint {
+            font-size: 11px;
+            color: #95a5a6;
+            font-weight: 400;
+            font-style: italic;
+        }
+
+        #rainfallMap {
+            flex: 1 1 auto;
+            min-height: 0;
+            background: #eef2f7;
+        }
+
+        /* Table side: scrollable full-height table */
+        .table-side .table-scroll {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: auto;
+        }
+
+        .table-side table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .table-side thead th {
+            background: #2c3e50;
+            color: white;
+            padding: 6px 8px;
+            text-align: left;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            font-weight: 600;
+        }
+
+        .table-side tbody td {
+            padding: 5px 8px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        .table-side tbody tr:hover { background: #f8f9fa; }
+
+        /* Province labels */
+        .province-label {
+            background: rgba(255, 255, 255, 0.0);
+            border: none;
+            box-shadow: none;
+            color: #1e293b;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            text-shadow: 0 0 3px #ffffff, 0 0 5px #ffffff;
+            padding: 0;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .province-label::before {
+            display: none;
+        }
+        
+        /* ========== LEGEND - CLICKABLE TOGGLES ========== */
+        .legend-toggle {
+            display: flex;
+            gap: 25px;
+            justify-content: center;
+            padding: 8px 0 12px 0;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #ecf0f1;
+            margin-bottom: 12px;
+        }
+        .legend-toggle .item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            padding: 4px 12px;
+            border-radius: 4px;
+            transition: 0.2s;
+            user-select: none;
+        }
+        .legend-toggle .item:hover { background: #f0f0f0; }
+        .legend-toggle .item .color {
+            width: 20px;
+            height: 4px;
+            border-radius: 2px;
+            display: inline-block;
+        }
+        .legend-toggle .item .color.bar { height: 14px; width: 14px; border-radius: 3px; background: #3498db; }
+        .legend-toggle .item .color.line { width: 25px; background: #e74c3c; }
+        .legend-toggle .item.hidden { opacity: 0.3; text-decoration: line-through; }
+        
+        .stats-mini {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .stats-mini .card {
+            background: #f8f9fa;
+            padding: 10px 12px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .stats-mini .card .num { font-size: 18px; font-weight: bold; color: #2c3e50; }
+        .stats-mini .card .lbl { font-size: 10px; color: #95a5a6; text-transform: uppercase; letter-spacing: 0.3px; }
+        
+        .positive { color: #e74c3c; }
+        .negative { color: #3498db; }
+        
+        .loading { text-align: center; padding: 40px; color: #95a5a6; }
+        .spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #ecf0f1;
+            border-top: 3px solid #2c3e50;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .error { color: #e74c3c; padding: 15px; background: #fdf2f2; border-radius: 4px; border-left: 4px solid #e74c3c; }
+        .no-data { color: #7f8c8d; padding: 20px; text-align: center; }
+        
+        /* ========== SCROLLBAR ========== */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #ecf0f1; }
+        ::-webkit-scrollbar-thumb { background: #bdc3c7; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #95a5a6; }
+        
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 900px) {
+            .main { flex-direction: column; }
+            .left-panel { width: 100%; min-width: unset; max-height: 300px; border-right: none; border-bottom: 1px solid #e0e0e0; }
+            .right-panel { padding: 15px; }
+            .header { flex-wrap: wrap; gap: 8px; }
+            .header-info { flex-wrap: wrap; font-size: 12px; }
+            .chart-container { height: 760px; }
+            .bottom-row {
+                grid-template-columns: 1fr;
+                flex: 0 0 auto;
+            }
+            .map-wrapper { height: 240px; }
+            .table-side { height: 220px; }
+        }
+
+        /* === COMPACT CHART OVERRIDES === */
+        .chart-wrapper {
+            padding: 12px 12px 10px 12px;
+        }
+        .chart-wrapper .chart-title {
+            font-size: 15px;
+            margin-bottom: 2px;
+        }
+        .chart-wrapper .chart-subtitle {
+            font-size: 11px;
+            margin-bottom: 8px;
+        }
+        .legend-toggle {
+            gap: 12px;
+            padding: 4px 0 6px 0;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        .legend-toggle .item {
+            font-size: 11px;
+            gap: 5px;
+            padding: 2px 8px;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 370px; 
+        }
+        .stats-mini {
+            margin: 8px 0 0 0;
+            gap: 6px;
+        }
+        .stats-mini .card {
+            padding: 6px 8px;
+        }
+        .stats-mini .card .num {
+            font-size: 15px;
+        }
+        .stats-mini .card .lbl {
+            font-size: 9px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header class="header">
+    <h1><i>🌧️</i> Provincial Rainfall Monitoring Dashboard</h1>
+    <div id="header-links">
+            <a href="{% url 'fields_admin:sentinel_truecolour' %}">📊 Home - digitise fields</a>
+            <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
+            <a href="{% url 'fields_admin:ndvi_map' %}">🛰️ Monitor Fields</a>
+            <a href="{% url 'fields_admin:chart_rain' %}">🌧️ Rainfall station</a>
+            <a href="{% url 'fields_admin:pixel_indicators' %}">📈 Farm indicators</a>
+            <a href="{% url 'fields_admin:field_ndvi_graph' %}" class="active">📈 Analytics & Alerts</a>
+    </div>
+</header>
+
+<!-- ===== MAIN ===== -->
+<div class="main">
+
+    <!-- LEFT PANEL -->
+    <div class="left-panel">
+
+        <!-- Observation Period -->
+        <div class="control-group">
+            <label>🔵 Observation Period <span class="badge obs">Selected</span></label>
+            <div class="date-range">
+                <div class="field">
+                    <label>Start</label>
+                    <input type="date" id="obsStart">
+                </div>
+                <div class="field">
+                    <label>End</label>
+                    <input type="date" id="obsEnd">
+                </div>
+            </div>
+        </div>
+
+        <!-- LTA Period -->
+        <div class="control-group">
+            <label>🔴 LTA Period <span class="badge lta">Selected</span></label>
+            <div class="date-range">
+                <div class="field">
+                    <label>Start</label>
+                    <input type="date" id="ltaStart">
+                </div>
+                <div class="field">
+                    <label>End</label>
+                    <input type="date" id="ltaEnd">
+                </div>
+            </div>
+            <div style="margin-top:4px;">
+                <button class="btn btn-lta btn-sm" onclick="setLTADefault()">📅 Full Database</button>
+                <button class="btn btn-lta btn-sm" onclick="setLTAPrevYear()">📅 Previous Year</button>
+                <button class="btn btn-lta btn-sm" onclick="setLTA5Year()">📅 Last 5 Years</button>
+            </div>
+        </div>
+
+        <!-- Province -->
+        <div class="control-group">
+            <label>📍 Province</label>
+            <select id="provinceSelect">
+                <option value="">All</option>
+                <option value="Harare" selected>Harare</option>
+                <option value="Bulawayo">Bulawayo</option>
+                <option value="Manicaland">Manicaland</option>
+                <option value="Mashonaland Central">Mashonaland Central</option>
+                <option value="Mashonaland East">Mashonaland East</option>
+                <option value="Mashonaland West">Mashonaland West</option>
+                <option value="Masvingo">Masvingo</option>
+                <option value="Matabeleland North">Matabeleland North</option>
+                <option value="Matabeleland South">Matabeleland South</option>
+                <option value="Midlands">Midlands</option>
+            </select>
+        </div>
+
+        <!-- Actions -->
+        <div class="control-group">
+            <button class="btn btn-primary" onclick="loadData()">📊 Load Data</button>
+            <div style="display:flex; gap:6px; margin-top:4px;">
+                <button class="btn btn-success btn-sm" onclick="exportCSV()" style="flex:1;">📥 CSV</button>
+                <button class="btn btn-secondary btn-sm" onclick="loadDefault()" style="flex:1;">🔄 Reset</button>
+            </div>
+        </div>
+
+        <!-- DB Info -->
+        <div class="db-stats" id="dbInfo" style="display:none;">
+            <span>📊 <strong id="dbRecordCount">-</strong> total records</span>
+            <span>📅 <strong id="dbDateRange">-</strong> full range</span>
+            <span>📍 <strong id="dbProvinceCount">-</strong> provinces</span>
+            <span style="color:#f39c12; margin-top:3px; font-size:11px;">💡 LTA defaults to full database</span>
+        </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+
+        <!-- Chart Card -->
+        <div class="chart-wrapper" id="chartCard">
+            <div id="loadingState" style="display:none;">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p style="margin-top:12px;">Loading data...</p>
+                </div>
+            </div>
+
+            <div id="contentState">
+                <!-- Chart Title -->
+                <div class="chart-title" id="chartTitle">Harare</div>
+                <div class="chart-subtitle" id="periodInfo">Select date ranges and click Load Data</div>
+
+                <!-- Clickable Legend Toggles -->
+                <div class="legend-toggle" id="legendToggles">
+                    <div class="item active" data-dataset="0" onclick="toggleDataset(0)">
+                        <span class="color bar"></span> Observed Rainfall
+                    </div>
+                    <div class="item active" data-dataset="1" onclick="toggleDataset(1)">
+                        <span class="color line"></span> LTA
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="rainfallChart"></canvas>
+                </div>
+
+                <div class="stats-mini" id="statsGrid"></div>
+            </div>
+
+            <div id="noDataState" style="display:none;">
+                <div class="no-data">No data found. Please adjust your date range.</div>
+            </div>
+        </div>
+
+        <!-- BOTTOM ROW: map (1/3) + table (2/3) -->
+        <div class="bottom-row" id="bottomRow">
+
+            <!-- MAP — 1/3 width -->
+            <div class="map-wrapper">
+                <div class="map-header">
+                    <span>🗺️ Click a Province</span>
+                    <span class="map-hint">click to select</span>
+                </div>
+                <div id="rainfallMap"></div>
+            </div>
+
+            <!-- TABLE — 2/3 width -->
+            <div class="table-side" id="tableContainer" style="display:none;">
+                <div class="table-header">
+                    <span>📋 Dekadal Rainfall Data</span>
+                    <span class="map-hint" id="tableRowCount"></span>
+                </div>
+                <div class="table-scroll" id="tableWrapper"></div>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+<!-- ============================================================
+     SCRIPTS
+     ============================================================ -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.20/leaflet-maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    let chart = null;
+    let currentData = null;
+    let dbInfo = null;
+    let datasetVisibility = [true, true]; // [rainfall, lta]
+
+    // ============================================================
+    // MAP — OpenFreeMap (vector) + province boundaries + click
+    // ============================================================
+    let map = null;
+    let provinceLayer = null;
+    let selectedProvinceLayer = null;
+    const PROVINCES_GEOJSON_URL = "/static/geojson/zwe_admin1.geojson";
+
+    function initMap() {
+        if (map) return;
+
+        map = L.map('rainfallMap', {
+            zoomControl: true,
+            attributionControl: false,
+            scrollWheelZoom: false
+        }).setView([-19.0, 29.5], 6);
+
+        L.maplibreGL({
+            style: 'https://tiles.openfreemap.org/styles/liberty/{z}/{x}/{y}.png'
+        }).addTo(map);
+
+        L.control.attribution({
+            position: 'bottomright',
+            prefix: false
+        }).addAttribution(
+            '&copy; <a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> ' +
+            '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+        ).addTo(map);
+
+        fetch(PROVINCES_GEOJSON_URL)
+            .then(function (res) {
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                return res.json();
+            })
+            .then(function (geojson) {
+                provinceLayer = L.geoJSON(geojson, {
+                    style: function () {
+                        return {
+                            color: "#2c3e50",
+                            weight: 1.3,
+                            opacity: 0.75,
+                            fillColor: "#3498db",
+                            fillOpacity: 0.10
+                        };
+                    },
+                    onEachFeature: function (feature, layer) {
+                        var props = feature.properties || {};
+                        var name =
+                            props.adm1_name ||
+                            props.ADM1_NAME ||
+                            props.PROVINCE ||
+                            props.province ||
+                            props.NAME_1 ||
+                            props.name ||
+                            props.NAME ||
+                            null;
+
+                        if (name) {
+                            layer.feature.properties.__name = name;
+                            layer.bindTooltip(name, {
+                                permanent: true,
+                                direction: "center",
+                                className: "province-label",
+                                opacity: 1
+                            });
+                        }
+
+                        layer.on("mouseover", function () {
+                            if (layer !== selectedProvinceLayer) {
+                                layer.setStyle({
+                                    weight: 2.5,
+                                    fillOpacity: 0.30,
+                                    color: "#2980b9"
+                                });
+                            }
+                        });
+                        layer.on("mouseout", function () {
+                            if (layer !== selectedProvinceLayer) {
+                                layer.setStyle({
+                                    weight: 1.3,
+                                    fillOpacity: 0.10,
+                                    color: "#2c3e50"
+                                });
+                            }
+                        });
+
+                        layer.on("click", function () {
+                            selectProvinceOnMap(layer);
+                        });
+                    }
+                }).addTo(map);
+
+                syncMapToDropdown();
+            })
+            .catch(function (err) {
+                console.warn("Could not load province boundaries:", err.message);
+            });
+
+        setTimeout(function () { map.invalidateSize(); }, 200);
+    }
+
+    function selectProvinceOnMap(layer) {
+        var name = (layer.feature && layer.feature.properties && layer.feature.properties.__name) || "";
+
+        if (selectedProvinceLayer && selectedProvinceLayer !== layer) {
+            selectedProvinceLayer.setStyle({
+                weight: 1.3,
+                fillOpacity: 0.10,
+                color: "#2c3e50",
+                fillColor: "#3498db"
+            });
+        }
+
+        selectedProvinceLayer = layer;
+        layer.setStyle({
+            weight: 3,
+            fillOpacity: 0.40,
+            color: "#e74c3c",
+            fillColor: "#e74c3c"
+        });
+
+        var dropdown = document.getElementById('provinceSelect');
+        var found = false;
+        for (var i = 0; i < dropdown.options.length; i++) {
+            if (dropdown.options[i].value === name) {
+                dropdown.selectedIndex = i;
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            var opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            dropdown.appendChild(opt);
+            dropdown.value = name;
+        }
+
+        document.getElementById('chartTitle').textContent = name || 'All';
+
+        loadData();
+    }
+
+    function syncMapToDropdown() {
+        if (!provinceLayer) return;
+
+        var selected = document.getElementById('provinceSelect').value;
+        if (!selected) return;
+
+        provinceLayer.eachLayer(function (layer) {
+            var name = (layer.feature && layer.feature.properties && layer.feature.properties.__name) || "";
+            if (name === selected) {
+                selectedProvinceLayer = layer;
+                layer.setStyle({
+                    weight: 3,
+                    fillOpacity: 0.40,
+                    color: "#e74c3c",
+                    fillColor: "#e74c3c"
+                });
+            }
+        });
+    }
+
+    function bindDropdownSync() {
+        var dropdown = document.getElementById('provinceSelect');
+        if (!dropdown) return;
+        dropdown.addEventListener('change', function () {
+            if (!provinceLayer) return;
+            var selected = dropdown.value;
+
+            if (selectedProvinceLayer) {
+                selectedProvinceLayer.setStyle({
+                    weight: 1.3,
+                    fillOpacity: 0.10,
+                    color: "#2c3e50",
+                    fillColor: "#3498db"
+                });
+                selectedProvinceLayer = null;
+            }
+
+            if (!selected) return;
+
+            provinceLayer.eachLayer(function (layer) {
+                var name = (layer.feature && layer.feature.properties && layer.feature.properties.__name) || "";
+                if (name === selected) {
+                    selectedProvinceLayer = layer;
+                    layer.setStyle({
+                        weight: 3,
+                        fillOpacity: 0.40,
+                        color: "#e74c3c",
+                        fillColor: "#e74c3c"
+                    });
+                }
+            });
+        });
+    }
+
+    // ============================================================
+    // GET DATABASE INFO
+    // ============================================================
+
+    async function getDatabaseInfo() {
+        try {
+            const response = await fetch('/api/rainfall/db/info/');
+            const data = await response.json();
+            if (data.success) {
+                dbInfo = data;
+                document.getElementById('dbInfo').style.display = 'block';
+                document.getElementById('dbRecordCount').textContent = data.total_records.toLocaleString();
+                document.getElementById('dbDateRange').textContent = `${data.min_date} to ${data.max_date}`;
+                document.getElementById('dbProvinceCount').textContent = data.province_count;
+                return data;
+            }
+        } catch (error) {
+            console.error('Error fetching DB info:', error);
+            return null;
+        }
+    }
+
+    // ============================================================
+    // DATE HELPERS
+    // ============================================================
+
+    function getToday() {
+        const d = new Date();
+        return d.toISOString().split('T')[0];
+    }
+
+    function getDateYearStart(year) {
+        return `${year}-01-01`;
+    }
+
+    function getDateYearEnd(year) {
+        return `${year}-12-31`;
+    }
+
+    // ============================================================
+    // TOGGLE DATASET (Clickable Legend)
+    // ============================================================
+
+    function toggleDataset(index) {
+        if (!chart) return;
+        const meta = chart.getDatasetMeta(index);
+        meta.hidden = !meta.hidden;
+        chart.update();
+
+        const items = document.querySelectorAll('.legend-toggle .item');
+        items.forEach((item, i) => {
+            if (i === index) {
+                item.classList.toggle('hidden');
+            }
+        });
+    }
+
+    // ============================================================
+    // SET DEFAULT
+    // ============================================================
+
+    function loadDefault() {
+        const year = new Date().getFullYear();
+        document.getElementById('obsStart').value = getDateYearStart(year);
+        document.getElementById('obsEnd').value = getToday();
+
+        setLTADefault();
+
+        document.querySelectorAll('.legend-toggle .item').forEach((el, i) => {
+            el.classList.remove('hidden');
+            datasetVisibility[i] = true;
+        });
+
+        loadData();
+    }
+
+    function setLTADefault() {
+        if (dbInfo) {
+            document.getElementById('ltaStart').value = dbInfo.min_date;
+            document.getElementById('ltaEnd').value = dbInfo.max_date;
+        } else {
+            document.getElementById('ltaStart').value = '2000-01-01';
+            document.getElementById('ltaEnd').value = '2024-12-31';
+        }
+    }
+
+    function setLTAPrevYear() {
+        const year = new Date().getFullYear() - 1;
+        document.getElementById('ltaStart').value = getDateYearStart(year);
+        document.getElementById('ltaEnd').value = getDateYearEnd(year);
+    }
+
+    function setLTA5Year() {
+        const currentYear = new Date().getFullYear();
+        const startYear = currentYear - 5;
+        const endYear = currentYear - 1;
+        document.getElementById('ltaStart').value = getDateYearStart(startYear);
+        document.getElementById('ltaEnd').value = getDateYearEnd(endYear);
+    }
+
+    // ============================================================
+    // LOAD DATA
+    // ============================================================
+
+    async function loadData() {
+        const obsStart = document.getElementById('obsStart').value;
+        const obsEnd = document.getElementById('obsEnd').value;
+        const ltaStart = document.getElementById('ltaStart').value;
+        const ltaEnd = document.getElementById('ltaEnd').value;
+        const province = document.getElementById('provinceSelect').value;
+
+        if (!obsStart || !obsEnd) {
+            alert('Please select observation period dates.');
+            return;
+        }
+        if (!ltaStart || !ltaEnd) {
+            alert('Please select LTA period dates.');
+            return;
+        }
+
+        const chartCard = document.getElementById('chartCard');
+        const loadingState = document.getElementById('loadingState');
+        const contentState = document.getElementById('contentState');
+        const noDataState = document.getElementById('noDataState');
+
+        loadingState.style.display = 'block';
+        contentState.style.display = 'none';
+        noDataState.style.display = 'none';
+
+        try {
+            let url = `/api/rainfall/dekadal/?start_date=${obsStart}&end_date=${obsEnd}&lta_start=${ltaStart.split('-')[0]}&lta_end=${ltaEnd.split('-')[0]}`;
+            if (province) {
+                url += `&province=${province}`;
+            }
+
+            console.log('Fetching:', url);
+            const response = await fetch(url);
+            const data = await response.json();
+            console.log('Data:', data);
+
+            loadingState.style.display = 'none';
+
+            if (data.success && data.data && data.data.length > 0) {
+                currentData = data;
+                contentState.style.display = 'block';
+                noDataState.style.display = 'none';
+
+                const displayProvince = province || data.provinces[0] || 'All';
+                document.getElementById('chartTitle').textContent = displayProvince;
+
+                document.getElementById('periodInfo').textContent = `LTA: ${data.lta_period.description}`;
+
+                renderChart(data, province);
+                renderStats(data, province);
+                renderTable(data, province);
+            } else {
+                contentState.style.display = 'none';
+                noDataState.style.display = 'block';
+                noDataState.innerHTML = `<div class="no-data">No data found. Please adjust your date range.</div>`;
+                document.getElementById('tableContainer').style.display = 'none';
+            }
+        } catch (error) {
+            loadingState.style.display = 'none';
+            contentState.style.display = 'none';
+            noDataState.style.display = 'block';
+            noDataState.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            document.getElementById('tableContainer').style.display = 'none';
+            console.error('Error:', error);
+        }
+    }
+
+    // ============================================================
+    // RENDER CHART — now uses start dekad for labels
+    // ============================================================
+
+    function renderChart(data, province) {
+        const p = province || data.provinces[0];
+
+        // Use the start date of each dekad as the label (D1 start)
+        const labels = data.data.map(d => d.start_date);   // ← changed from d.period
+        const rainfall = data.data.map(d => d[p] || 0);
+        const lta = data.data.map(d => d[`${p}_lta`] || 0);
+
+        const ctx = document.getElementById('rainfallChart').getContext('2d');
+
+        if (chart) {
+            chart.destroy();
+        }
+
+        chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Observed Rainfall',
+                        data: rainfall,
+                        backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 1,
+                        order: 1,
+                        yAxisID: 'y',
+                    },
+                    {
+                        label: 'LTA',
+                        data: lta,
+                        type: 'bar',
+                        borderColor: 'rgba(231, 76, 60, 1)',
+                        backgroundColor: 'rgba(231, 76, 60, 1)',
+                        borderWidth: 3,
+                        pointBackgroundColor: 'rgba(231, 76, 60, 1)',
+                        pointBorderColor: 'white',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        fill: false,
+                        tension: 0.3,
+                        order: 0,
+                        yAxisID: 'y',
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false,
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                let value = context.raw;
+                                if (value !== null && value !== undefined && value > 0) {
+                                    label += `: ${value.toFixed(1)} mm`;
+                                } else {
+                                    label += ': No data';
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            maxRotation: 90,
+                            minRotation: 45,
+                            font: { size: 8 }   // slightly smaller for compactness
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Rainfall (mm)', font: { size: 11 } },
+                        grid: { color: 'rgba(0,0,0,0.05)' }
+                    }
+                }
+            }
+        });
+
+        chart.getDatasetMeta(0).hidden = !datasetVisibility[0];
+        chart.getDatasetMeta(1).hidden = !datasetVisibility[1];
+        chart.update();
+
+        setTimeout(() => { chart.resize(); }, 100);
+    }
+
+    // ============================================================
+    // RENDER STATS
+    // ============================================================
+
+    function renderStats(data, province) {
+        const p = province || data.provinces[0];
+
+        const rainfallValues = data.data.map(d => d[p] || 0).filter(v => v > 0);
+        const ltaValues = data.data.map(d => d[`${p}_lta`] || 0).filter(v => v > 0);
+        const anomalies = data.data.map(d => d[`${p}_anomaly`] || 0);
+
+        const totalRainfall = rainfallValues.reduce((a, b) => a + b, 0);
+        const avgLTA = ltaValues.reduce((a, b) => a + b, 0) / (ltaValues.length || 1);
+        const avgAnomaly = anomalies.reduce((a, b) => a + b, 0) / (anomalies.length || 1);
+        const maxRainfall = Math.max(...rainfallValues, 0);
+        const minRainfall = Math.min(...rainfallValues, 0);
+
+        // (original: no return value — kept as-is)
+    }
+
+    // ============================================================
+    // RENDER TABLE
+    // ============================================================
+
+    function renderTable(data, province) {
+        const p = province || data.provinces[0];
+        const tableWrapper = document.getElementById('tableWrapper');
+        const tableContainer = document.getElementById('tableContainer');
+        const rowCount = document.getElementById('tableRowCount');
+
+        tableContainer.style.display = 'flex';
+
+        let html = `
+            <table>
+                <thead><tr>
+                    <th>Period</th>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Rainfall (mm)</th>
+                    <th>LTA (mm)</th>
+                    <th>Anomaly (mm)</th>
+                    <th>% Avg</th>
+                </tr></thead>
+                <tbody>
+        `;
+
+        data.data.forEach(d => {
+            const rainfall = d[p] || 0;
+            const lta = d[`${p}_lta`] || 0;
+            const anomaly = d[`${p}_anomaly`] || 0;
+            const pctAvg = d[`${p}_pct_avg`] || 0;
+            const cls = anomaly >= 0 ? 'positive' : 'negative';
+
+            html += `
+                <tr>
+                    <td><strong>${d.period}</strong></td>
+                    <td>${d.start_date}</td>
+                    <td>${d.end_date}</td>
+                    <td>${rainfall.toFixed(1)}</td>
+                    <td>${lta.toFixed(1)}</td>
+                    <td class="${cls}">${anomaly >= 0 ? '+' : ''}${anomaly.toFixed(1)}</td>
+                    <td>${pctAvg.toFixed(1)}%</td>
+                </tr>
+            `;
+        });
+
+        html += `</tbody></table>`;
+        tableWrapper.innerHTML = html;
+
+        if (rowCount) rowCount.textContent = `${data.data.length} rows`;
+    }
+
+    // ============================================================
+    // EXPORT CSV
+    // ============================================================
+
+    function exportCSV() {
+        if (!currentData) {
+            alert('Please load data first.');
+            return;
+        }
+
+        const province = document.getElementById('provinceSelect').value || currentData.provinces[0];
+        const obsStart = document.getElementById('obsStart').value;
+        const obsEnd = document.getElementById('obsEnd').value;
+
+        let csv = 'Period,Start Date,End Date,Rainfall (mm),LTA (mm),Anomaly (mm),% of Average\n';
+
+        currentData.data.forEach(d => {
+            const rainfall = d[province] || 0;
+            const lta = d[`${province}_lta`] || 0;
+            const anomaly = d[`${province}_anomaly`] || 0;
+            const pctAvg = d[`${province}_pct_avg`] || 0;
+            csv += `${d.period},${d.start_date},${d.end_date},${rainfall.toFixed(1)},${lta.toFixed(1)},${anomaly.toFixed(1)},${pctAvg.toFixed(1)}%\n`;
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `dekadal_rainfall_${province}_${obsStart}_to_${obsEnd}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // ============================================================
+    // INIT
+    // ============================================================
+
+    async function init() {
+        initMap();
+        bindDropdownSync();
+        await getDatabaseInfo();
+        loadDefault();
+    }
+
+    window.onload = init;
+
+    window.addEventListener('resize', function () {
+        if (map) map.invalidateSize();
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentinel Farm Pulse — Every Field Has a Pulse</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800;14..32,900&display=swap" rel="stylesheet">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary: #2c3e50;
+            --primary-hover: #34495e;
+            --primary-dark: #1a252f;
+            --primary-light: #3d5468;
+            --accent: #2c3e50;
+            --accent-hover: #34495e;
+            --accent-dark: #1a252f;
+            --text: #0f172a;
+            --muted: #64748b;
+            --bg: #eef2f6;
+            --card: #ffffff;
+            --border: #e2e8f0;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ============================================
+           HEADER
+           ============================================ */
+        #header{
+            height:55px;
+            background:#2c3e50;
+            color:white;
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            padding:0 20px;
+            font-size:15px;
+            box-shadow:0 2px 6px rgba(0,0,0,0.15);
+            position:sticky;
+            top:0;
+            z-index:1100;
+        }
+
+        #header-title{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            font-weight:600;
+            font-size:18px;
+        }
+
+        #header-title .header-icon{ font-size:22px; }
+
+        #header-links{
+            display:flex;
+            gap:6px;
+            align-items:center;
+            flex-wrap:wrap;
+        }
+
+        #header-links a{
+            color:#e2e8f0;
+            text-decoration:none;
+            font-size:13px;
+            font-weight:500;
+            padding:7px 12px;
+            border-radius:5px;
+            transition:background 0.15s;
+            white-space:nowrap;
+        }
+
+        #header-links a:hover{ background:rgba(255,255,255,0.12); color:#fff; }
+        #header-links a.active{ background:rgba(255,255,255,0.18); color:#fff; font-weight:600; }
+
+        @media (max-width: 1150px){
+            #header{
+                height:auto;
+                flex-direction:column;
+                align-items:flex-start;
+                gap:8px;
+                padding:10px 16px;
+            }
+            #header-links{ gap:4px; }
+        }
+
+        /* ============================================
+           PAGE WRAPPER
+           ============================================ */
+        .page {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px 40px 28px;
+        }
+
+        /* ============================================
+           HERO
+           ============================================ */
+        .hero {
+            display: grid;
+            grid-template-columns: 1fr 1.05fr;
+            gap: 36px;
+            align-items: center;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 32px 36px;
+            margin-bottom: 16px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(44, 62, 80, 0.06);
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -60%;
+            right: -15%;
+            width: 420px;
+            height: 420px;
+            background: radial-gradient(circle, rgba(44, 62, 80, 0.06) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .hero-text { position: relative; z-index: 1; }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #eaeef3;
+            border: 1px solid #cbd5e1;
+            color: var(--primary-dark);
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.3px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            margin-bottom: 14px;
+        }
+
+        .hero-text h1 {
+            font-size: 38px;
+            font-weight: 900;
+            color: var(--text);
+            line-height: 1.08;
+            letter-spacing: -1.2px;
+            margin-bottom: 14px;
+        }
+
+        .hero-text h1 .highlight {
+            background: linear-gradient(135deg, #2c3e50 0%, #3d5468 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            display: inline-block;
+        }
+
+        .punchline {
+            font-size: 15px;
+            color: var(--primary);
+            line-height: 1.55;
+            margin-bottom: 10px;
+            font-weight: 600;
+            letter-spacing: -0.2px;
+            max-width: 500px;
+        }
+
+        .punchline .underline {
+            color: var(--primary-dark);
+            position: relative;
+            font-weight: 800;
+        }
+
+        .sub-punch {
+            font-size: 12.5px;
+            color: var(--muted);
+            line-height: 1.6;
+            margin-bottom: 20px;
+            max-width: 480px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+        }
+
+        .btn {
+            padding: 10px 22px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.22s;
+            cursor: pointer;
+            border: none;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 14px rgba(44, 62, 80, 0.25);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 24px rgba(44, 62, 80, 0.35);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: var(--primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: #f8fafc;
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .trust-strip {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            padding-top: 14px;
+            border-top: 1px solid var(--border);
+        }
+
+        .trust-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11.5px;
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .trust-item i { color: var(--primary); font-size: 12px; }
+
+        /* ============================================
+           HERO CARDS
+           ============================================ */
+        .hero-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 16px 16px 16px;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(44, 62, 80, 0.04);
+        }
+
+        .hero-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #2c3e50, #3d5468);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .hero-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 16px 32px rgba(44, 62, 80, 0.12);
+            border-color: var(--primary);
+        }
+
+        .hero-card:hover::before { opacity: 1; }
+
+        .card-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            margin-bottom: 10px;
+            flex-shrink: 0;
+            background: #eaeef3;
+            color: var(--primary-dark);
+        }
+
+        .hero-card h3 {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 4px;
+            letter-spacing: -0.2px;
+        }
+
+        .hero-card p {
+            font-size: 11.5px;
+            color: var(--muted);
+            line-height: 1.5;
+            margin-bottom: 10px;
+            flex: 1;
+        }
+
+        .card-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11.5px;
+            font-weight: 700;
+            color: var(--primary-dark);
+            transition: gap 0.2s;
+        }
+
+        .hero-card:hover .card-link { gap: 10px; }
+
+        /* ============================================
+           HOW IT WORKS STRIP
+           ============================================ */
+        .how-strip {
+            background: linear-gradient(135deg, #2c3e50 0%, #1a252f 100%);
+            border-radius: 16px;
+            padding: 18px 26px;
+            margin-bottom: 16px;
+            box-shadow: 0 6px 20px rgba(44, 62, 80, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 26px;
+            flex-wrap: wrap;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .how-strip::before {
+            content: '';
+            position: absolute;
+            top: -100%;
+            right: 5%;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .how-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: white;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        .how-title i { color: #cbd5e1; font-size: 15px; }
+
+        .how-steps {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            flex: 1;
+            min-width: 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        .how-step {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            padding: 8px 11px;
+            transition: all 0.22s;
+        }
+
+        .how-step:hover {
+            background: rgba(255, 255, 255, 0.14);
+            border-color: rgba(203, 213, 225, 0.55);
+            transform: translateY(-2px);
+        }
+
+        .how-num {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3d5468, #4a6076);
+            color: white;
+            font-size: 11px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-family: 'Inter', sans-serif;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .how-step-text { min-width: 0; }
+
+        .how-step-text h6 {
+            font-size: 11.5px;
+            font-weight: 700;
+            color: white;
+            margin: 0 0 1px 0;
+            letter-spacing: -0.1px;
+        }
+
+        .how-step-text p {
+            font-size: 9.5px;
+            color: rgba(255, 255, 255, 0.65);
+            margin: 0;
+            line-height: 1.3;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* ============================================
+           FOOTER
+           ============================================ */
+        .footer {
+            text-align: center;
+            padding: 14px 0 0;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .footer a {
+            color: var(--muted);
+            text-decoration: none;
+            margin: 0 7px;
+            transition: color 0.2s;
+        }
+
+        .footer a:hover { color: var(--primary-dark); }
+
+        /* ============================================
+           RESPONSIVE
+           ============================================ */
+        @media (max-width: 1100px) {
+            .hero { grid-template-columns: 1fr; padding: 26px 24px; gap: 26px; }
+            .hero-text h1 { font-size: 34px; }
+            .how-strip { flex-direction: column; align-items: stretch; gap: 14px; }
+            .how-title { justify-content: center; }
+        }
+
+        @media (max-width: 820px) {
+            .page { padding: 16px 20px 24px; }
+            .hero-text h1 { font-size: 28px; }
+            .hero { padding: 22px 20px; }
+            .how-steps { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 560px) {
+            .hero-text h1 { font-size: 24px; }
+            .punchline { font-size: 14px; }
+            .hero-cards { grid-template-columns: 1fr; }
+            .how-steps { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ============================================
+     HEADER
+     ============================================ -->
+<div id="header">
+    <div id="header-title">
+        <span class="header-icon">🛰️</span>
+        <h2 style="margin:0; font-size:18px;">Sentinel Farm Pulse</h2>
+    </div>
+
+    <div id="header-links">
+        <a href="{% url 'fields_admin:sentinel_truecolour' %}" class="active">📊 Home - digitise fields</a>
+        <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
+        <a href="{% url 'fields_admin:ndvi_map' %}">🛰️ Monitor Fields</a>
+        <a href="{% url 'fields_admin:chart_rain' %}">🌧️ Rainfall station</a>
+        <a href="{% url 'fields_admin:pixel_indicators' %}">📈 Farm indicators</a>
+        <a href="{% url 'fields_admin:field_ndvi_graph' %}">📈 Analytics & Alerts</a>
+    </div>
+</div>
+
+<div class="page">
+
+    <!-- ============================================
+         HERO
+         ============================================ -->
+    <section class="hero">
+        <div class="hero-text">
+            <div class="eyebrow">
+                <i class="fas fa-satellite-dish"></i> Satellite Crop Monitoring · Zimbabwe
+            </div>
+
+            <h1>
+                Every Field Has a Pulse.<br>
+                <span class="highlight">Start Listening.</span>
+            </h1>
+
+            <p class="punchline">
+                Digitise your first field or <span class="underline">open the dashboard</span> to explore your data.
+            </p>
+
+            <p class="sub-punch">
+                Sentinel Farm Pulse fuses Sentinel-2, CHIRPS, ERA5, SMAP and MODIS
+                into one clear picture of crop health, rainfall and climate stress —
+                so you act before the damage, not after.
+            </p>
+
+            <div class="hero-actions">
+                <a href="{% url 'fields_admin:sentinel_truecolour' %}" class="btn btn-primary">
+                    <i class="fas fa-rocket"></i> Get Started
+                </a>
+                <a href="{% url 'fields_admin:ndvi_map' %}" class="btn btn-secondary">
+                    <i class="fas fa-satellite"></i> Monitor Fields
+                </a>
+            </div>
+
+            <div class="trust-strip">
+                <div class="trust-item"><i class="fas fa-check-circle"></i> 10m resolution</div>
+                <div class="trust-item"><i class="fas fa-check-circle"></i> 5-day revisit</div>
+                <div class="trust-item"><i class="fas fa-check-circle"></i> Free & open data</div>
+            </div>
+        </div>
+
+        <div class="hero-cards">
+
+            <a href="{% url 'fields_admin:sentinel_truecolour' %}" class="hero-card">
+                <div class="card-icon"><i class="fas fa-draw-polygon"></i></div>
+                <h3>Field Digitisation</h3>
+                <p>Draw fields on satellite imagery — area auto-calculated.</p>
+                <span class="card-link">Start <i class="fas fa-arrow-right"></i></span>
+            </a>
+
+            <a href="{% url 'fields_admin:field_dashboard' %}" class="hero-card">
+                <div class="card-icon"><i class="fas fa-map-marked-alt"></i></div>
+                <h3>Fields Dashboard</h3>
+                <p>All fields on one map — filter, compare, export GeoJSON.</p>
+                <span class="card-link">Open <i class="fas fa-arrow-right"></i></span>
+            </a>
+
+            <a href="{% url 'fields_admin:ndvi_map' %}" class="hero-card">
+                <div class="card-icon"><i class="fas fa-satellite"></i></div>
+                <h3>Monitor Fields</h3>
+                <p>Track NDVI, rainfall and soil moisture in real time.</p>
+                <span class="card-link">Monitor <i class="fas fa-arrow-right"></i></span>
+            </a>
+
+            <a href="{% url 'fields_admin:field_ndvi_graph' %}" class="hero-card">
+                <div class="card-icon"><i class="fas fa-bell"></i></div>
+                <h3>Analytics & Alerts</h3>
+                <p>Stress detection with custom thresholds and climate intel.</p>
+                <span class="card-link">View <i class="fas fa-arrow-right"></i></span>
+            </a>
+
+        </div>
+    </section>
+
+    <!-- ============================================
+         HOW IT WORKS STRIP
+         ============================================ -->
+    <section class="how-strip">
+        <div class="how-title">
+            <i class="fas fa-route"></i> How It Works
+        </div>
+
+        <div class="how-steps">
+            <div class="how-step">
+                <div class="how-num">1</div>
+                <div class="how-step-text">
+                    <h6>Digitise</h6>
+                    <p>Draw your field on imagery</p>
+                </div>
+            </div>
+            <div class="how-step">
+                <div class="how-num">2</div>
+                <div class="how-step-text">
+                    <h6>Monitor</h6>
+                    <p>Watch NDVI &amp; rainfall live</p>
+                </div>
+            </div>
+            <div class="how-step">
+                <div class="how-num">3</div>
+                <div class="how-step-text">
+                    <h6>Analyse</h6>
+                    <p>Compare fields &amp; seasons</p>
+                </div>
+            </div>
+            <div class="how-step">
+                <div class="how-num">4</div>
+                <div class="how-step-text">
+                    <h6>Act</h6>
+                    <p>Get alerted before damage</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================
+         FOOTER
+         ============================================ -->
+    <div class="footer">
+        <a href="{% url 'fields_admin:sentinel_truecolour' %}">Digitise</a>·
+        <a href="{% url 'fields_admin:field_dashboard' %}">Dashboard</a>·
+        <a href="{% url 'fields_admin:ndvi_map' %}">Monitor</a>·
+        <a href="{% url 'fields_admin:chart_rain' %}">Rainfall</a>·
+        <a href="{% url 'fields_admin:pixel_indicators' %}">Indicators</a>·
+        <a href="{% url 'fields_admin:field_ndvi_graph' %}">Analytics</a>
+        <div style="margin-top:5px;">© {% now "Y" %} Sentinel Farm Pulse · Satellite crop monitoring for Zimbabwe</div>
+    </div>
+
+</div>
+
+</body>
+</html>

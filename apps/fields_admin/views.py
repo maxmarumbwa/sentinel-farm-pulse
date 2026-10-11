@@ -7517,8 +7517,10 @@ def rainfall_dashboad_cumm_heatmap(request):
 
 def rainfall_to_db(request):
     return render(request, 'fields_admin/save_rain_to_db.html', {})
+#def chart_rain(request):
+#    return render(request, 'fields_admin/chart_rain_compa_avg.html', {})
 def chart_rain(request):
-    return render(request, 'fields_admin/chart_rain_compa_avg.html', {})
+    return render(request, 'fields_admin/rainfall_dashboard_cumm_heatmap.html', {})
 
 def field_ndvi_graph(request):
     return render(request, 'fields_admin/field_ndvi_graph.html', {})

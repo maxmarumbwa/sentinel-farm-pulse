@@ -3,2260 +3,652 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FAO Sentinel Field Dashboard - Time-Lapse</title>
-    
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- Font Awesome -->
+    <title>Sentinel Farm Pulse — Every Field Has a Pulse</title>
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
-    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800;14..32,900&display=swap" rel="stylesheet">
+
     <style>
-        /* --- RESET & TYPOGRAPHY --- */
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
-            background: #f8fafc; 
-            color: #1e293b;
+
+        :root {
+            --primary: #2c3e50;
+            --primary-hover: #34495e;
+            --primary-dark: #1a252f;
+            --primary-light: #3d5468;
+            --accent: #2c3e50;
+            --accent-hover: #34495e;
+            --accent-dark: #1a252f;
+            --text: #0f172a;
+            --muted: #64748b;
+            --bg: #eef2f6;
+            --card: #ffffff;
+            --border: #e2e8f0;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ============================================
+           HEADER
+           ============================================ */
+        #header{
+            height:55px;
+            background:#2c3e50;
+            color:white;
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            padding:0 20px;
+            font-size:15px;
+            box-shadow:0 2px 6px rgba(0,0,0,0.15);
+            position:sticky;
+            top:0;
+            z-index:1100;
+        }
+
+        #header-title{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            font-weight:600;
+            font-size:18px;
+        }
+
+        #header-title .header-icon{ font-size:22px; }
+
+        #header-links{
+            display:flex;
+            gap:6px;
+            align-items:center;
+            flex-wrap:wrap;
+        }
+
+        #header-links a{
+            color:#e2e8f0;
+            text-decoration:none;
+            font-size:13px;
+            font-weight:500;
+            padding:7px 12px;
+            border-radius:5px;
+            transition:background 0.15s;
+            white-space:nowrap;
+        }
+
+        #header-links a:hover{ background:rgba(255,255,255,0.12); color:#fff; }
+        #header-links a.active{ background:rgba(255,255,255,0.18); color:#fff; font-weight:600; }
+
+        @media (max-width: 1150px){
+            #header{
+                height:auto;
+                flex-direction:column;
+                align-items:flex-start;
+                gap:8px;
+                padding:10px 16px;
+            }
+            #header-links{ gap:4px; }
+        }
+
+        /* ============================================
+           PAGE WRAPPER
+           ============================================ */
+        .page {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px 40px 28px;
+        }
+
+        /* ============================================
+           HERO
+           ============================================ */
+        .hero {
+            display: grid;
+            grid-template-columns: 1fr 1.05fr;
+            gap: 36px;
+            align-items: center;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 32px 36px;
+            margin-bottom: 16px;
+            position: relative;
             overflow: hidden;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
+            box-shadow: 0 2px 10px rgba(44, 62, 80, 0.06);
         }
 
-        /* --- HEADER --- */
-        .header {
-            background: #ffffff;
-            border-bottom: 1px solid #e2e8f0;
-            padding: 12px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            height: auto;
-            min-height: 64px;
-            flex-shrink: 0;
-            z-index: 10;
-            flex-wrap: wrap;
-            gap: 12px;
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -60%;
+            right: -15%;
+            width: 420px;
+            height: 420px;
+            background: radial-gradient(circle, rgba(44, 62, 80, 0.06) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
         }
-        .header-left {
-            display: flex;
+
+        .hero-text { position: relative; z-index: 1; }
+
+        .eyebrow {
+            display: inline-flex;
             align-items: center;
-            gap: 12px;
-        }
-        .header h1 { 
-            font-size: 18px; 
-            font-weight: 600; 
-            color: #0f172a;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .header h1 i { color: #2d6a4f; }
-        .header .badge {
-            background: #e8f5e9;
-            color: #2d6a4f;
+            gap: 6px;
+            background: #eaeef3;
+            border: 1px solid #cbd5e1;
+            color: var(--primary-dark);
             font-size: 10px;
-            font-weight: 600;
-            padding: 4px 10px;
-            border-radius: 12px;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 1.3px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            margin-bottom: 14px;
         }
 
-        /* --- HEADER TOOLS CONTAINER --- */
-        .header-tools {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
+        .hero-text h1 {
+            font-size: 38px;
+            font-weight: 900;
+            color: var(--text);
+            line-height: 1.08;
+            letter-spacing: -1.2px;
+            margin-bottom: 14px;
         }
-        
-        .header-tools a, .header-tools button {
-            color: #475569;
+
+        .hero-text h1 .highlight {
+            background: linear-gradient(135deg, #2c3e50 0%, #3d5468 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            display: inline-block;
+        }
+
+        .punchline {
+            font-size: 15px;
+            color: var(--primary);
+            line-height: 1.55;
+            margin-bottom: 10px;
+            font-weight: 600;
+            letter-spacing: -0.2px;
+            max-width: 500px;
+        }
+
+        .punchline .underline {
+            color: var(--primary-dark);
+            position: relative;
+            font-weight: 800;
+        }
+
+        .sub-punch {
+            font-size: 12.5px;
+            color: var(--muted);
+            line-height: 1.6;
+            margin-bottom: 20px;
+            max-width: 480px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+        }
+
+        .btn {
+            padding: 10px 22px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
             text-decoration: none;
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 500;
-            background: transparent;
-            border: 1px solid transparent;
-            transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.22s;
             cursor: pointer;
+            border: none;
             font-family: 'Inter', sans-serif;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 14px rgba(44, 62, 80, 0.25);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 24px rgba(44, 62, 80, 0.35);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: var(--primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: #f8fafc;
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .trust-strip {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            padding-top: 14px;
+            border-top: 1px solid var(--border);
+        }
+
+        .trust-item {
             display: flex;
             align-items: center;
             gap: 6px;
-        }
-        .header-tools a:hover, .header-tools button:hover { background: #f1f5f9; color: #0f172a; }
-        
-        /* Pixel Info Tool Button - Special Styling */
-        .pixel-info-btn {
-            background: #2d6a4f !important;
-            color: white !important;
-            border: none !important;
-            padding: 6px 14px !important;
-            border-radius: 6px !important;
-        }
-        .pixel-info-btn:hover {
-            background: #1b4332 !important;
-            color: white !important;
-        }
-        .pixel-info-btn.active {
-            background: #ef4444 !important;
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-        
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
+            font-size: 11.5px;
+            color: var(--muted);
+            font-weight: 500;
         }
 
-        /* Time-Lapse Specific Header Styles */
-        .tl-controls {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: #f8fafc;
-            padding: 4px 8px;
-            border-radius: 6px;
-            border: 1px solid #e2e8f0;
-            transition: opacity 0.3s ease;
-        }
-        .tl-controls.disabled {
-            opacity: 0.5;
-            pointer-events: none;
-        }
-        .tl-controls span { font-size: 11px; font-weight: 500; color: #475569; min-width: 110px; text-align: right; }
-        .tl-controls input[type="range"] { 
-            width: 80px; 
-            height: 4px; 
-            -webkit-appearance: none; 
-            appearance: none; 
-            background: #e2e8f0; 
-            border-radius: 2px; 
-            outline: none; 
-        }
-        .tl-controls input[type="range"]::-webkit-slider-thumb { 
-            -webkit-appearance: none; 
-            appearance: none; 
-            width: 12px; height: 12px; 
-            border-radius: 50%; 
-            background: #2d6a4f; 
-            cursor: pointer; 
-            border: 2px solid white; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
-        }
-        .tl-controls .play-btn { 
-            background: #2d6a4f; color: white; border: none; 
-            width: 24px; height: 24px; border-radius: 50%; 
-            cursor: pointer; display: flex; align-items: center; justify-content: center; 
-            transition: 0.2s; font-size: 12px;
-        }
-        .tl-controls .play-btn:hover { background: #1b4332; }
+        .trust-item i { color: var(--primary); font-size: 12px; }
 
-        /* --- SEARCH INPUT IN HEADER --- */
-        .header-search-wrapper {
-            display: flex;
-            align-items: center;
+        /* ============================================
+           HERO CARDS
+           ============================================ */
+        .hero-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
             position: relative;
+            z-index: 1;
         }
-        .header-search-wrapper i {
+
+        .hero-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 16px 16px 16px;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(44, 62, 80, 0.04);
+        }
+
+        .hero-card::before {
+            content: '';
             position: absolute;
-            left: 10px;
-            color: #94a3b8;
-            font-size: 13px;
-        }
-        #headerSearchInput {
-            padding: 6px 12px 6px 32px;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            font-size: 12px;
-            background: #f8fafc;
-            font-family: 'Inter', sans-serif;
-            color: #1e293b;
-            width: 200px;
-            transition: 0.2s;
-        }
-        #headerSearchInput:focus {
-            border-color: #2d6a4f;
-            outline: none;
-            background: #ffffff;
-            box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.1);
-            width: 260px;
-        }
-        #headerSearchResults {
-            position: absolute;
-            top: 100%;
+            top: 0;
             left: 0;
             right: 0;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-top: none;
-            border-radius: 0 0 6px 6px;
-            max-height: 200px;
-            overflow-y: auto;
-            display: none;
-            z-index: 20;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-        #headerSearchResults div {
-            padding: 8px 12px;
-            cursor: pointer;
-            font-size: 12px;
-            border-bottom: 1px solid #f1f5f9;
-            transition: 0.2s;
-        }
-        #headerSearchResults div:hover {
-            background: #f1f5f9;
-            color: #1e3a2f;
-        }
-        #headerSearchResults div:last-child {
-            border-bottom: none;
+            height: 3px;
+            background: linear-gradient(90deg, #2c3e50, #3d5468);
+            opacity: 0;
+            transition: opacity 0.3s;
         }
 
-        /* Pixel Info Popup */
-        #pixelInfoPopup {
-            position: fixed;
-            bottom: 100px;
-            right: 30px;
-            width: 420px;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-            padding: 20px;
-            z-index: 9999;
-            display: none;
-            max-height: 520px;
-            overflow-y: auto;
-        }
-        #pixelInfoPopup.open {
-            display: block;
-            animation: slideUp 0.3s ease;
-        }
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        #pixelInfoPopup .popup-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        #pixelInfoPopup .popup-header h3 {
-            font-size: 14px;
-            font-weight: 600;
-            color: #0f172a;
-            margin: 0;
-        }
-        #pixelInfoPopup .popup-header h3 i {
-            color: #2d6a4f;
-            margin-right: 8px;
-        }
-        #pixelInfoPopup .close-popup {
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            color: #94a3b8;
-            font-size: 18px;
-            transition: 0.2s;
-        }
-        #pixelInfoPopup .close-popup:hover { color: #d32f2f; }
-        #pixelInfoPopup .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-        #pixelInfoPopup .info-item {
-            background: #f8fafc;
-            border-radius: 6px;
-            padding: 10px 12px;
-            text-align: center;
-        }
-        #pixelInfoPopup .info-item .label {
-            font-size: 9px;
-            text-transform: uppercase;
-            color: #94a3b8;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-        #pixelInfoPopup .info-item .value {
-            font-size: 18px;
-            font-weight: 700;
-            color: #0f172a;
-            margin-top: 2px;
-        }
-        #pixelInfoPopup .info-item .value.high { color: #2d6a4f; }
-        #pixelInfoPopup .info-item .value.medium { color: #f59e0b; }
-        #pixelInfoPopup .info-item .value.low { color: #ef4444; }
-        #pixelInfoPopup .info-item .date-label {
-            font-size: 9px;
-            color: #94a3b8;
-            margin-top: 4px;
-            font-weight: 400;
-        }
-        #pixelInfoPopup .info-item .date-label i {
-            margin-right: 3px;
-            font-size: 8px;
-        }
-        #pixelInfoPopup .info-item .sub-value {
-            font-size: 10px;
-            color: #94a3b8;
-            margin-top: 2px;
-        }
-        #pixelInfoPopup .loading-spinner {
-            text-align: center;
-            padding: 20px;
-            color: #94a3b8;
-        }
-        #pixelInfoPopup .loading-spinner i {
-            font-size: 32px;
-            display: block;
-            margin-bottom: 10px;
-            color: #2d6a4f;
-        }
-        #pixelInfoPopup .error-message {
-            color: #ef4444;
-            text-align: center;
-            padding: 20px;
+        .hero-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 16px 32px rgba(44, 62, 80, 0.12);
+            border-color: var(--primary);
         }
 
-        /* --- NOTIFICATION & SETTINGS STYLES --- */
-        .alert-wrapper {
-            position: relative;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            margin-left: 4px;
-        }
-        .alert-wrapper button {
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            color: #64748b;
-            transition: 0.2s;
-            padding: 4px;
-        }
-        .alert-wrapper button:hover { color: #0f172a; }
-        .alert-wrapper button.has-alerts { color: #ef4444; animation: alertPulse 2s infinite; }
-        
-        @keyframes alertPulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
-        
-        .alert-badge {
-            position: absolute;
-            top: -2px;
-            right: -2px;
-            background: #ef4444;
-            color: white;
-            font-size: 8px;
-            font-weight: 700;
-            border-radius: 50%;
-            width: 14px;
-            height: 14px;
+        .hero-card:hover::before { opacity: 1; }
+
+        .card-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            display: none;
-        }
-        .alert-badge.show { display: flex; }
-
-        .dropdown-box {
-            position: absolute;
-            top: 100%;
-            right: 0;
-            width: 320px;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-            padding: 8px 0;
-            margin-top: 8px;
-            display: none;
-            z-index: 30;
-            max-height: 220px;
-            overflow-y: auto;
-        }
-        .dropdown-box.open { display: block; }
-
-        .alert-item {
-            padding: 8px 14px;
-            font-size: 12px;
-            border-bottom: 1px solid #f1f5f9;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-        .alert-item:hover { background: #f1f5f9; }
-        .alert-item:last-child { border-bottom: none; }
-        .alert-item .field-info { display: flex; flex-direction: column; }
-        .alert-item .field-name { font-weight: 600; color: #0f172a; }
-        .alert-item .field-loc { font-size: 10px; color: #64748b; }
-        .alert-item .ndvi-val { color: #ef4444; font-weight: 700; }
-        .alert-empty {
-            padding: 16px 14px;
-            font-size: 12px;
-            color: #94a3b8;
-            text-align: center;
+            font-size: 15px;
+            margin-bottom: 10px;
+            flex-shrink: 0;
+            background: #eaeef3;
+            color: var(--primary-dark);
         }
 
-        .settings-item {
-            padding: 12px 14px;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        .settings-item:last-child { border-bottom: none; }
-        .settings-label {
-            font-size: 12px;
-            font-weight: 600;
-            color: #0f172a;
+        .hero-card h3 {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: var(--text);
             margin-bottom: 4px;
-            display: block;
+            letter-spacing: -0.2px;
         }
-        .settings-input-group {
+
+        .hero-card p {
+            font-size: 11.5px;
+            color: var(--muted);
+            line-height: 1.5;
+            margin-bottom: 10px;
+            flex: 1;
+        }
+
+        .card-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11.5px;
+            font-weight: 700;
+            color: var(--primary-dark);
+            transition: gap 0.2s;
+        }
+
+        .hero-card:hover .card-link { gap: 10px; }
+
+        /* ============================================
+           HOW IT WORKS STRIP
+           ============================================ */
+        .how-strip {
+            background: linear-gradient(135deg, #2c3e50 0%, #1a252f 100%);
+            border-radius: 16px;
+            padding: 18px 26px;
+            margin-bottom: 16px;
+            box-shadow: 0 6px 20px rgba(44, 62, 80, 0.2);
             display: flex;
             align-items: center;
-            gap: 8px;
-        }
-        .settings-input-group input[type="number"] {
-            width: 80px;
-            padding: 4px 8px;
-            border: 1px solid #e2e8f0;
-            border-radius: 4px;
-            font-size: 12px;
-            font-family: 'Inter', sans-serif;
-        }
-        .settings-input-group span {
-            font-size: 12px;
-            color: #64748b;
-        }
-        .settings-input-group button {
-            background: #2d6a4f;
-            color: white;
-            border: none;
-            padding: 4px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 11px;
-            font-family: 'Inter', sans-serif;
-            transition: 0.2s;
-        }
-        .settings-input-group button:hover { background: #1b4332; }
-
-        /* --- LAYOUT: SIDEBAR & MAP --- */
-        .app-layout {
-            display: flex;
-            flex: 1;
-            height: calc(100vh - 64px);
+            gap: 26px;
+            flex-wrap: wrap;
+            position: relative;
             overflow: hidden;
         }
 
-        /* --- LEFT SIDEBAR (Wider = 550px) --- */
-        #sidebar {
-            width: 550px;
-            background: #ffffff;
-            border-right: 1px solid #e2e8f0;
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-            overflow-y: auto;
-            flex-shrink: 0;
-            z-index: 5;
-        }
-        #sidebar::-webkit-scrollbar { width: 4px; }
-        #sidebar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-
-        /* Controls Section */
-        .control-section { margin-bottom: 20px; }
-        .control-section h3 { font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
-        
-        .control-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
-        .control-group { display: flex; flex-direction: column; flex: 1; gap: 4px; }
-        .control-group label { font-size: 11px; font-weight: 600; color: #475569; }
-        .control-group input[type="date"], .control-group select {
-            padding: 8px 12px;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            font-size: 13px;
-            background: #f8fafc;
-            font-family: 'Inter', sans-serif;
-            color: #1e293b;
-            transition: 0.2s;
-        }
-        .control-group input[type="date"]:focus, .control-group select:focus {
-            border-color: #2d6a4f;
-            outline: none;
-            background: #ffffff;
-            box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.1);
-        }
-        
-        .btn-primary {
-            background: #2d6a4f;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 500;
-            font-family: 'Inter', sans-serif;
-            transition: 0.2s;
-            flex-shrink: 0;
-        }
-        .btn-primary:hover { background: #1b4332; }
-        .btn-outline {
-            background: transparent;
-            color: #475569;
-            border: 1px solid #e2e8f0;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 500;
-            font-family: 'Inter', sans-serif;
-            transition: 0.2s;
-        }
-        .btn-outline:hover { background: #f1f5f9; }
-
-        /* Field Info Cards */
-        .field-card {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 12px 16px;
-            margin-bottom: 10px;
-        }
-        .field-card h4 { font-size: 14px; font-weight: 600; margin: 0; color: #0f172a; }
-        .field-card .meta { font-size: 12px; color: #64748b; margin-top: 4px; }
-        .field-card .meta i { width: 16px; margin-right: 6px; }
-
-        /* --- CHART SECTION with Multi-Field Header --- */
-        .chart-wrapper {
-            flex: 1;
-            min-height: 250px;
-            position: relative;
-            margin-top: 10px;
-            background: #f8fafc;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
-            padding: 12px 16px 16px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        #chart-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #e2e8f0;
-            margin-bottom: 10px;
-        }
-        #chart-header .field-title {
-            display: flex;
-            flex-direction: column;
-            flex: 1;
-        }
-        #chart-header .field-title h4 {
-            font-size: 15px;
-            font-weight: 600;
-            color: #0f172a;
-            margin: 0;
-        }
-        #chart-header .field-title p {
-            font-size: 12px;
-            color: #64748b;
-            margin: 2px 0 0 0;
-        }
-        #chart-header .field-title p i { margin-right: 4px; color: #2d6a4f; }
-
-        /* --- MULTI-FIELD SELECTION BADGES --- */
-        #selection-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-top: 6px;
-        }
-        .selection-badge {
-            display: inline-flex;
-            align-items: center;
-            background: #e8f5e9;
-            color: #1e3a2f;
-            font-size: 11px;
-            font-weight: 600;
-            padding: 4px 10px 4px 12px;
-            border-radius: 20px;
-            border: 1px solid #c8e6c9;
-            cursor: default;
-            transition: 0.2s;
-        }
-        .selection-badge .badge-color {
-            width: 10px; height: 10px;
+        .how-strip::before {
+            content: '';
+            position: absolute;
+            top: -100%;
+            right: 5%;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
             border-radius: 50%;
-            margin-right: 6px;
-            display: inline-block;
-        }
-        .selection-badge .remove-btn {
-            background: transparent;
-            border: none;
-            color: #666;
-            margin-left: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            line-height: 1;
-            padding: 0 2px;
-        }
-        .selection-badge .remove-btn:hover { color: #d32f2f; }
-        
-        .chart-canvas-wrapper {
-            flex: 1;
-            position: relative;
-            min-height: 180px;
-        }
-        .chart-canvas-wrapper canvas { width: 100% !important; height: 100% !important; }
-        .chart-status {
-            position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            color: #94a3b8; font-size: 14px; text-align: center;
             pointer-events: none;
         }
-        .chart-status i { display: block; font-size: 32px; margin-bottom: 10px; color: #cbd5e1; }
 
-        /* --- MAP CONTAINER --- */
-        #map-container { flex: 1; position: relative; background: #e2e8f0; z-index: 1; }
-        #map { height: 100%; width: 100%; }
-
-        .loading-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.85); backdrop-filter: blur(4px);
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 999; font-size: 14px; color: #1e293b;
-        }
-        .loading-overlay.hidden { display: none; }
-        .spinner {
-            border: 3px solid #f3f3f3; border-top: 3px solid #2d6a4f;
-            border-radius: 50%; width: 32px; height: 32px;
-            animation: spin 1s linear infinite; margin-bottom: 12px;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        /* --- ENHANCED BOTTOM DATA TABLE --- */
-        #bottom-data-container {
-            position: absolute;
-            bottom: 20px;
-            left: 0px;
-            right: 20px;
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.98);
-            backdrop-filter: blur(6px);
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            border: 1px solid rgba(255,255,255,0.6);
-            padding: 16px 20px;
-            display: none;
-            max-height: 350px;
-            flex-direction: column;
-        }
-
-        .bottom-table-header {
+        .how-title {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-bottom: 8px;
-        }
-        .bottom-table-header h4 { font-size: 14px; font-weight: 600; color: #0f172a; }
-        .btn-export {
-            background: transparent;
-            border: 1px solid #2d6a4f;
-            color: #2d6a4f;
-            padding: 4px 14px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 500;
-            font-family: 'Inter', sans-serif;
-            transition: 0.2s;
-        }
-        .btn-export:hover { background: #2d6a4f; color: white; }
-
-        .bottom-table-scroll {
-            max-height: 180px;
-            overflow-y: auto;
-        }
-        .bottom-table-scroll::-webkit-scrollbar { width: 4px; }
-        .bottom-table-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-
-        .bottom-table-scroll table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-        }
-        .bottom-table-scroll th {
-            position: sticky;
-            top: 0;
-            background: #f8fafc;
-            font-weight: 600;
-            color: #1e293b;
-            text-align: left;
-            padding: 6px 12px;
-            border-bottom: 1px solid #e2e8f0;
-            border-right: 1px solid #e2e8f0;
-        }
-        .bottom-table-scroll th:last-child { border-right: none; }
-        .bottom-table-scroll td {
-            padding: 5px 12px;
-            border-bottom: 1px solid #f1f5f9;
-            color: #475569;
-            border-right: 1px solid #f1f5f9;
-        }
-        .bottom-table-scroll td:last-child { border-right: none; }
-
-        /* --- SUMMARY & CONCLUSION SECTION --- */
-        #summary-section {
-            margin-top: 12px;
-            border-top: 2px solid #e2e8f0;
-            padding-top: 12px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            flex-shrink: 0;
-        }
-        
-        #summary-table-container {
-            max-height: 120px;
-            overflow-y: auto;
-        }
-        #summary-table-container table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-        }
-        #summary-table-container th {
-            background: #e8f5e9;
-            font-weight: 600;
-            color: #0f172a;
-            text-align: left;
-            padding: 4px 8px;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        #summary-table-container td {
-            padding: 4px 8px;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        .status-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-        .status-badge.excellent { background: #e8f5e9; color: #2d6a4f; }
-        .status-badge.moderate { background: #fffbeb; color: #f59e0b; }
-        .status-badge.stressed { background: #fef2f2; color: #ef4444; }
-
-        #conclusion-box {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 12px 16px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-        #conclusion-box h5 {
-            font-size: 12px;
-            text-transform: uppercase;
-            color: #64748b;
-            letter-spacing: 0.5px;
-            margin-bottom: 4px;
-        }
-        #conclusion-box p {
-            font-size: 15px;
-            font-weight: 600;
-            color: #0f172a;
-            margin: 0;
-        }
-        #conclusion-box p i { color: #f59e0b; margin-right: 6px; }
-
-        /* --- TOGGLE SEARCH CARD --- */
-        #searchToggle {
-            color: #2d6a4f;
-            font-weight: 500;
-            cursor: pointer;
-            text-decoration: underline;
+            gap: 10px;
+            color: white;
             font-size: 13px;
-            display: inline-block;
-            margin-top: 6px;
-            transition: 0.2s;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 1;
         }
-        #searchToggle:hover { color: #1b4332; }
 
-        #searchCard {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 16px;
-            margin-top: 12px;
-            display: none;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+        .how-title i { color: #cbd5e1; font-size: 15px; }
+
+        .how-steps {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            flex: 1;
+            min-width: 0;
+            position: relative;
+            z-index: 1;
         }
-        #searchCard .card-header {
+
+        .how-step {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
+            gap: 9px;
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            padding: 8px 11px;
+            transition: all 0.22s;
         }
-        #searchCard .card-header h4 { font-size: 14px; font-weight: 600; color: #0f172a; margin: 0; }
-        #searchCard .card-header .close-card {
-            background: transparent; border: none; cursor: pointer;
-            color: #64748b; font-size: 14px; transition: 0.2s;
-        }
-        #searchCard .card-header .close-card:hover { color: #d32f2f; }
-        #searchCard .control-row { margin-bottom: 8px; }
-        #searchCard .control-row:last-child { margin-bottom: 0; }
 
-        @media (max-width: 1024px) {
-            #sidebar { width: 420px; padding: 16px; }
-            #bottom-data-container { left: 440px; }
-            #summary-section { grid-template-columns: 1fr; }
+        .how-step:hover {
+            background: rgba(255, 255, 255, 0.14);
+            border-color: rgba(203, 213, 225, 0.55);
+            transform: translateY(-2px);
         }
-        @media (max-width: 768px) {
-            .app-layout { flex-direction: column; height: auto; overflow-y: auto; }
-            #sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid #e2e8f0; max-height: 50vh; }
-            #map-container { height: 40vh; min-height: 300px; }
-            #bottom-data-container { left: 10px; right: 10px; bottom: 10px; }
-            .tl-controls span { min-width: 70px; font-size: 10px; }
-            .tl-controls input[type="range"] { width: 50px; }
-            #headerSearchInput { width: 140px; }
-            #headerSearchInput:focus { width: 180px; }
-            #pixelInfoPopup { width: 90%; right: 5%; bottom: 80px; }
+
+        .how-num {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3d5468, #4a6076);
+            color: white;
+            font-size: 11px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-family: 'Inter', sans-serif;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .how-step-text { min-width: 0; }
+
+        .how-step-text h6 {
+            font-size: 11.5px;
+            font-weight: 700;
+            color: white;
+            margin: 0 0 1px 0;
+            letter-spacing: -0.1px;
+        }
+
+        .how-step-text p {
+            font-size: 9.5px;
+            color: rgba(255, 255, 255, 0.65);
+            margin: 0;
+            line-height: 1.3;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* ============================================
+           FOOTER
+           ============================================ */
+        .footer {
+            text-align: center;
+            padding: 14px 0 0;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .footer a {
+            color: var(--muted);
+            text-decoration: none;
+            margin: 0 7px;
+            transition: color 0.2s;
+        }
+
+        .footer a:hover { color: var(--primary-dark); }
+
+        /* ============================================
+           RESPONSIVE
+           ============================================ */
+        @media (max-width: 1100px) {
+            .hero { grid-template-columns: 1fr; padding: 26px 24px; gap: 26px; }
+            .hero-text h1 { font-size: 34px; }
+            .how-strip { flex-direction: column; align-items: stretch; gap: 14px; }
+            .how-title { justify-content: center; }
+        }
+
+        @media (max-width: 820px) {
+            .page { padding: 16px 20px 24px; }
+            .hero-text h1 { font-size: 28px; }
+            .hero { padding: 22px 20px; }
+            .how-steps { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 560px) {
+            .hero-text h1 { font-size: 24px; }
+            .punchline { font-size: 14px; }
+            .hero-cards { grid-template-columns: 1fr; }
+            .how-steps { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
 
-    <header class="header">
-        <div class="header-left">
+<!-- ============================================
+     HEADER
+     ============================================ -->
+<div id="header">
+    <div id="header-title">
+        <span class="header-icon">🛰️</span>
+        <h2 style="margin:0; font-size:18px;">Sentinel Farm Pulse</h2>
+    </div>
+
+    <div id="header-links">
+        <a href="{% url 'fields_admin:sentinel_truecolour' %}" class="active">📊 Home - digitise fields</a>
+        <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
+        <a href="{% url 'fields_admin:ndvi_map' %}">🛰️ Monitor Fields</a>
+        <a href="{% url 'fields_admin:chart_rain' %}">🌧️ Rainfall station</a>
+        <a href="{% url 'fields_admin:pixel_indicators' %}">📈 Farm indicators</a>
+        <a href="{% url 'fields_admin:field_ndvi_graph' %}">📈 Analytics & Alerts</a>
+    </div>
+</div>
+
+<div class="page">
+
+    <!-- ============================================
+         HERO
+         ============================================ -->
+    <section class="hero">
+        <div class="hero-text">
+            <div class="eyebrow">
+                <i class="fas fa-satellite-dish"></i> Satellite Crop Monitoring · Zimbabwe
+            </div>
+
             <h1>
-                <i class="fas fa-satellite-dish"></i> Sentinel Field Pulse
-                <span class="badge">FAO DSS | Time-Lapse</span>
+                Every Field Has a Pulse.<br>
+                <span class="highlight">Start Listening.</span>
             </h1>
-        </div>
-        
-        <div class="header-tools">
-            
-            <!-- TIME-LAPSE CONTROLS -->
-            <div id="timeLapseSection" class="tl-controls disabled">
-                <button class="play-btn" id="playBtn"><i class="fas fa-play"></i></button>
-                <input type="range" id="timeSlider" min="0" max="100" value="0">
-                <span id="sliderDateLabel">Select a field</span>
+
+            <p class="punchline">
+                Digitise your first field or <span class="underline">open the dashboard</span> to explore your data.
+            </p>
+
+            <p class="sub-punch">
+                Sentinel Farm Pulse fuses Sentinel-2, CHIRPS, ERA5, SMAP and MODIS
+                into one clear picture of crop health, rainfall and climate stress —
+                so you act before the damage, not after.
+            </p>
+
+            <div class="hero-actions">
+                <a href="{% url 'fields_admin:sentinel_truecolour' %}" class="btn btn-primary">
+                    <i class="fas fa-rocket"></i> Get Started
+                </a>
+                <a href="{% url 'fields_admin:ndvi_map' %}" class="btn btn-secondary">
+                    <i class="fas fa-satellite"></i> Monitor Fields
+                </a>
             </div>
 
-            <!-- SEARCH MY FIELD -->
-            <div class="header-search-wrapper">
-                <i class="fas fa-search"></i>
-                <input type="text" id="headerSearchInput" placeholder="Search field..." autocomplete="off">
-                <div id="headerSearchResults"></div>
+            <div class="trust-strip">
+                <div class="trust-item"><i class="fas fa-check-circle"></i> 10m resolution</div>
+                <div class="trust-item"><i class="fas fa-check-circle"></i> 5-day revisit</div>
+                <div class="trust-item"><i class="fas fa-check-circle"></i> Free & open data</div>
             </div>
-
-            <!-- NOTIFICATIONS & SETTINGS -->
-            <div class="alert-wrapper">
-                <!-- ⚙️ SETTINGS GEAR -->
-                <button id="settingsBtn" onclick="toggleSettingsDropdown()">
-                    <i class="fas fa-cog"></i>
-                </button>
-                <!-- 🔔 BELL ICON -->
-                <button id="alertBell" onclick="toggleAlertDropdown()">
-                    <i class="fas fa-bell"></i>
-                </button>
-                <span class="alert-badge" id="alertBadge">0</span>
-
-                <div class="dropdown-box" id="settingsDropdown">
-                    <div class="settings-item">
-                        <label class="settings-label">NDVI Alert Threshold</label>
-                        <div class="settings-input-group">
-                            <span>Alert if NDVI &lt;</span>
-                            <input type="number" id="thresholdInput" value="0.60" step="0.05" min="0" max="1">
-                            <button onclick="updateThreshold()">Apply</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="dropdown-box" id="alertDropdown">
-                    <div class="alert-empty">No alerts detected.</div>
-                </div>
-            </div>
-
-            <!-- ✅ PIXEL INFO TOOL -->
-            <button class="pixel-info-btn" id="pixelInfoBtn" onclick="togglePixelInfo()">
-                <i class="fas fa-crosshairs"></i> Pixel Info
-            </button>
-
-            <a href="#" onclick="clearAllSelections()"><i class="fas fa-undo-alt"></i> Clear All</a>
-            <a href="#" id="exportBtn"><i class="fas fa-file-csv"></i> Export Report</a>
-
-        </div>
-    </header>
-
-    <div class="app-layout">
-        
-        <!-- --- LEFT SIDEBAR CONTROLS --- -->
-        <div id="sidebar">
-            
-            <div class="control-section">
-                <h3>Date & Data Source</h3>
-                <div class="control-row">
-                    <div class="control-group">
-                        <label>Start</label>
-                        <input type="date" id="startDate" value="2025-01-01">
-                    </div>
-                    <div class="control-group">
-                        <label>End</label>
-                        <input type="date" id="endDate" value="2026-07-31">
-                    </div>
-                </div>
-                <div class="control-row">
-                    <div class="control-group">
-                        <label>Cloud Cover Limit</label>
-                        <select id="cloudCover">
-                            <option value="10">10%</option>
-                            <option value="20" selected>20%</option>
-                            <option value="30">30%</option>
-                            <option value="50">50%</option>
-                        </select>
-                    </div>
-                    <button class="btn-primary" onclick="refreshAllSelected()">
-                        <i class="fas fa-sync-alt"></i> Update Comparison
-                    </button>
-                </div>
-            </div>
-
-            <!-- Comparison Selection Panel -->
-            <div id="fieldInfoContainer" style="display: none;">
-                <div class="control-section">
-                    <h3>Fields in Comparison <span id="selectedCount" style="font-weight:400; font-size:11px; color:#64748b;">(0/5)</span></h3>
-                    <div class="field-card">
-                        <div id="selection-container">
-                            <span style="font-size:13px; color:#94a3b8;">Click fields on the map to add them here.</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Chart -->
-                <div class="control-section" style="flex:1; display: flex; flex-direction: column;">
-                    <h3>NDVI Time-Series Comparison</h3>
-                    <div class="chart-wrapper">
-                        <div id="chart-header">
-                            <div class="field-title">
-                                <h4 id="chartFieldName">Multi-Field Comparison</h4>
-                                <p id="chartFieldLocation"><i class="fas fa-layer-group"></i> Compare up to 5 fields</p>
-                            </div>
-                        </div>
-                        <div class="chart-canvas-wrapper">
-                            <canvas id="ndviChart"></canvas>
-                            <div class="chart-status" id="chartStatus">
-                                <i class="fas fa-hand-pointer"></i>
-                                Click fields on the map to compare them.
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Empty State Message -->
-            <div id="emptyState" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#94a3b8; text-align:center; padding:20px;">
-                <i class="fas fa-map-marked-alt" style="font-size:48px; margin-bottom:16px; color:#cbd5e1;"></i>
-                <h4 style="font-weight:500; color:#64748b;">Select Fields to Compare</h4>
-                <p style="font-size:13px; max-width:260px;">
-                    Click on up to 5 polygons on the map. Their NDVI graphs will overlay on the chart.
-                    <br>
-                    <span id="searchToggle" onclick="toggleSearchCard()">Or select from field lists</span>
-                </p>
-            </div>
-
-            <!-- --- COLLAPSIBLE SEARCH CARD --- -->
-            <div id="searchCard">
-                <div class="card-header">
-                    <h4><i class="fas fa-search"></i> Quick Search</h4>
-                    <button class="close-card" onclick="toggleSearchCard()"><i class="fas fa-times"></i></button>
-                </div>
-                
-                <div class="control-row">
-                    <div class="control-group">
-                        <label>Province (Admin 1)</label>
-                        <select id="admin1Filter" onchange="updateAdmin2Filter()">
-                            <option value="">All Provinces</option>
-                        </select>
-                    </div>
-                    <div class="control-group" id="admin2Group" style="display: none;">
-                        <label>District (Admin 2)</label>
-                        <select id="admin2Filter" onchange="updateFieldList()">
-                            <option value="">All Districts</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="control-row" style="flex-direction: column; align-items: stretch; gap: 4px;">
-                    <div class="control-group">
-                        <label>Field Name</label>
-                        <select id="fieldSelector" onchange="addFieldFromSelector()">
-                            <option value="">-- Select a field --</option>
-                        </select>
-                    </div>
-                    <button class="btn-primary" style="background:#f59e0b; width: 100%;" onclick="addFieldFromSelector()">
-                        <i class="fas fa-plus"></i> Add to Comparison
-                    </button>
-                </div>
-            </div>
-
         </div>
 
-        <!-- --- MAP CONTAINER --- -->
-        <div id="map-container">
-            <div id="map"></div>
-            <div class="loading-overlay hidden" id="mapLoading">
-                <div class="spinner"></div>
-                <span>Loading farm boundaries...</span>
+        <div class="hero-cards">
+
+            <a href="{% url 'fields_admin:sentinel_truecolour' %}" class="hero-card">
+                <div class="card-icon"><i class="fas fa-draw-polygon"></i></div>
+                <h3>Field Digitisation</h3>
+                <p>Draw fields on satellite imagery — area auto-calculated.</p>
+                <span class="card-link">Start <i class="fas fa-arrow-right"></i></span>
+            </a>
+
+            <a href="{% url 'fields_admin:field_dashboard' %}" class="hero-card">
+                <div class="card-icon"><i class="fas fa-map-marked-alt"></i></div>
+                <h3>Fields Dashboard</h3>
+                <p>All fields on one map — filter, compare, export GeoJSON.</p>
+                <span class="card-link">Open <i class="fas fa-arrow-right"></i></span>
+            </a>
+
+            <a href="{% url 'fields_admin:ndvi_map' %}" class="hero-card">
+                <div class="card-icon"><i class="fas fa-satellite"></i></div>
+                <h3>Monitor Fields</h3>
+                <p>Track NDVI, rainfall and soil moisture in real time.</p>
+                <span class="card-link">Monitor <i class="fas fa-arrow-right"></i></span>
+            </a>
+
+            <a href="{% url 'fields_admin:field_ndvi_graph' %}" class="hero-card">
+                <div class="card-icon"><i class="fas fa-bell"></i></div>
+                <h3>Analytics & Alerts</h3>
+                <p>Stress detection with custom thresholds and climate intel.</p>
+                <span class="card-link">View <i class="fas fa-arrow-right"></i></span>
+            </a>
+
+        </div>
+    </section>
+
+    <!-- ============================================
+         HOW IT WORKS STRIP
+         ============================================ -->
+    <section class="how-strip">
+        <div class="how-title">
+            <i class="fas fa-route"></i> How It Works
+        </div>
+
+        <div class="how-steps">
+            <div class="how-step">
+                <div class="how-num">1</div>
+                <div class="how-step-text">
+                    <h6>Digitise</h6>
+                    <p>Draw your field on imagery</p>
+                </div>
             </div>
-
-            <!-- --- ENHANCED BOTTOM DATA TABLE --- -->
-            <div id="bottom-data-container">
-                <div class="bottom-table-header">
-                    <h4><i class="fas fa-table"></i> Raw NDVI Data Comparison</h4>
-                    <button class="btn-export" onclick="exportTableToCSV()">
-                        <i class="fas fa-download"></i> Export CSV
-                    </button>
+            <div class="how-step">
+                <div class="how-num">2</div>
+                <div class="how-step-text">
+                    <h6>Monitor</h6>
+                    <p>Watch NDVI &amp; rainfall live</p>
                 </div>
-                
-                <div class="bottom-table-scroll">
-                    <table>
-                        <thead>
-                            <tr id="dataTableHeader">
-                                <!-- Populated via JS -->
-                            </tr>
-                        </thead>
-                        <tbody id="dataTableBody">
-                            <!-- Data populates here via JS -->
-                        </tbody>
-                    </table>
+            </div>
+            <div class="how-step">
+                <div class="how-num">3</div>
+                <div class="how-step-text">
+                    <h6>Analyse</h6>
+                    <p>Compare fields &amp; seasons</p>
                 </div>
-
-                <!-- Summary & Conclusion Section -->
-                <div id="summary-section">
-                    
-                    <!-- Summary Stats Table -->
-                    <div id="summary-table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Field</th>
-                                    <th>Avg. NDVI</th>
-                                    <th>Latest NDVI</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="summaryTableBody">
-                                <!-- Populated via JS -->
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- Best Performing Conclusion -->
-                    <div id="conclusion-box">
-                        <h5><i class="fas fa-trophy"></i> Season Conclusion</h5>
-                        <p id="conclusionText">Select fields to compare.</p>
-                    </div>
+            </div>
+            <div class="how-step">
+                <div class="how-num">4</div>
+                <div class="how-step-text">
+                    <h6>Act</h6>
+                    <p>Get alerted before damage</p>
                 </div>
             </div>
         </div>
+    </section>
+
+    <!-- ============================================
+         FOOTER
+         ============================================ -->
+    <div class="footer">
+        <a href="{% url 'fields_admin:sentinel_truecolour' %}">Digitise</a>·
+        <a href="{% url 'fields_admin:field_dashboard' %}">Dashboard</a>·
+        <a href="{% url 'fields_admin:ndvi_map' %}">Monitor</a>·
+        <a href="{% url 'fields_admin:chart_rain' %}">Rainfall</a>·
+        <a href="{% url 'fields_admin:pixel_indicators' %}">Indicators</a>·
+        <a href="{% url 'fields_admin:field_ndvi_graph' %}">Analytics</a>
+        <div style="margin-top:5px;">© {% now "Y" %} Sentinel Farm Pulse · Satellite crop monitoring for Zimbabwe</div>
     </div>
 
-    <!-- --- PIXEL INFO POPUP --- -->
-    <div id="pixelInfoPopup">
-        <div class="popup-header">
-            <h3><i class="fas fa-crosshairs"></i> Pixel Intelligence</h3>
-            <button class="close-popup" onclick="closePixelInfo()">&times;</button>
-        </div>
-        <div id="pixelInfoContent">
-            <div class="loading-spinner">
-                <i class="fas fa-hand-pointer" style="color:#2d6a4f;"></i>
-                Click anywhere on the map to get pixel data.
-            </div>
-        </div>
-    </div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <script>
-        var map, fieldLayer = null;
-        var chartInstance = null;
-        var fields = [];
-        var selectedFields = []; 
-        var currentColors = ['#2d6a4f', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'];
-        var allDataCache = {};
-
-        // --- Pixel Info State ---
-        var pixelInfoActive = false;
-        var pixelMarker = null;
-
-        // --- Global Alert State ---
-        var globalAlerts = [];
-        var ndviAlertThreshold = 0.60;
-
-        // --- Time-Lapse Variables ---
-        var animationInterval = null;
-        var isPlaying = false;
-
-        function initMap() {
-            map = L.map('map').setView([-19.0, 29.5], 6);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap',
-                maxZoom: 19
-            }).addTo(map);
-            
-            loadFields();
-            loadLatestHealthData();
-            
-            window.addEventListener('resize', function() { map.invalidateSize(); });
-        }
-
-        // ==========================================
-        // PIXEL INFO TOOL FUNCTIONS
-        // ==========================================
-        function togglePixelInfo() {
-            pixelInfoActive = !pixelInfoActive;
-            var btn = document.getElementById('pixelInfoBtn');
-            var popup = document.getElementById('pixelInfoPopup');
-            
-            if (pixelInfoActive) {
-                btn.classList.add('active');
-                btn.innerHTML = '<i class="fas fa-crosshairs"></i> Click Map';
-                popup.classList.add('open');
-                document.getElementById('pixelInfoContent').innerHTML = `
-                    <div class="loading-spinner">
-                        <i class="fas fa-hand-pointer" style="color:#2d6a4f;"></i>
-                        Click anywhere on the map to get pixel intelligence.
-                    </div>
-                `;
-                
-                // Enable map click
-                map.on('click', onMapClick);
-                map.getContainer().style.cursor = 'crosshair';
-            } else {
-                btn.classList.remove('active');
-                btn.innerHTML = '<i class="fas fa-crosshairs"></i> Pixel Info';
-                popup.classList.remove('open');
-                
-                // Disable map click
-                map.off('click', onMapClick);
-                map.getContainer().style.cursor = '';
-                
-                // Remove marker
-                if (pixelMarker) {
-                    map.removeLayer(pixelMarker);
-                    pixelMarker = null;
-                }
-            }
-        }
-
-        function closePixelInfo() {
-            if (pixelInfoActive) {
-                togglePixelInfo();
-            }
-        }
-
-        function onMapClick(e) {
-            if (!pixelInfoActive) return;
-            
-            var lat = e.latlng.lat;
-            var lng = e.latlng.lng;
-            
-            // Add marker
-            if (pixelMarker) {
-                map.removeLayer(pixelMarker);
-            }
-            pixelMarker = L.marker([lat, lng], {
-                icon: L.divIcon({
-                    className: 'pixel-marker',
-                    html: '<i class="fas fa-crosshairs" style="color:#2d6a4f; font-size:20px;"></i>',
-                    iconSize: [20, 20],
-                    iconAnchor: [10, 10]
-                })
-            }).addTo(map);
-            
-            // Fetch pixel data
-            fetchPixelData(lat, lng);
-        }
-
-        function fetchPixelData(lat, lng) {
-            var content = document.getElementById('pixelInfoContent');
-            content.innerHTML = `
-                <div class="loading-spinner">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    Fetching intelligence for ${lat.toFixed(4)}, ${lng.toFixed(4)}...
-                </div>
-            `;
-            
-            // Use buffer=10 for pixel-level analysis
-            var url = `/api/geo-intel/?lat=${lat}&lon=${lng}&buffer=10`;
-            
-            fetch(url)
-                .then(function(response) { return response.json(); })
-                .then(function(data) {
-                    if (data.error) {
-                        throw new Error(data.error);
-                    }
-                    displayPixelData(data);
-                })
-                .catch(function(error) {
-                    content.innerHTML = `
-                        <div class="error-message">
-                            <i class="fas fa-exclamation-circle"></i>
-                            <p>${error.message || 'Failed to fetch pixel data'}</p>
-                        </div>
-                    `;
-                });
-        }
-
-        function displayPixelData(data) {
-            var content = document.getElementById('pixelInfoContent');
-            
-            // Determine NDVI status
-            var ndvi = data.sentinel_ndvi;
-            var ndviStatus = 'high';
-            var ndviLabel = 'Excellent';
-            if (ndvi !== null && ndvi !== undefined) {
-                if (ndvi < 0.3) { ndviStatus = 'low'; ndviLabel = 'Stressed'; }
-                else if (ndvi < 0.5) { ndviStatus = 'medium'; ndviLabel = 'Moderate'; }
-                else { ndviStatus = 'high'; ndviLabel = 'Excellent'; }
-            }
-            
-            // Determine soil moisture status
-            var soil = data.soil_moisture;
-            var soilStatus = 'medium';
-            if (soil !== null && soil !== undefined) {
-                if (soil < 10) { soilStatus = 'low'; }
-                else if (soil < 20) { soilStatus = 'medium'; }
-                else { soilStatus = 'high'; }
-            }
-            
-            // Format dates with better handling
-            function formatDate(dateStr) {
-                if (!dateStr || dateStr === 'N/A' || dateStr === null || dateStr === undefined) {
-                    return 'N/A';
-                }
-                return dateStr;
-            }
-            
-            content.innerHTML = `
-                <div class="info-grid">
-                    <div class="info-item">
-                        <div class="label">NDVI</div>
-                        <div class="value ${ndviStatus}">${ndvi !== null && ndvi !== undefined ? ndvi.toFixed(3) : 'N/A'}</div>
-                        <div class="sub-value">${ndviLabel}</div>
-                        <div class="date-label"><i class="far fa-calendar-alt"></i> ${formatDate(data.sentinel_ndvi_date)}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="label">Soil Moisture</div>
-                        <div class="value ${soilStatus}">${soil !== null && soil !== undefined ? soil + '%' : 'N/A'}</div>
-                        <div class="sub-value">${soil !== null && soil !== undefined ? (soil < 10 ? 'Dry' : soil < 20 ? 'Moderate' : 'Optimal') : ''}</div>
-                        <div class="date-label"><i class="far fa-calendar-alt"></i> ${formatDate(data.soil_moisture_date)}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="label">Elevation</div>
-                        <div class="value">${data.elevation !== null && data.elevation !== undefined ? data.elevation + 'm' : 'N/A'}</div>
-                        <div class="sub-value">${data.slope !== null && data.slope !== undefined ? 'Slope: ' + data.slope + '°' : ''}</div>
-                        <div class="date-label"><i class="fas fa-mountain"></i> Static Data</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="label">Rainfall</div>
-                        <div class="value">${data.rainfall_latest !== null && data.rainfall_latest !== undefined ? data.rainfall_latest + 'mm' : 'N/A'}</div>
-                        <div class="sub-value">${data.rainfall_latest !== null && data.rainfall_latest !== undefined ? (data.rainfall_latest > 0 ? 'Rain recorded' : 'No rain') : ''}</div>
-                        <div class="date-label"><i class="far fa-calendar-alt"></i> ${formatDate(data.rainfall_date)}</div>
-                    </div>
-                    <div class="info-item" style="grid-column: span 2;">
-                        <div class="label">Temperature</div>
-                        <div class="value">${data.temperature_latest !== null && data.temperature_latest !== undefined ? data.temperature_latest + '°C' : 'N/A'}</div>
-                        <div class="sub-value">Air temperature</div>
-                        <div class="date-label"><i class="far fa-calendar-alt"></i> ${formatDate(data.temperature_date)}</div>
-                    </div>
-                </div>
-                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center;">
-                    <i class="fas fa-map-pin"></i> ${data.lat}, ${data.lon} | Buffer: ${data.buffer_m}m
-                    <br><span style="font-size: 9px;">Data: ${data.datasets ? Object.values(data.datasets).join(' | ') : 'Sentinel-2, ERA5-Land, CHIRPS, SRTM'}</span>
-                    <br><span style="font-size: 9px; color: #cbd5e1;">Cloud mask: QA60 | Filter: < 20%</span>
-                </div>
-            `;
-        }
-
-        // ==========================================
-        // END PIXEL INFO FUNCTIONS
-        // ==========================================
-
-        function toggleSearchCard() {
-            var card = document.getElementById('searchCard');
-            if (card.style.display === 'none' || card.style.display === '') {
-                card.style.display = 'block';
-                document.getElementById('searchToggle').textContent = 'Close field list';
-                document.getElementById('searchToggle').style.textDecoration = 'none';
-            } else {
-                card.style.display = 'none';
-                document.getElementById('searchToggle').textContent = 'Or select from field lists';
-                document.getElementById('searchToggle').style.textDecoration = 'underline';
-            }
-        }
-        
-        function loadFields() {
-            var overlay = document.getElementById('mapLoading');
-            overlay.classList.remove('hidden');
-            
-            fetch('/api/fields/list/')
-                .then(function(response) { return response.json(); })
-                .then(function(data) {
-                    if (data.error) throw new Error(data.error);
-                    fields = data.features || [];
-                    if (fields.length > 0) { 
-                        drawFields(fields); 
-                        populateFilters(fields); 
-                    }
-                    overlay.classList.add('hidden');
-                })
-                .catch(function(error) {
-                    console.error('Error:', error);
-                    overlay.classList.add('hidden');
-                    alert('Failed to load fields.');
-                });
-        }
-
-        function loadLatestHealthData() {
-            fetch('/api/fields/latest-health/')
-                .then(function(response) { return response.json(); })
-                .then(function(data) {
-                    if (data.error) {
-                        console.error('Health API Error:', data.error);
-                        return;
-                    }
-                    checkInitialAlerts(data);
-                })
-                .catch(function(error) {
-                    console.error('Failed to load health data:', error);
-                });
-        }
-
-        function checkInitialAlerts(allFieldsData) {
-            globalAlerts = [];
-            
-            allFieldsData.forEach(function(item) {
-                var latestVal = item.latest && item.latest.ndvi !== undefined ? parseFloat(item.latest.ndvi) : null;
-                
-                if (latestVal !== null && !isNaN(latestVal) && latestVal < ndviAlertThreshold) {
-                    globalAlerts.push({
-                        id: item.id,
-                        name: item.name,
-                        district: item.district,
-                        province: item.province,
-                        ndvi: latestVal,
-                        date: item.latest.date,
-                        history: item.history || [],
-                        trend: item.trend || 'stable',
-                        status: item.status || 'Moderate'
-                    });
-                }
-            });
-            
-            updateAlertUI(globalAlerts);
-        }
-
-        function populateFilters(features) {
-            var admin1Set = new Set();
-            features.forEach(f => {
-                if (f.properties.province) admin1Set.add(f.properties.province);
-            });
-            var admin1Select = document.getElementById('admin1Filter');
-            admin1Set.forEach(p => {
-                var opt = document.createElement('option');
-                opt.value = p;
-                opt.text = p;
-                admin1Select.appendChild(opt);
-            });
-        }
-
-        function updateAdmin2Filter() {
-            var admin1Val = document.getElementById('admin1Filter').value;
-            var admin2Group = document.getElementById('admin2Group');
-            var admin2Select = document.getElementById('admin2Filter');
-            
-            admin2Select.innerHTML = '<option value="">All Districts</option>';
-
-            if (admin1Val === '') {
-                admin2Group.style.display = 'none';
-                updateFieldList();
-                return;
-            }
-
-            admin2Group.style.display = 'block';
-            
-            var admin2Set = new Set();
-            fields.forEach(f => {
-                if (f.properties.province === admin1Val && f.properties.district) {
-                    admin2Set.add(f.properties.district);
-                }
-            });
-
-            admin2Set.forEach(d => {
-                var opt = document.createElement('option');
-                opt.value = d;
-                opt.text = d;
-                admin2Select.appendChild(opt);
-            });
-
-            updateFieldList();
-        }
-
-        function updateFieldList() {
-            var admin1Val = document.getElementById('admin1Filter').value;
-            var admin2Val = document.getElementById('admin2Filter').value;
-            var fieldSelect = document.getElementById('fieldSelector');
-            
-            fieldSelect.innerHTML = '<option value="">-- Select a field --</option>';
-
-            var filtered = fields.filter(f => {
-                var p = f.properties;
-                if (admin1Val !== '' && p.province !== admin1Val) return false;
-                if (admin2Val !== '' && p.district !== admin2Val) return false;
-                return true;
-            });
-
-            var selectedIds = selectedFields.map(sf => sf.id);
-            filtered = filtered.filter(f => !selectedIds.includes(f.properties.id || f.id));
-
-            filtered.forEach(f => {
-                var opt = document.createElement('option');
-                opt.value = f.properties.id || f.id;
-                opt.text = f.properties.field_name;
-                fieldSelect.appendChild(opt);
-            });
-        }
-
-        function addFieldFromSelector() {
-            var fieldSelect = document.getElementById('fieldSelector');
-            var fieldId = fieldSelect.value;
-            if (fieldId) {
-                toggleFieldSelection(parseInt(fieldId));
-                fieldSelect.value = ''; 
-                updateFieldList();      
-            }
-        }
-        
-        function drawFields(features) {
-            if (fieldLayer) { map.removeLayer(fieldLayer); }
-            fieldLayer = L.geoJSON(features, {
-                style: function() { return { color: '#2d6a4f', weight: 2, opacity: 0.8, fillColor: '#2d6a4f', fillOpacity: 0.1 }; },
-                onEachFeature: function(feature, layer) {
-                    var p = feature.properties;
-                    var fieldId = p.id || p.field_id || p.pk || feature.id;
-                    layer.on('click', function() { toggleFieldSelection(fieldId); });
-                }
-            }).addTo(map);
-            
-            try {
-                var bounds = fieldLayer.getBounds();
-                if (bounds.isValid()) { map.fitBounds(bounds, { padding: [40, 40] }); }
-            } catch(e) {}
-        }
-        
-        function toggleFieldSelection(fieldId) {
-            var existingIndex = selectedFields.findIndex(f => f.id === fieldId);
-            if (existingIndex !== -1) {
-                selectedFields.splice(existingIndex, 1);
-                updateComparisonUI();
-                updateFieldList(); 
-                return;
-            }
-
-            if (selectedFields.length >= 5) {
-                alert("You can compare a maximum of 5 fields at a time.");
-                return;
-            }
-
-            fetchFieldData(fieldId, function(data) {
-                if (data && data.success && data.data.length > 0) {
-                    var fieldObj = fields.find(f => f.id === fieldId || f.properties.id === fieldId);
-                    var name = data.field_name || 'Field ' + fieldId;
-                    var district = 'Unknown District';
-                    var province = 'Unknown Province';
-                    
-                    if (fieldObj) {
-                        var p = fieldObj.properties;
-                        district = p.district || district;
-                        province = p.province || province;
-                    }
-
-                    selectedFields.push({
-                        id: fieldId,
-                        name: name,
-                        district: district,
-                        province: province,
-                        data: data.data,
-                        color: currentColors[selectedFields.length % currentColors.length]
-                    });
-                    
-                    updateComparisonUI();
-                    updateFieldList(); 
-                } else {
-                    console.warn(`No NDVI data found for field ID ${fieldId}.`);
-                }
-            });
-        }
-
-        function fetchFieldData(fieldId, callback) {
-            if (allDataCache[fieldId]) {
-                callback(allDataCache[fieldId]);
-                return;
-            }
-
-            var startDate = document.getElementById('startDate').value;
-            var endDate = document.getElementById('endDate').value;
-            var cloudCover = document.getElementById('cloudCover').value;
-            var url = '/api/fields/ndvi-single/?field_id=' + fieldId + '&start_date=' + startDate + '&end_date=' + endDate + '&cloud_cover=' + cloudCover;
-            
-            fetch(url)
-                .then(function(response) { return response.json(); })
-                .then(function(data) {
-                    allDataCache[fieldId] = data;
-                    callback(data);
-                })
-                .catch(function(error) {
-                    console.error('Error:', error);
-                    callback(null);
-                });
-        }
-
-        function updateComparisonUI() {
-            var container = document.getElementById('selection-container');
-            var countSpan = document.getElementById('selectedCount');
-            var timeSection = document.getElementById('timeLapseSection');
-            
-            if (selectedFields.length === 0) {
-                document.getElementById('fieldInfoContainer').style.display = 'none';
-                document.getElementById('emptyState').style.display = 'flex';
-                document.getElementById('chartStatus').style.display = 'flex';
-                document.getElementById('bottom-data-container').style.display = 'none';
-                
-                timeSection.classList.add('disabled');
-                document.getElementById('sliderDateLabel').textContent = 'Select a field';
-                if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
-                
-                updateAlertUI(globalAlerts);
-                return;
-            }
-
-            document.getElementById('emptyState').style.display = 'none';
-            document.getElementById('fieldInfoContainer').style.display = 'block';
-            document.getElementById('chartStatus').style.display = 'none';
-            document.getElementById('bottom-data-container').style.display = 'flex';
-            
-            timeSection.classList.remove('disabled');
-            document.getElementById('sliderDateLabel').textContent = 'Start → End';
-
-            countSpan.textContent = `(${selectedFields.length}/5)`;
-            container.innerHTML = '';
-
-            selectedFields.forEach(function(f, index) {
-                var badge = document.createElement('span');
-                badge.className = 'selection-badge';
-                badge.innerHTML = `
-                    <span class="badge-color" style="background:${f.color};"></span>
-                    ${f.name}
-                    <button class="remove-btn" onclick="removeField(${index})">&times;</button>
-                `;
-                container.appendChild(badge);
-            });
-
-            renderComparisonChart();
-            renderDataTableAndSummary();
-            setupTimeLapse(); 
-            
-            updateAlertUI(globalAlerts);
-        }
-
-        function removeField(index) {
-            selectedFields.splice(index, 1);
-            updateComparisonUI();
-            updateFieldList(); 
-        }
-
-        function clearAllSelections() {
-            selectedFields = [];
-            updateComparisonUI();
-            updateFieldList(); 
-        }
-
-        function renderComparisonChart() {
-            if (chartInstance) { chartInstance.destroy(); }
-            
-            var ctx = document.getElementById('ndviChart').getContext('2d');
-            var datasets = [];
-
-            selectedFields.forEach(function(f) {
-                var vals = f.data.map(d => d.ndvi);
-                datasets.push({
-                    label: f.name,
-                    data: vals,
-                    borderColor: f.color,
-                    backgroundColor: f.color + '20',
-                    borderWidth: 2.5,
-                    pointRadius: 0,
-                    pointHoverRadius: 6,
-                    fill: false,
-                    tension: 0.4
-                });
-            });
-
-            var labels = selectedFields.length > 0 ? selectedFields[0].data.map(d => d.date) : [];
-
-            chartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: datasets
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'top',
-                            labels: {
-                                boxWidth: 12,
-                                padding: 12,
-                                font: { size: 11, family: 'Inter', weight: '500' }
-                            }
-                        },
-                        tooltip: { 
-                            callbacks: { 
-                                label: function(context) {
-                                    return context.dataset.label + ': ' + context.parsed.y.toFixed(3);
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: { 
-                            ticks: { maxTicksLimit: 8, font: { size: 10 } },
-                            grid: { display: false }
-                        },
-                        y: { 
-                            min: 0, max: 1,
-                            ticks: { font: { size: 10 }, stepSize: 0.2 },
-                            grid: { color: 'rgba(0,0,0,0.05)' }
-                        }
-                    },
-                    interaction: { intersect: false, mode: 'index' }
-                }
-            });
-        }
-
-        function renderDataTableAndSummary() {
-            var thead = document.getElementById('dataTableHeader');
-            var tbody = document.getElementById('dataTableBody');
-            
-            var headerRow = '<th>Date</th>';
-            selectedFields.forEach(f => { headerRow += `<th style="color:${f.color};">${f.name}</th>`; });
-            thead.innerHTML = headerRow;
-
-            tbody.innerHTML = '';
-            for (var i = 0; i < selectedFields[0].data.length; i++) {
-                var row = `<td>${selectedFields[0].data[i].date}</td>`;
-                selectedFields.forEach(f => {
-                    row += `<td>${f.data[i].ndvi.toFixed(4)}</td>`;
-                });
-                tbody.innerHTML += `<tr>${row}</tr>`;
-            }
-
-            var summaryBody = document.getElementById('summaryTableBody');
-            var rowsHtml = [];
-            
-            var bestField = null;
-            var bestAvg = -1;
-
-            selectedFields.forEach(f => {
-                var vals = f.data.map(d => d.ndvi);
-                var avg = vals.reduce((a,b) => a + b, 0) / vals.length;
-                var latest = vals[vals.length - 1];
-                var status = 'excellent';
-                var statusLabel = 'Healthy';
-                if (latest < 0.3) { status = 'stressed'; statusLabel = 'Stressed'; }
-                else if (latest < 0.5) { status = 'moderate'; statusLabel = 'Moderate'; }
-
-                if (avg > bestAvg) {
-                    bestAvg = avg;
-                    bestField = f;
-                }
-
-                rowsHtml.push(`
-                    <tr>
-                        <td style="font-weight:500; color:${f.color};">${f.name}</td>
-                        <td>${avg.toFixed(3)}</td>
-                        <td>${latest.toFixed(3)}</td>
-                        <td><span class="status-badge ${status}">${statusLabel}</span></td>
-                    </tr>
-                `);
-            });
-
-            summaryBody.innerHTML = rowsHtml.join('');
-
-            var conclusionText = document.getElementById('conclusionText');
-            if (bestField) {
-                conclusionText.innerHTML = `
-                    <i class="fas fa-crown" style="color:#f59e0b;"></i> 
-                    <strong>${bestField.name}</strong> is the best-performing field this season with an average NDVI of <strong>${bestAvg.toFixed(3)}</strong>.
-                `;
-            } else {
-                conclusionText.textContent = 'Select fields to compare.';
-            }
-        }
-
-        function setupTimeLapse() {
-            if (animationInterval) {
-                clearInterval(animationInterval);
-                isPlaying = false;
-                document.getElementById('playBtn').innerHTML = '<i class="fas fa-play"></i>';
-            }
-
-            if (selectedFields.length === 0) return;
-
-            var firstFieldData = selectedFields[0].data;
-            
-            var slider = document.getElementById('timeSlider');
-            var dateLabel = document.getElementById('sliderDateLabel');
-            
-            var maxIndex = firstFieldData.length - 1;
-            slider.max = maxIndex;
-            
-            slider.value = 0;
-            var startDate = firstFieldData[0].date;
-            var endDate = firstFieldData[maxIndex].date;
-            dateLabel.textContent = startDate + ' → ' + endDate;
-            
-            updateMapColors(0);
-
-            var newSlider = slider.cloneNode(true);
-            slider.parentNode.replaceChild(newSlider, slider);
-            
-            newSlider.addEventListener('input', function() {
-                var idx = parseInt(this.value);
-                var dateStr = firstFieldData[idx].date;
-                var endDateStr = firstFieldData[maxIndex].date;
-                dateLabel.textContent = dateStr + ' → ' + endDateStr;
-                updateMapColors(idx);
-            });
-
-            var playBtn = document.getElementById('playBtn');
-            var newPlayBtn = playBtn.cloneNode(true);
-            playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
-            
-            newPlayBtn.addEventListener('click', function() {
-                if (isPlaying) {
-                    clearInterval(animationInterval);
-                    isPlaying = false;
-                    this.innerHTML = '<i class="fas fa-play"></i>';
-                } else {
-                    isPlaying = true;
-                    this.innerHTML = '<i class="fas fa-pause"></i>';
-                    
-                    var currentIdx = parseInt(newSlider.value);
-                    
-                    animationInterval = setInterval(function() {
-                        currentIdx++;
-                        if (currentIdx > maxIndex) {
-                            clearInterval(animationInterval);
-                            isPlaying = false;
-                            newPlayBtn.innerHTML = '<i class="fas fa-play"></i>';
-                            
-                            newSlider.value = 0;
-                            var startDateStr = firstFieldData[0].date;
-                            var endDateStr = firstFieldData[maxIndex].date;
-                            dateLabel.textContent = startDateStr + ' → ' + endDateStr;
-                            updateMapColors(0);
-                            return;
-                        }
-                        newSlider.value = currentIdx;
-                        var dateStr = firstFieldData[currentIdx].date;
-                        var endDateStr = firstFieldData[maxIndex].date;
-                        dateLabel.textContent = dateStr + ' → ' + endDateStr;
-                        updateMapColors(currentIdx);
-                    }, 300);
-                }
-            });
-        }
-
-        function updateMapColors(index) {
-            if (!fieldLayer) return;
-
-            var dateStr = selectedFields[0].data[index].date;
-
-            fieldLayer.eachLayer(function(layer) {
-                var feature = layer.feature;
-                var fieldId = feature.properties.id || feature.properties.field_id || feature.id;
-                
-                var selectedField = selectedFields.find(f => f.id === fieldId);
-                
-                if (selectedField) {
-                    var point = selectedField.data.find(d => d.date === dateStr);
-                    
-                    if (point) {
-                        var val = point.ndvi;
-                        var color = '#1a9850'; 
-                        if (val < 0.2) color = '#d73027'; 
-                        else if (val < 0.4) color = '#fdae61'; 
-                        
-                        layer.setStyle({
-                            color: color,
-                            fillColor: color,
-                            fillOpacity: 0.5
-                        });
-                    }
-                }
-            });
-        }
-
-        function setupHeaderSearch() {
-            var searchInput = document.getElementById('headerSearchInput');
-            var resultsContainer = document.getElementById('headerSearchResults');
-
-            searchInput.addEventListener('input', function() {
-                var query = this.value.toLowerCase().trim();
-                resultsContainer.innerHTML = '';
-                
-                if (query.length === 0) {
-                    resultsContainer.style.display = 'none';
-                    return;
-                }
-
-                var matches = fields.filter(function(f) {
-                    var name = f.properties.field_name || '';
-                    return name.toLowerCase().includes(query);
-                });
-
-                if (matches.length === 0) {
-                    resultsContainer.style.display = 'block';
-                    var noRes = document.createElement('div');
-                    noRes.textContent = 'No fields found';
-                    noRes.style.color = '#94a3b8';
-                    noRes.style.cursor = 'default';
-                    resultsContainer.appendChild(noRes);
-                    return;
-                }
-
-                resultsContainer.style.display = 'block';
-                matches.forEach(function(f) {
-                    var item = document.createElement('div');
-                    var p = f.properties;
-                    var location = (p.district ? p.district + ', ' : '') + (p.province || '');
-                    item.innerHTML = `<strong>${p.field_name}</strong> <span style="color:#94a3b8; font-size:11px;">${location}</span>`;
-                    
-                    item.addEventListener('click', function() {
-                        zoomToField(f);
-                        resultsContainer.style.display = 'none';
-                        searchInput.value = p.field_name;
-                    });
-                    resultsContainer.appendChild(item);
-                });
-            });
-
-            document.addEventListener('click', function(e) {
-                if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
-                    resultsContainer.style.display = 'none';
-                }
-            });
-        }
-
-        function zoomToField(feature) {
-            if (!feature.geometry) return;
-            
-            var layer = L.geoJSON(feature);
-            var bounds = layer.getBounds();
-            
-            if (bounds.isValid()) {
-                map.fitBounds(bounds, { padding: [30, 30] });
-                
-                var highlightLayer = L.geoJSON(feature, {
-                    style: {
-                        color: '#f59e0b',
-                        weight: 4,
-                        opacity: 1,
-                        fillColor: '#f59e0b',
-                        fillOpacity: 0.3
-                    }
-                }).addTo(map);
-                
-                setTimeout(function() {
-                    map.removeLayer(highlightLayer);
-                }, 2000);
-            }
-        }
-
-        function toggleSettingsDropdown() {
-            var settingsDropdown = document.getElementById('settingsDropdown');
-            document.getElementById('alertDropdown').classList.remove('open');
-            
-            if (settingsDropdown.classList.contains('open')) {
-                settingsDropdown.classList.remove('open');
-            } else {
-                settingsDropdown.classList.add('open');
-            }
-        }
-
-        function toggleAlertDropdown() {
-            var settingsDropdown = document.getElementById('settingsDropdown');
-            var alertDropdown = document.getElementById('alertDropdown');
-            
-            settingsDropdown.classList.remove('open');
-            
-            if (alertDropdown.classList.contains('open')) {
-                alertDropdown.classList.remove('open');
-            } else {
-                alertDropdown.classList.add('open');
-            }
-        }
-
-        function updateThreshold() {
-            var inputVal = document.getElementById('thresholdInput').value;
-            ndviAlertThreshold = parseFloat(inputVal);
-            if (isNaN(ndviAlertThreshold) || ndviAlertThreshold < 0) {
-                ndviAlertThreshold = 0.60;
-                document.getElementById('thresholdInput').value = 0.60;
-            }
-            
-            document.getElementById('settingsDropdown').classList.remove('open');
-            checkCurrentAlerts();
-        }
-
-        function checkCurrentAlerts() {
-            if (globalAlerts.length > 0) {
-                var newAlerts = globalAlerts.filter(function(a) {
-                    return a.ndvi < ndviAlertThreshold;
-                });
-                updateAlertUI(newAlerts);
-            } else {
-                updateAlertUI(globalAlerts);
-            }
-        }
-
-        function updateAlertUI(alerts) {
-            var bellIcon = document.getElementById('alertBell');
-            var badge = document.getElementById('alertBadge');
-            var dropdown = document.getElementById('alertDropdown');
-
-            if (alerts.length === 0) {
-                bellIcon.className = '';
-                badge.className = 'alert-badge';
-                dropdown.innerHTML = `<div class="alert-empty">All fields are healthy (NDVI ≥ ${ndviAlertThreshold.toFixed(2)}).</div>`;
-                return;
-            }
-
-            bellIcon.className = 'has-alerts';
-            badge.className = 'alert-badge show';
-            badge.textContent = alerts.length;
-
-            var html = '';
-            alerts.forEach(function(alert) {
-                var locString = (alert.district ? alert.district + ', ' : '') + alert.province;
-                html += `
-                    <div class="alert-item" onclick="openDetailModal(${alert.id})">
-                        <div class="field-info">
-                            <span class="field-name">⚠️ ${alert.name}</span>
-                            <span class="field-loc">${locString}</span>
-                            <span class="field-loc">Last reading: ${alert.date}</span>
-                        </div>
-                        <div class="ndvi-val">${alert.ndvi.toFixed(3)}</div>
-                    </div>
-                `;
-            });
-            dropdown.innerHTML = html;
-        }
-
-        function openDetailModal(fieldId) {
-            var alertData = globalAlerts.find(a => a.id === fieldId);
-            if (!alertData) return;
-            
-            modalActiveFieldId = fieldId;
-
-            var modalHTML = `
-                <div id="detailModalOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3);" onclick="closeModal(event)">
-                    <div id="detailModal" style="width: 420px; max-height: 550px; overflow-y: auto; padding: 20px; border-radius: 12px; background: #ffffff; box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative; cursor: default;" onclick="event.stopPropagation();">
-                        <button class="modal-close" onclick="closeModal()" style="position: absolute; top: 12px; right: 16px; background: transparent; border: none; font-size: 20px; cursor: pointer; color: #64748b; transition: 0.2s;">&times;</button>
-                        
-                        <div style="margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; padding-right: 24px;">
-                            <h2 id="modalFieldName" style="font-size: 18px; font-weight: 600; margin: 0;">${alertData.name}</h2>
-                            <div id="modalFieldLoc" style="font-size: 12px; color: #64748b; margin-top: 2px;">${alertData.district ? alertData.district + ', ' : ''}${alertData.province}</div>
-                        </div>
-
-                        <div style="margin-bottom: 12px;">
-                            <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Latest NDVI</div>
-                            <div style="background: #f8fafc; padding: 10px 14px; border-radius: 6px; border-left: 4px solid #ef4444; display: flex; align-items: center; justify-content: space-between;">
-                                <span style="font-size: 20px; font-weight: 700;">${alertData.ndvi.toFixed(2)}</span>
-                                <span style="font-size: 12px; color: #64748b;">as of ${alertData.date}</span>
-                            </div>
-                        </div>
-
-                        <div style="margin-bottom: 12px;">
-                            <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Last 3 Readings</div>
-                            <div id="modalHistoryList" style="display: flex; flex-direction: column; gap: 6px;">
-                                ${generateHistoryHTML(alertData.history)}
-                            </div>
-                        </div>
-
-                        <div style="margin-bottom: 12px;">
-                            <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Mini Trend</div>
-                            <div id="modalTrendGraph" style="display: flex; justify-content: space-between; align-items: flex-end; height: 60px; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
-                                ${generateTrendHTML(alertData.history, alertData.trend)}
-                            </div>
-                        </div>
-
-                        <div style="margin-bottom: 12px;">
-                            <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Status & Trend</div>
-                            <div style="display:flex; gap: 8px; flex-wrap:wrap;">
-                                <span id="modalStatusBadge" style="display:inline-block; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform:uppercase; background: ${getStatusColor(alertData.status)}; color: #ffffff;">${alertData.status}</span>
-                                <span id="modalTrendBadge" style="display:inline-block; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform:uppercase; background: ${getTrendColor(alertData.trend)}20; color: ${getTrendColor(alertData.trend)};">${getTrendIcon(alertData.trend)} ${alertData.trend}</span>
-                            </div>
-                        </div>
-
-                        <div style="margin-bottom: 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 14px;">
-                            <div style="font-weight:600; font-size: 12px; color:#0f172a; margin-bottom: 4px;">🌱 Recommendations</div>
-                            <ul style="margin: 0; font-size: 12px; color: #475569; padding-left: 20px;">
-                                ${generateRecommendations(alertData.status, alertData.trend)}
-                            </ul>
-                        </div>
-
-                        <div style="display: flex; gap: 8px; margin-top: 4px;">
-                            <button onclick="closeModal()" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-weight: 500; font-size: 12px; cursor: pointer; font-family: 'Inter', sans-serif; border: 1px solid #e2e8f0; background: #f1f5f9; color: #0f172a; transition: 0.2s;">Close</button>
-                            <button id="modalZoomBtn" onclick="zoomToFieldById(${modalActiveFieldId}); closeModal();" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-weight: 500; font-size: 12px; cursor: pointer; font-family: 'Inter', sans-serif; border: none; background: #2d6a4f; color: white; transition: 0.2s;">📍 Zoom to Field</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            var modalWrapper = document.createElement('div');
-            modalWrapper.innerHTML = modalHTML;
-            document.body.appendChild(modalWrapper.firstElementChild);
-        }
-
-        function generateHistoryHTML(history) {
-            var latestThree = history.slice(-3).reverse(); 
-            if (latestThree.length === 0) {
-                return '<div style="color:#94a3b8; font-size:12px;">No historical data available.</div>';
-            }
-            var maxVal = Math.max(...latestThree.map(h => h.ndvi), 0.5);
-            var html = '';
-            latestThree.forEach(function(h) {
-                var pct = Math.max((h.ndvi / maxVal) * 100, 10);
-                html += `
-                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 4px 0;">
-                        <span>${h.date}</span>
-                        <div style="flex: 1; margin: 0 12px; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
-                            <div style="height: 100%; background: #2d6a4f; border-radius: 3px; width:${pct}%;"></div>
-                        </div>
-                        <span style="font-weight:500;">${h.ndvi.toFixed(2)}</span>
-                    </div>
-                `;
-            });
-            return html;
-        }
-
-        function generateTrendHTML(history, trend) {
-            var trendData = history.slice(-4);
-            if (trendData.length > 1) {
-                var maxTrend = Math.max(...trendData.map(h => h.ndvi), 0.5);
-                var sortedTrend = [...trendData].sort((a,b) => new Date(a.date) - new Date(b.date));
-                var html = '';
-                sortedTrend.forEach(function(h) {
-                    var pct = Math.max((h.ndvi / maxTrend) * 100, 10);
-                    var isDeclining = trend === 'declining';
-                    html += `<div style="width: 20px; background: ${isDeclining ? '#ef4444' : '#2d6a4f'}; border-radius: 3px; height:${pct}px;"></div>`;
-                });
-                return html;
-            } else {
-                return '<div style="color:#94a3b8; font-size:12px;">Insufficient trend data</div>';
-            }
-        }
-
-        function getStatusColor(status) {
-            if (status === 'Stressed') return '#ef4444';
-            if (status === 'Moderate') return '#f59e0b';
-            return '#2d6a4f';
-        }
-
-        function getTrendColor(trend) {
-            if (trend === 'declining') return '#ef4444';
-            if (trend === 'improving') return '#2d6a4f';
-            return '#64748b';
-        }
-
-        function getTrendIcon(trend) {
-            if (trend === 'declining') return '▼';
-            if (trend === 'improving') return '▲';
-            return '●';
-        }
-
-        function generateRecommendations(status, trend) {
-            var recs = [];
-            if (status === 'Stressed' || trend === 'declining') {
-                recs.push('Inspect for water or pest stress.');
-                recs.push('Check irrigation system functionality.');
-                recs.push('Monitor again within 5 days.');
-            } else if (status === 'Moderate') {
-                recs.push('Monitor soil moisture levels.');
-                recs.push('Maintain current irrigation schedule.');
-                recs.push('Re-evaluate in 7 days.');
-            } else {
-                recs.push('Crop appears healthy.');
-                recs.push('Maintain standard agronomic practices.');
-            }
-            return recs.map(r => `<li>${r}</li>`).join('');
-        }
-
-        function closeModal(e) {
-            var overlay = document.getElementById('detailModalOverlay');
-            if (e && e.target && e.target !== overlay) return;
-            if (overlay) overlay.remove();
-            modalActiveFieldId = null;
-        }
-
-        function zoomToFieldById(fieldId) {
-            var feature = fields.find(function(f) {
-                return f.properties.id === fieldId || f.id === fieldId;
-            });
-            if (feature) {
-                zoomToField(feature);
-            }
-        }
-
-        function refreshAllSelected() {
-            var currentStartDate = document.getElementById('startDate').value;
-            var currentEndDate = document.getElementById('endDate').value;
-            var currentCloudCover = document.getElementById('cloudCover').value;
-            
-            if (!window._lastQueryContext) {
-                window._lastQueryContext = {};
-            }
-            
-            var datesChanged = (
-                window._lastQueryContext.startDate !== currentStartDate ||
-                window._lastQueryContext.endDate !== currentEndDate ||
-                window._lastQueryContext.cloudCover !== currentCloudCover
-            );
-
-            if (!datesChanged && selectedFields.length > 0) {
-                renderComparisonChart();
-                renderDataTableAndSummary();
-                setupTimeLapse();
-                return;
-            }
-
-            window._lastQueryContext.startDate = currentStartDate;
-            window._lastQueryContext.endDate = currentEndDate;
-            window._lastQueryContext.cloudCover = currentCloudCover;
-            
-            var cacheKeysToRemove = [];
-            for (var key in allDataCache) {
-                cacheKeysToRemove.push(key);
-            }
-            
-            var ids = selectedFields.map(f => f.id);
-            ids.forEach(id => {
-                delete allDataCache[id];
-            });
-
-            var fetchPromises = ids.map(function(id) {
-                return new Promise(function(resolve) {
-                    fetchFieldData(id, function(data) {
-                        resolve({ id: id, data: data });
-                    });
-                });
-            });
-
-            document.getElementById('chartStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating comparison...';
-            document.getElementById('chartStatus').style.display = 'flex';
-
-            Promise.all(fetchPromises).then(function(results) {
-                var newSelected = [];
-                results.forEach(function(result) {
-                    var data = result.data;
-                    if (data && data.success && data.data.length > 0) {
-                        var fieldObj = fields.find(f => f.id === result.id || f.properties.id === result.id);
-                        var name = data.field_name || 'Field ' + result.id;
-                        var district = 'Unknown District';
-                        var province = 'Unknown Province';
-                        
-                        if (fieldObj) {
-                            var p = fieldObj.properties;
-                            district = p.district || district;
-                            province = p.province || province;
-                        }
-
-                        newSelected.push({
-                            id: result.id,
-                            name: name,
-                            district: district,
-                            province: province,
-                            data: data.data,
-                            color: currentColors[newSelected.length % currentColors.length]
-                        });
-                    }
-                });
-
-                selectedFields = newSelected;
-                updateComparisonUI();
-                updateFieldList();
-                document.getElementById('chartStatus').style.display = 'none';
-            });
-        }
-
-        function exportTableToCSV() {
-            if (!selectedFields || selectedFields.length === 0) return;
-            var csv = "Date";
-            selectedFields.forEach(f => { csv += "," + f.name; });
-            csv += "\n";
-            
-            for (var i = 0; i < selectedFields[0].data.length; i++) {
-                csv += selectedFields[0].data[i].date;
-                selectedFields.forEach(f => {
-                    csv += "," + f.data[i].ndvi;
-                });
-                csv += "\n";
-            }
-
-            var blob = new Blob([csv], { type: 'text/csv' });
-            var link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = 'NDVI_Comparison.csv';
-            link.click();
-        }
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            initMap();
-            setupHeaderSearch();
-        });
-    </script>
+</div>
 
 </body>
 </html>

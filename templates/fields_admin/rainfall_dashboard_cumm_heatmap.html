@@ -39,12 +39,6 @@
             outline:none; border-color:#2d6a4f; background:white;
             box-shadow:0 0 0 3px rgba(45,106,79,.1);
         }
-        .btn-primary {
-            background:#2d6a4f; color:white; border:none;
-            padding:8px 18px; border-radius:6px; font-size:14px; font-weight:500;
-            cursor:pointer; display:flex; align-items:center; gap:6px;
-        }
-        .btn-primary:hover { background:#1b4332; }
 
         .kpi-strip {
             display:grid; grid-template-columns:repeat(4,1fr); gap:12px;
@@ -66,44 +60,76 @@
         .kpi-sub { font-size:11px; color:#94a3b8; margin-top:2px; }
         .kpi-icon { font-size:22px; opacity:.35; }
 
-        /* ─── LAYOUT: 42% / 58% split so heatmap is wider ─── */
         .main-layout {
             flex:1; display:grid; grid-template-columns:42% 58%;
-            gap:0; overflow:hidden;
+            gap:0; overflow:hidden; min-height:0;
         }
         .left-col, .right-col {
-            overflow-y:auto; padding:12px;
+            overflow:hidden; padding:12px;
             background:#f1f5f9; display:flex; flex-direction:column; gap:10px;
+            min-height:0;
         }
         .right-col { border-left:1px solid #e2e8f0; }
 
         .chart-card {
             background:white; border-radius:10px; padding:12px 14px;
             box-shadow:0 2px 8px rgba(0,0,0,.05); border:1px solid #e2e8f0;
+            display:flex; flex-direction:column;
+            min-height:0;
         }
         .chart-card h3 {
             font-size:14px; font-weight:600; color:#0f172a; margin-bottom:8px;
             display:flex; justify-content:space-between; align-items:center;
+            flex-shrink:0;
         }
         .chart-card h3 .hint { font-size:11px; color:#94a3b8; font-weight:400; }
 
-        /* Fixed heights so no scrolling */
+        .left-col .chart-card { flex:1; }
         .chart-wrapper {
             position:relative;
-            height:240px;
-            margin-bottom:23px;
-        }
-        .chart-wrapper.tall {
-            height:260px;
+            flex:1;
+            min-height:0;
             margin-bottom:23px;
         }
         .chart-wrapper canvas { width:100%!important; height:100%!important; }
 
-        /* Heatmap — bigger cells, wider layout */
+        .right-col .chart-card {
+            flex:1;
+            overflow:hidden;
+            min-height:0;
+        }
+
+        .heatmap-tabs {
+            display:flex;
+            gap:4px;
+            margin-bottom:8px;
+            border-bottom:1px solid #e2e8f0;
+            flex-shrink:0;
+        }
+        .heatmap-tab {
+            padding:6px 14px;
+            border:none;
+            background:transparent;
+            font-family:'Inter',sans-serif;
+            font-size:12px;
+            font-weight:600;
+            color:#64748b;
+            cursor:pointer;
+            border-bottom:2px solid transparent;
+            margin-bottom:-1px;
+            transition:.2s;
+        }
+        .heatmap-tab:hover { color:#0f172a; }
+        .heatmap-tab.active {
+            color:#2d6a4f;
+            border-bottom-color:#2d6a4f;
+        }
+
         .heatmap-wrapper {
-            overflow-x:auto;
-            overflow-y:auto;
-            max-height:calc(100vh - 300px);
+            flex:1;
+            overflow:auto;
+            min-height:0;
+            padding-top:4px;
         }
         .heatmap-table {
             border-collapse:separate;
@@ -137,8 +163,8 @@
             text-align:center;
             border-radius:3px;
             font-size:11px;
-            font-weight:600;
-            color:rgba(0,0,0,.7);
+            font-weight:700;
+            color:rgba(0,0,0,.75);
             transition:transform .15s;
         }
         .heatmap-table td:hover {
@@ -158,19 +184,55 @@
             min-width:50px;
             z-index:1;
         }
+
+        /* ─── LEGEND — locked to 2 rows (6 columns × 2 rows) ─── */
         .heatmap-legend {
-            display:flex;
-            gap:4px;
-            align-items:center;
-            margin-top:10px;
+            display:grid;
+            grid-template-columns:repeat(6, 1fr);
+            grid-auto-rows: 1fr;
+            gap:6px 10px;
+            padding:12px 4px 4px;
+            margin-top:8px;
+            border-top:1px solid #f1f5f9;
             font-size:11px;
-            color:#64748b;
-            justify-content:center;
+            color:#475569;
+            flex-shrink:0;
         }
-        .heatmap-legend .swatch {
-            width:26px;
-            height:13px;
-            border-radius:2px;
+        .legend-block {
+            display:flex;
+            align-items:center;
+            gap:6px;
+            min-width:0;
+        }
+        .legend-block .swatch {
+            width:22px;
+            height:22px;
+            border-radius:4px;
+            flex-shrink:0;
+            border:1px solid rgba(0,0,0,.08);
+        }
+        .legend-block .info {
+            display:flex;
+            flex-direction:column;
+            line-height:1.15;
+            min-width:0;
+            overflow:hidden;
+        }
+        .legend-block .info .name {
+            font-weight:700;
+            font-size:11px;
+            color:#0f172a;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
+        }
+        .legend-block .info .range {
+            font-size:10px;
+            color:#64748b;
+            font-weight:500;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
         }
 
         .loading {
@@ -186,10 +248,14 @@
         }
         @keyframes spin { 0% { transform:rotate(0); } 100% { transform:rotate(360deg); } }
 
+        @media (max-width:1200px) {
+            .heatmap-legend { grid-template-columns:repeat(4, 1fr); }
+        }
         @media (max-width:1000px) {
             .kpi-strip { grid-template-columns:repeat(2,1fr); }
             .main-layout { grid-template-columns:1fr; grid-template-rows:1fr 1fr; }
             .right-col { border-left:none; border-top:1px solid #e2e8f0; }
+            .heatmap-legend { grid-template-columns:repeat(3, 1fr); }
         }
     </style>
 </head>
@@ -231,9 +297,6 @@
             <option value="Midlands">Midlands</option>
         </select>
     </div>
-    <button class="btn-primary" onclick="loadSeasonData()">
-        <i class="fas fa-sync-alt"></i> Load Season
-    </button>
 </div>
 
 <div class="kpi-strip">
@@ -272,14 +335,13 @@
 </div>
 
 <div class="main-layout">
-    <!-- LEFT: Cumulative curve + dekadal bars -->
     <div class="left-col">
         <div class="chart-card">
             <h3>
                 <span><i class="fas fa-chart-area" style="color:#2d6a4f;"></i> Cumulative Rainfall Progress</span>
                 <span class="hint" id="cumHint">—</span>
             </h3>
-            <div class="chart-wrapper tall"><canvas id="cumChart"></canvas></div>
+            <div class="chart-wrapper"><canvas id="cumChart"></canvas></div>
         </div>
 
         <div class="chart-card">
@@ -291,28 +353,27 @@
         </div>
     </div>
 
-    <!-- RIGHT: Heatmap — wider -->
     <div class="right-col">
         <div class="chart-card">
             <h3>
-                <span><i class="fas fa-th" style="color:#f59e0b;"></i> Monthly Rainfall Heatmap</span>
+                <span><i class="fas fa-th" style="color:#f59e0b;"></i> Monthly Rainfall Analysis</span>
                 <span class="hint" id="heatmapHint">All years · Jan–Dec</span>
             </h3>
+
+            <div class="heatmap-tabs">
+                <button class="heatmap-tab active" data-view="zscore" onclick="switchHeatmapView('zscore')">
+                    <i class="fas fa-chart-line"></i> SPI Classification
+                </button>
+                <button class="heatmap-tab" data-view="actual" onclick="switchHeatmapView('actual')">
+                    <i class="fas fa-tint"></i> Actual Rainfall (mm)
+                </button>
+            </div>
+
             <div class="heatmap-wrapper">
                 <table class="heatmap-table" id="heatmapTable"></table>
             </div>
-            <div class="heatmap-legend">
-                <span>Dry</span>
-                <div class="swatch" style="background:#d73027;"></div>
-                <div class="swatch" style="background:#f46d43;"></div>
-                <div class="swatch" style="background:#fdae61;"></div>
-                <div class="swatch" style="background:#fee090;"></div>
-                <div class="swatch" style="background:#e0f3f8;"></div>
-                <div class="swatch" style="background:#abd9e9;"></div>
-                <div class="swatch" style="background:#74add1;"></div>
-                <div class="swatch" style="background:#4575b4;"></div>
-                <span>Wet</span>
-            </div>
+
+            <div class="heatmap-legend" id="heatmapLegend"></div>
         </div>
     </div>
 </div>
@@ -323,26 +384,57 @@
 </div>
 
 <script>
-    // -------------------------------------------------------------
-    // STATE
-    // -------------------------------------------------------------
     var cumChart, dekadChart;
     var state = {
         seasonYear: null,
         season: 'ONDJFM',
-        province: ''
+        province: '',
+        heatmapView: 'zscore'
     };
     var heatmapLoadedForProvince = null;
+    var loadTimeout = null;
+    var cachedHeatmapData = null;
 
-    // Heatmap colour palette (dry -> wet), provided by user
-    const HEATMAP_COLORS = [
-        '#d73027', '#f46d43', '#fdae61', '#fee090',
-        '#e0f3f8', '#abd9e9', '#74add1', '#4575b4'
+    const SPI_BANDS = [
+        { name: 'Extremely wet',     range: '≥ 2.00',             min: 2.0,    max: Infinity, color: '#05204A' },
+        { name: 'Severely wet',      range: '1.50 to 1.99',       min: 1.5,    max: 2.0,      color: '#0A4A8F' },
+        { name: 'Moderately wet',    range: '1.00 to 1.49',       min: 1.0,    max: 1.5,      color: '#2171B5' },
+        { name: 'Slightly wet',      range: '0.25 to 0.99',       min: 0.25,   max: 1.0,      color: '#6BAED6' },
+        { name: 'Near normal',       range: '−0.24 to 0.24',      min: -0.25,  max: 0.25,     color: '#E8E8E8' },
+        { name: 'Mild dryness',      range: '−0.49 to −0.25',     min: -0.5,   max: -0.25,    color: '#FFD166' },
+        { name: 'Slight dryness',    range: '−0.74 to −0.50',     min: -0.75,  max: -0.5,     color: '#F5A623' },
+        { name: 'Moderate dryness',  range: '−0.99 to −0.75',     min: -1.0,   max: -0.75,    color: '#E8720C' },
+        { name: 'Moderate drought',  range: '−1.49 to −1.00',     min: -1.5,   max: -1.0,     color: '#D23F0F' },
+        { name: 'Severe drought',    range: '−1.99 to −1.50',     min: -2.0,   max: -1.5,     color: '#A81A0A' },
+        { name: 'Extreme drought',   range: '≤ −2.00',            min: -Infinity, max: -2.0,  color: '#6B0000' }
     ];
 
-    // -------------------------------------------------------------
-    // INIT YEAR SELECTOR
-    // -------------------------------------------------------------
+    const ACTUAL_BANDS = [
+        { name: 'Very dry',      range: '0 to 5 mm',      max: 5,        color: '#6B0000' },
+        { name: 'Dry',           range: '5 to 20 mm',     max: 20,       color: '#A81A0A' },
+        { name: 'Low',           range: '20 to 50 mm',    max: 50,       color: '#D23F0F' },
+        { name: 'Moderate',      range: '50 to 100 mm',   max: 100,      color: '#E8720C' },
+        { name: 'Good',          range: '100 to 150 mm',  max: 150,      color: '#F5A623' },
+        { name: 'Very wet',      range: '150 to 200 mm',  max: 200,      color: '#2171B5' },
+        { name: 'Extremely wet', range: '> 200 mm',       max: Infinity, color: '#05204A' }
+    ];
+
+    function getSPIBand(z) {
+        if (z === null) return null;
+        for (var i = 0; i < SPI_BANDS.length; i++) {
+            if (z >= SPI_BANDS[i].min && z < SPI_BANDS[i].max) return SPI_BANDS[i];
+        }
+        return SPI_BANDS[SPI_BANDS.length - 1];
+    }
+
+    function getActualBand(v) {
+        if (v === null || v === 0) return null;
+        for (var i = 0; i < ACTUAL_BANDS.length; i++) {
+            if (v < ACTUAL_BANDS[i].max) return ACTUAL_BANDS[i];
+        }
+        return ACTUAL_BANDS[ACTUAL_BANDS.length - 1];
+    }
+
     function initYearSelects() {
         var now = new Date().getFullYear();
         var sel = document.getElementById('seasonYear');
@@ -351,17 +443,24 @@
             sel.innerHTML += `<option value="${y}" ${y===now-1?'selected':''}>${y-1}/${y}</option>`;
         }
         state.seasonYear = parseInt(sel.value);
-        sel.onchange = () => { state.seasonYear = parseInt(sel.value); };
 
+        function scheduleReload() {
+            if (loadTimeout) clearTimeout(loadTimeout);
+            loadTimeout = setTimeout(() => loadSeasonData(), 250);
+        }
+
+        sel.onchange = () => {
+            state.seasonYear = parseInt(sel.value);
+            scheduleReload();
+        };
+        document.getElementById('seasonSelect').onchange = scheduleReload;
         document.getElementById('provinceSelect').onchange = () => {
             state.province = document.getElementById('provinceSelect').value;
-            heatmapLoadedForProvince = null;  // force refresh
+            heatmapLoadedForProvince = null;
+            scheduleReload();
         };
     }
 
-    // -------------------------------------------------------------
-    // SEASON MONTH DEFINITIONS
-    // -------------------------------------------------------------
     function getSeasonMonths(season, year) {
         var defs = {
             FULL:   { months: [1,2,3,4,5,6,7,8,9,10,11,12], cross: false },
@@ -393,15 +492,9 @@
         return { start, end };
     }
 
-    // -------------------------------------------------------------
-    // LOADING
-    // -------------------------------------------------------------
     function showLoading() { document.getElementById('loading').classList.add('show'); }
     function hideLoading() { document.getElementById('loading').classList.remove('show'); }
 
-    // -------------------------------------------------------------
-    // LOAD SEASON DATA
-    // -------------------------------------------------------------
     function loadSeasonData() {
         state.season = document.getElementById('seasonSelect').value;
         state.province = document.getElementById('provinceSelect').value;
@@ -428,14 +521,13 @@
         .catch(e => console.error(e))
         .finally(() => hideLoading());
 
-        if (heatmapLoadedForProvince !== state.province) {
+        if (heatmapLoadedForProvince !== state.province || !cachedHeatmapData) {
             loadHeatmap();
+        } else {
+            renderHeatmap();
         }
     }
 
-    // -------------------------------------------------------------
-    // LOAD HEATMAP
-    // -------------------------------------------------------------
     function loadHeatmap() {
         var now = new Date().getFullYear();
         var start = '2000-01-01';
@@ -448,15 +540,192 @@
         fetch(url)
             .then(r => r.json())
             .then(data => {
-                renderMonthlyHeatmap(data);
+                cachedHeatmapData = data;
                 heatmapLoadedForProvince = state.province;
+                renderHeatmap();
             })
             .catch(e => console.error('Heatmap load error:', e));
     }
 
-    // -------------------------------------------------------------
-    // CUMULATIVE CURVE — fonts increased
-    // -------------------------------------------------------------
+    function switchHeatmapView(view) {
+        state.heatmapView = view;
+        document.querySelectorAll('.heatmap-tab').forEach(t => t.classList.remove('active'));
+        document.querySelector(`.heatmap-tab[data-view="${view}"]`).classList.add('active');
+        if (cachedHeatmapData) renderHeatmap();
+    }
+
+    function renderHeatmap() {
+        if (!cachedHeatmapData || !cachedHeatmapData.data || !cachedHeatmapData.data.length) {
+            document.getElementById('heatmapTable').innerHTML =
+                '<tr><td style="padding:20px; text-align:center; color:#94a3b8;">No data available for this province</td></tr>';
+            document.getElementById('heatmapLegend').innerHTML = '';
+            return;
+        }
+
+        if (state.heatmapView === 'zscore') {
+            renderHeatmapSPI();
+            renderSPILegend();
+        } else {
+            renderHeatmapActual();
+            renderActualLegend();
+        }
+    }
+
+    function renderHeatmapSPI() {
+        var provinces = cachedHeatmapData.provinces || [];
+        var rows = cachedHeatmapData.data;
+
+        var lookup = {};
+        var yearsSet = new Set();
+        rows.forEach(r => {
+            var key = `${r.year}-${r.month}`;
+            var vals = provinces.map(p => r[p] || 0);
+            var avg = vals.reduce((a,b) => a+b, 0) / (provinces.length || 1);
+            lookup[key] = avg;
+            yearsSet.add(r.year);
+        });
+
+        var monthStats = {};
+        for (var m = 1; m <= 12; m++) {
+            var vals = [];
+            yearsSet.forEach(y => {
+                var v = lookup[`${y}-${m}`];
+                if (v !== undefined && v > 0) vals.push(v);
+            });
+            if (vals.length >= 3) {
+                var mean = vals.reduce((a,b) => a+b, 0) / vals.length;
+                var variance = vals.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / vals.length;
+                var std = Math.sqrt(variance);
+                monthStats[m] = { mean, std };
+            } else {
+                monthStats[m] = null;
+            }
+        }
+
+        function spiFor(year, month) {
+            var v = lookup[`${year}-${month}`];
+            if (v === undefined || v === 0) return null;
+            var stat = monthStats[month];
+            if (!stat || stat.std === 0) return null;
+            return (v - stat.mean) / stat.std;
+        }
+
+        var years = [...yearsSet].sort((a,b) => b - a);
+        var months = [1,2,3,4,5,6,7,8,9,10,11,12];
+        var monthAbbr = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+        var html = '<thead><tr><th>Year</th>';
+        monthAbbr.forEach(m => { html += `<th>${m}</th>`; });
+        html += '</tr></thead><tbody>';
+
+        years.forEach(y => {
+            html += `<tr><td class="year-col">${y}</td>`;
+            months.forEach(m => {
+                var z = spiFor(y, m);
+                var v = lookup[`${y}-${m}`] || 0;
+                var disp = z !== null ? z.toFixed(1) : (v > 0 ? '·' : '');
+                var band = getSPIBand(z);
+                var bg = band ? band.color : '#f8fafc';
+
+                var tc = '#0f172a';
+                if (z === null) tc = '#94a3b8';
+                else if (z >= 1.0 || z <= -1.0) tc = '#ffffff';
+                else if (band && (band.color === '#05204A' || band.color === '#0A4A8F' ||
+                                  band.color === '#A81A0A' || band.color === '#6B0000')) tc = '#ffffff';
+
+                var title = z !== null
+                    ? `${monthAbbr[m-1]} ${y} — ${v.toFixed(1)} mm · SPI=${z.toFixed(2)} (${band ? band.name : '—'})`
+                    : `${monthAbbr[m-1]} ${y} — no data`;
+                html += `<td style="background:${bg}; color:${tc};" title="${title}">${disp}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody>';
+
+        document.getElementById('heatmapTable').innerHTML = html;
+
+        var provLabel = state.province || 'All Provinces';
+        document.getElementById('heatmapHint').textContent =
+            `${years.length} years · ${provLabel} · SPI per month`;
+    }
+
+    function renderHeatmapActual() {
+        var provinces = cachedHeatmapData.provinces || [];
+        var rows = cachedHeatmapData.data;
+
+        var lookup = {};
+        var yearsSet = new Set();
+        rows.forEach(r => {
+            var key = `${r.year}-${r.month}`;
+            var vals = provinces.map(p => r[p] || 0);
+            var avg = vals.reduce((a,b) => a+b, 0) / (provinces.length || 1);
+            lookup[key] = avg;
+            yearsSet.add(r.year);
+        });
+
+        var years = [...yearsSet].sort((a,b) => b - a);
+        var months = [1,2,3,4,5,6,7,8,9,10,11,12];
+        var monthAbbr = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+        var html = '<thead><tr><th>Year</th>';
+        monthAbbr.forEach(m => { html += `<th>${m}</th>`; });
+        html += '</tr></thead><tbody>';
+
+        years.forEach(y => {
+            html += `<tr><td class="year-col">${y}</td>`;
+            months.forEach(m => {
+                var v = lookup[`${y}-${m}`] || 0;
+                var disp = v > 0 ? v.toFixed(0) : '';
+                var band = getActualBand(v);
+                var bg = band ? band.color : '#f8fafc';
+                var tc = (!band) ? '#94a3b8'
+                    : (band.color === '#6B0000' || band.color === '#A81A0A' ||
+                       band.color === '#D23F0F' || band.color === '#05204A') ? '#ffffff'
+                    : 'rgba(0,0,0,.75)';
+                var title = `${monthAbbr[m-1]} ${y}: ${v.toFixed(1)} mm`;
+                html += `<td style="background:${bg}; color:${tc};" title="${title}">${disp}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody>';
+
+        document.getElementById('heatmapTable').innerHTML = html;
+
+        var provLabel = state.province || 'All Provinces';
+        document.getElementById('heatmapHint').textContent =
+            `${years.length} years · ${provLabel} · Monthly totals (mm)`;
+    }
+
+    function renderSPILegend() {
+        var html = '';
+        SPI_BANDS.forEach(b => {
+            html += `
+                <div class="legend-block">
+                    <div class="swatch" style="background:${b.color};"></div>
+                    <div class="info">
+                        <span class="name">${b.name}</span>
+                        <span class="range">${b.range}</span>
+                    </div>
+                </div>`;
+        });
+        document.getElementById('heatmapLegend').innerHTML = html;
+    }
+
+    function renderActualLegend() {
+        var html = '';
+        ACTUAL_BANDS.forEach(b => {
+            html += `
+                <div class="legend-block">
+                    <div class="swatch" style="background:${b.color};"></div>
+                    <div class="info">
+                        <span class="name">${b.name}</span>
+                        <span class="range">${b.range}</span>
+                    </div>
+                </div>`;
+        });
+        document.getElementById('heatmapLegend').innerHTML = html;
+    }
+
     function renderCumulativeCurve(dekData) {
         if (!dekData || !dekData.data || !dekData.data.length) return;
 
@@ -506,23 +775,16 @@
                 responsive:true, maintainAspectRatio:false, animation:false,
                 interaction: { mode: 'index', intersect: false },
                 plugins: {
-                    legend: {
-                        position:'top',
-                        labels:{ boxWidth:14, font:{ size:13, weight:'500' } }
-                    },
+                    legend: { position:'top', labels:{ boxWidth:14, font:{ size:13, weight:'500' } } },
                     tooltip: {
-                        bodyFont: { size:13 },
-                        titleFont: { size:13 },
+                        bodyFont: { size:13 }, titleFont: { size:13 },
                         callbacks: {
                             label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(0)} mm`
                         }
                     }
                 },
                 scales: {
-                    x: {
-                        ticks:{ font:{ size:12 }, maxRotation:45 },
-                        grid:{ display:false }
-                    },
+                    x: { ticks:{ font:{ size:12 }, maxRotation:45 }, grid:{ display:false } },
                     y: {
                         beginAtZero: true,
                         title: { display:true, text:'Cumulative Rainfall (mm)', font:{ size:12 } },
@@ -536,9 +798,6 @@
             `${state.season} ${state.seasonYear-1}/${state.seasonYear} · ${labels.length} dekads`;
     }
 
-    // -------------------------------------------------------------
-    // DEKADAL BARS — all bars, fonts increased
-    // -------------------------------------------------------------
     function renderDekadalBars(dekData) {
         if (!dekData || !dekData.data || !dekData.data.length) return;
 
@@ -555,35 +814,17 @@
             data: {
                 labels: labels,
                 datasets: [
-                    {
-                        label: 'Actual',
-                        data: actual,
-                        backgroundColor: '#16a34a',
-                        borderColor: '#15803d',
-                        borderWidth: 1,
-                        borderRadius: 3
-                    },
-                    {
-                        label: 'LTA',
-                        data: lta,
-                        backgroundColor: '#dc2626',
-                        borderColor: '#991b1b',
-                        borderWidth: 1,
-                        borderRadius: 3
-                    }
+                    { label: 'Actual', data: actual, backgroundColor: '#16a34a', borderColor: '#15803d', borderWidth: 1, borderRadius: 3 },
+                    { label: 'LTA',    data: lta,    backgroundColor: '#dc2626', borderColor: '#991b1b', borderWidth: 1, borderRadius: 3 }
                 ]
             },
             options: {
                 responsive:true, maintainAspectRatio:false, animation:false,
                 interaction: { mode: 'index', intersect: false },
                 plugins: {
-                    legend: {
-                        position:'top',
-                        labels:{ boxWidth:14, font:{ size:13, weight:'500' } }
-                    },
+                    legend: { position:'top', labels:{ boxWidth:14, font:{ size:13, weight:'500' } } },
                     tooltip: {
-                        bodyFont: { size:13 },
-                        titleFont: { size:13 },
+                        bodyFont: { size:13 }, titleFont: { size:13 },
                         callbacks: {
                             label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} mm`
                         }
@@ -591,94 +832,12 @@
                 },
                 scales: {
                     x: { ticks:{ font:{ size:12 }, maxRotation:45 }, grid:{ display:false } },
-                    y: {
-                        beginAtZero:true,
-                        title:{ display:true, text:'Rainfall (mm)', font:{ size:12 } },
-                        ticks:{ font:{ size:12 } }
-                    }
+                    y: { beginAtZero:true, title:{ display:true, text:'Rainfall (mm)', font:{ size:12 } }, ticks:{ font:{ size:12 } } }
                 }
             }
         });
     }
 
-    // -------------------------------------------------------------
-    // HEATMAP — no total, new colour palette, bigger cells
-    // -------------------------------------------------------------
-    function renderMonthlyHeatmap(monData) {
-        if (!monData || !monData.data || !monData.data.length) {
-            document.getElementById('heatmapTable').innerHTML =
-                '<tr><td style="padding:20px; text-align:center; color:#94a3b8;">No data available for this province</td></tr>';
-            return;
-        }
-
-        var provinces = monData.provinces || [];
-        var rows = monData.data;
-
-        var lookup = {};
-        var yearsSet = new Set();
-        rows.forEach(r => {
-            var key = `${r.year}-${r.month}`;
-            var vals = provinces.map(p => r[p] || 0);
-            var avg = vals.reduce((a,b) => a+b, 0) / (provinces.length || 1);
-            lookup[key] = avg;
-            yearsSet.add(r.year);
-        });
-
-        var years = [...yearsSet].sort((a,b) => b - a);
-        var months = [1,2,3,4,5,6,7,8,9,10,11,12];
-        var monthAbbr = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-        var allVals = Object.values(lookup).filter(v => v > 0);
-        var minV = allVals.length ? Math.min(...allVals) : 0;
-        var maxV = allVals.length ? Math.max(...allVals) : 1;
-
-        function colorFor(v) {
-            if (v === undefined || v === null || v === 0) return '#f8fafc';
-            var t = (v - minV) / (maxV - minV || 1);
-            var idx = Math.min(HEATMAP_COLORS.length - 1,
-                              Math.floor(t * HEATMAP_COLORS.length));
-            return HEATMAP_COLORS[idx];
-        }
-
-        // Determine text colour based on background darkness
-        function textColorFor(bgIdx) {
-            // First two colours (dark reds) need white text
-            return bgIdx <= 1 ? '#ffffff' : 'rgba(0,0,0,.75)';
-        }
-
-        // Header row — no Total column
-        var html = '<thead><tr><th>Year</th>';
-        monthAbbr.forEach(m => { html += `<th>${m}</th>`; });
-        html += '</tr></thead><tbody>';
-
-        years.forEach(y => {
-            html += `<tr><td class="year-col">${y}</td>`;
-            months.forEach(m => {
-                var v = lookup[`${y}-${m}`] || 0;
-                var disp = v > 0 ? v.toFixed(0) : '';
-                var bg = colorFor(v);
-                var idx = v > 0
-                    ? Math.min(HEATMAP_COLORS.length - 1,
-                               Math.floor(((v - minV) / (maxV - minV || 1)) * HEATMAP_COLORS.length))
-                    : 4;  // neutral index for empty cells
-                var tc = v > 0 ? textColorFor(idx) : '#94a3b8';
-                html += `<td style="background:${bg}; color:${tc};"
-                            title="${monthAbbr[m-1]} ${y}: ${v.toFixed(1)} mm">${disp}</td>`;
-            });
-            html += '</tr>';
-        });
-        html += '</tbody>';
-
-        document.getElementById('heatmapTable').innerHTML = html;
-
-        var provLabel = state.province || 'All Provinces';
-        document.getElementById('heatmapHint').textContent =
-            `${years.length} years · ${provLabel}`;
-    }
-
-    // -------------------------------------------------------------
-    // KPIs
-    // -------------------------------------------------------------
     function updateKPIs(dekData, annData) {
         if (!dekData || !dekData.data || !dekData.data.length) return;
 
@@ -730,12 +889,10 @@
         document.getElementById('kpiDrySpell').textContent = maxDry + ' dekads';
     }
 
-    // -------------------------------------------------------------
-    // INIT
-    // -------------------------------------------------------------
     document.addEventListener('DOMContentLoaded', () => {
         initYearSelects();
-        setTimeout(loadSeasonData, 300);
+        renderSPILegend();
+        setTimeout(loadSeasonData, 200);
     });
 </script>
 </body>

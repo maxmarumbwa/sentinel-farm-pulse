@@ -40,6 +40,29 @@
             box-shadow:0 0 0 3px rgba(45,106,79,.1);
         }
 
+        /* Toggle switch for heatmap values */
+        .toggle-switch {
+            display:inline-flex; align-items:center; gap:8px;
+            padding:6px 12px; border-radius:6px; cursor:pointer;
+            background:#f8fafc; border:1px solid #e2e8f0;
+            font-size:13px; font-weight:600; color:#475569;
+            transition:.15s; user-select:none;
+        }
+        .toggle-switch:hover { border-color:#7e9fc7; background:#f0f7ff; }
+        .toggle-switch input { display:none; }
+        .toggle-slider {
+            width:34px; height:19px; background:#cbd5e1;
+            border-radius:100px; display:inline-block;
+            position:relative; transition:.2s; flex-shrink:0;
+        }
+        .toggle-slider::after {
+            content:''; width:15px; height:15px; background:white;
+            border-radius:50%; position:absolute; top:2px; left:2px;
+            transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,.2);
+        }
+        input:checked + .toggle-slider { background:#2d6a4f; }
+        input:checked + .toggle-slider::after { left:17px; }
+
         .kpi-strip {
             display:grid; grid-template-columns:repeat(4,1fr); gap:12px;
             padding:12px 24px; background:white; border-bottom:1px solid #e2e8f0;
@@ -124,6 +147,32 @@
             color:#2d6a4f;
             border-bottom-color:#2d6a4f;
         }
+
+        /* Heatmap controls row (start month + value toggle) */
+        .heatmap-controls {
+            display:flex;
+            align-items:center;
+            gap:14px;
+            flex-wrap:wrap;
+            padding:6px 0 10px 0;
+            border-bottom:1px solid #f1f5f9;
+            margin-bottom:8px;
+            flex-shrink:0;
+        }
+        .heatmap-controls .control-group label { font-size:12px; }
+        .heatmap-controls .control-group select {
+            padding:5px 8px; font-size:12px;
+        }
+        .heatmap-controls .toggle-switch {
+            padding:4px 10px; font-size:12px;
+        }
+        .heatmap-controls .toggle-slider {
+            width:30px; height:17px;
+        }
+        .heatmap-controls .toggle-slider::after {
+            width:13px; height:13px;
+        }
+        .heatmap-controls input:checked + .toggle-slider::after { left:15px; }
 
         .heatmap-wrapper {
             flex:1;
@@ -369,6 +418,32 @@
                 </button>
             </div>
 
+            <!-- NEW: heatmap controls row — start month selector + value toggle -->
+            <div class="heatmap-controls">
+                <div class="control-group">
+                    <label for="heatmapStartMonth"><i class="fas fa-calendar-alt" style="color:#94a3b8; margin-right:3px;"></i> Start month:</label>
+                    <select id="heatmapStartMonth">
+                        <option value="0">January</option>
+                        <option value="1">February</option>
+                        <option value="2">March</option>
+                        <option value="3">April</option>
+                        <option value="4">May</option>
+                        <option value="5">June</option>
+                        <option value="6">July</option>
+                        <option value="7">August</option>
+                        <option value="8" selected>September</option>
+                        <option value="9">October</option>
+                        <option value="10">November</option>
+                        <option value="11">December</option>
+                    </select>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="heatmapShowValues" checked>
+                    <span class="toggle-slider"></span>
+                    <span>Show values</span>
+                </label>
+            </div>
+
             <div class="heatmap-wrapper">
                 <table class="heatmap-table" id="heatmapTable"></table>
             </div>
@@ -389,7 +464,9 @@
         seasonYear: null,
         season: 'ONDJFM',
         province: '',
-        heatmapView: 'zscore'
+        heatmapView: 'zscore',
+        heatmapStartMonth: 8,     // September (0-based: 8 = September)
+        heatmapShowValues: true
     };
     var heatmapLoadedForProvince = null;
     var loadTimeout = null;
@@ -418,6 +495,9 @@
         { name: 'Very wet',      range: '150 to 200 mm',  max: 200,      color: '#2171B5' },
         { name: 'Extremely wet', range: '> 200 mm',       max: Infinity, color: '#05204A' }
     ];
+
+    // Month abbreviations indexed 0-11 (Jan=0, Dec=11)
+    var MONTH_ABBRS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
     function getSPIBand(z) {
         if (z === null) return null;
@@ -458,6 +538,18 @@
             state.province = document.getElementById('provinceSelect').value;
             heatmapLoadedForProvince = null;
             scheduleReload();
+        };
+
+        // NEW: heatmap start month selector
+        document.getElementById('heatmapStartMonth').onchange = (e) => {
+            state.heatmapStartMonth = parseInt(e.target.value, 10);
+            if (cachedHeatmapData) renderHeatmap();
+        };
+
+        // NEW: heatmap values toggle
+        document.getElementById('heatmapShowValues').onchange = (e) => {
+            state.heatmapShowValues = e.target.checked;
+            if (cachedHeatmapData) renderHeatmap();
         };
     }
 
@@ -571,6 +663,15 @@
         }
     }
 
+    // Helper: get re-ordered month indices based on start month
+    function getMonthOrder() {
+        var order = [];
+        for (var i = 0; i < 12; i++) {
+            order.push((state.heatmapStartMonth + i) % 12); // 0-based month index
+        }
+        return order;
+    }
+
     function renderHeatmapSPI() {
         var provinces = cachedHeatmapData.provinces || [];
         var rows = cachedHeatmapData.data;
@@ -578,13 +679,14 @@
         var lookup = {};
         var yearsSet = new Set();
         rows.forEach(r => {
-            var key = `${r.year}-${r.month}`;
+            var key = `${r.year}-${r.month}`; // r.month is 1-12
             var vals = provinces.map(p => r[p] || 0);
             var avg = vals.reduce((a,b) => a+b, 0) / (provinces.length || 1);
             lookup[key] = avg;
             yearsSet.add(r.year);
         });
 
+        // Compute monthly stats using the full dataset (not reordered — stats are per calendar month)
         var monthStats = {};
         for (var m = 1; m <= 12; m++) {
             var vals = [];
@@ -602,7 +704,7 @@
             }
         }
 
-        function spiFor(year, month) {
+        function spiFor(year, month) { // month 1-12
             var v = lookup[`${year}-${month}`];
             if (v === undefined || v === 0) return null;
             var stat = monthStats[month];
@@ -611,16 +713,18 @@
         }
 
         var years = [...yearsSet].sort((a,b) => b - a);
-        var months = [1,2,3,4,5,6,7,8,9,10,11,12];
-        var monthAbbr = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var monthOrder = getMonthOrder(); // array of 0-based month indices in display order
 
         var html = '<thead><tr><th>Year</th>';
-        monthAbbr.forEach(m => { html += `<th>${m}</th>`; });
+        monthOrder.forEach(mIdx => {
+            html += `<th>${MONTH_ABBRS[mIdx]}</th>`;
+        });
         html += '</tr></thead><tbody>';
 
         years.forEach(y => {
             html += `<tr><td class="year-col">${y}</td>`;
-            months.forEach(m => {
+            monthOrder.forEach(mIdx => {
+                var m = mIdx + 1; // 1-12 for lookup
                 var z = spiFor(y, m);
                 var v = lookup[`${y}-${m}`] || 0;
                 var disp = z !== null ? z.toFixed(1) : (v > 0 ? '·' : '');
@@ -634,9 +738,12 @@
                                   band.color === '#A81A0A' || band.color === '#6B0000')) tc = '#ffffff';
 
                 var title = z !== null
-                    ? `${monthAbbr[m-1]} ${y} — ${v.toFixed(1)} mm · SPI=${z.toFixed(2)} (${band ? band.name : '—'})`
-                    : `${monthAbbr[m-1]} ${y} — no data`;
-                html += `<td style="background:${bg}; color:${tc};" title="${title}">${disp}</td>`;
+                    ? `${MONTH_ABBRS[mIdx]} ${y} — ${v.toFixed(1)} mm · SPI=${z.toFixed(2)} (${band ? band.name : '—'})`
+                    : `${MONTH_ABBRS[mIdx]} ${y} — no data`;
+
+                // Show value only if toggle is on
+                var displayText = state.heatmapShowValues ? disp : '';
+                html += `<td style="background:${bg}; color:${tc};" title="${title}">${displayText}</td>`;
             });
             html += '</tr>';
         });
@@ -664,16 +771,18 @@
         });
 
         var years = [...yearsSet].sort((a,b) => b - a);
-        var months = [1,2,3,4,5,6,7,8,9,10,11,12];
-        var monthAbbr = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var monthOrder = getMonthOrder();
 
         var html = '<thead><tr><th>Year</th>';
-        monthAbbr.forEach(m => { html += `<th>${m}</th>`; });
+        monthOrder.forEach(mIdx => {
+            html += `<th>${MONTH_ABBRS[mIdx]}</th>`;
+        });
         html += '</tr></thead><tbody>';
 
         years.forEach(y => {
             html += `<tr><td class="year-col">${y}</td>`;
-            months.forEach(m => {
+            monthOrder.forEach(mIdx => {
+                var m = mIdx + 1;
                 var v = lookup[`${y}-${m}`] || 0;
                 var disp = v > 0 ? v.toFixed(0) : '';
                 var band = getActualBand(v);
@@ -682,8 +791,10 @@
                     : (band.color === '#6B0000' || band.color === '#A81A0A' ||
                        band.color === '#D23F0F' || band.color === '#05204A') ? '#ffffff'
                     : 'rgba(0,0,0,.75)';
-                var title = `${monthAbbr[m-1]} ${y}: ${v.toFixed(1)} mm`;
-                html += `<td style="background:${bg}; color:${tc};" title="${title}">${disp}</td>`;
+                var title = `${MONTH_ABBRS[mIdx]} ${y}: ${v.toFixed(1)} mm`;
+
+                var displayText = state.heatmapShowValues ? disp : '';
+                html += `<td style="background:${bg}; color:${tc};" title="${title}">${displayText}</td>`;
             });
             html += '</tr>';
         });

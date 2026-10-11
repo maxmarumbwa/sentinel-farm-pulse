@@ -4,10 +4,10 @@ from . import views
 app_name = 'fields_admin'
 
 urlpatterns = [
-    path('a/', views.sentinel_truecolour, name='sentinel_truecolour-test'),
+    path('', views.home, name='home'),
     path('test/', views.test, name='test'),
     path('fields/digitize/', views.digitize_field, name='digitize_field'),
-    path('',views.sentinel_truecolour,name='sentinel_truecolour'),
+    path('digitize/',views.sentinel_truecolour,name='sentinel_truecolour'),
     #path("fields/digitize-sentinel/",views.sentinel_truecolour,name="sentinel_truecolour"),
     path('fields/digitize2/', views.digitize_field2, name='digitize_field2'),
     path('api/fields/', views.api_create_field, name='api_create_field'),

@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Seasonal Cumulative Rainfall</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family:'Inter',sans-serif; background:#f8fafc; color:#1e293b;
+            height:100vh; display:flex; flex-direction:column; overflow:hidden;
+        }
+        .header {
+            background:#2c3e50; color:white; padding:12px 24px;
+            display:flex; justify-content:space-between; align-items:center;
+            box-shadow:0 2px 8px rgba(0,0,0,.15);
+        }
+        .header h1 { font-size:18px; display:flex; align-items:center; gap:10px; }
+        .header a {
+            color:white; text-decoration:none; padding:6px 12px;
+            border-radius:4px; font-size:13px; background:rgba(255,255,255,.15);
+        }
+        .header a:hover { background:rgba(255,255,255,.25); }
+
+        .toolbar {
+            background:white; padding:10px 24px;
+            display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+            border-bottom:1px solid #e2e8f0;
+        }
+        .control-group { display:flex; align-items:center; gap:6px; }
+        .control-group label { font-size:12px; font-weight:600; color:#475569; }
+        .control-group select {
+            padding:7px 10px; border:1px solid #e2e8f0; border-radius:6px;
+            font-size:13px; font-family:'Inter',sans-serif; background:#f8fafc;
+        }
+        .control-group select:focus {
+            outline:none; border-color:#2d6a4f; background:white;
+            box-shadow:0 0 0 3px rgba(45,106,79,.1);
+        }
+        .btn-primary {
+            background:#2d6a4f; color:white; border:none;
+            padding:8px 18px; border-radius:6px; font-size:13px; font-weight:500;
+            cursor:pointer; display:flex; align-items:center; gap:6px;
+        }
+        .btn-primary:hover { background:#1b4332; }
+
+        .kpi-strip {
+            display:grid; grid-template-columns:repeat(4,1fr); gap:12px;
+            padding:14px 24px; background:white; border-bottom:1px solid #e2e8f0;
+        }
+        .kpi {
+            background:linear-gradient(135deg,#f8fafc,#f1f5f9);
+            border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px;
+            display:flex; justify-content:space-between; align-items:center;
+        }
+        .kpi.primary {
+            background:linear-gradient(135deg,#065f46,#2d6a4f);
+            border-color:#2d6a4f; color:white;
+        }
+        .kpi.primary .kpi-label { color:#a7f3d0; }
+        .kpi.primary .kpi-sub { color:#6ee7b7; }
+        .kpi-label { font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:#94a3b8; font-weight:600; }
+        .kpi-value { font-size:20px; font-weight:700; margin-top:3px; }
+        .kpi-sub { font-size:10px; color:#94a3b8; margin-top:2px; }
+        .kpi-icon { font-size:22px; opacity:.35; }
+
+        .main-layout {
+            flex:1; display:grid; grid-template-columns:1fr 1fr;
+            gap:0; overflow:hidden;
+        }
+        .chart-panel {
+            overflow-y:auto; padding:14px;
+            background:#f1f5f9; display:flex; flex-direction:column; gap:12px;
+        }
+        .chart-card {
+            background:white; border-radius:10px; padding:14px 16px;
+            box-shadow:0 2px 8px rgba(0,0,0,.05); border:1px solid #e2e8f0;
+        }
+        .chart-card h3 {
+            font-size:13px; font-weight:600; color:#0f172a; margin-bottom:10px;
+            display:flex; justify-content:space-between; align-items:center;
+        }
+        .chart-card h3 .hint { font-size:10px; color:#94a3b8; font-weight:400; }
+        .chart-wrapper { position:relative; height:230px; }
+        .chart-wrapper.tall { height:340px; }
+        .chart-wrapper canvas { width:100%!important; height:100%!important; }
+
+        .heatmap-wrapper { overflow-x:auto; }
+        .heatmap-table { border-collapse:separate; border-spacing:2px; font-size:10px; }
+        .heatmap-table th {
+            padding:4px 6px; font-size:9px; font-weight:600; color:#64748b;
+            text-transform:uppercase; background:transparent;
+        }
+        .heatmap-table td {
+            width:32px; height:24px; text-align:center;
+            border-radius:3px; font-size:9px; font-weight:500; color:rgba(0,0,0,.6);
+            transition:transform .15s;
+        }
+        .heatmap-table td:hover { transform:scale(1.15); outline:2px solid #0f172a; }
+        .heatmap-legend {
+            display:flex; gap:4px; align-items:center; margin-top:8px;
+            font-size:10px; color:#64748b;
+        }
+        .heatmap-legend .swatch { width:24px; height:12px; border-radius:2px; }
+
+        .loading {
+            position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+            background:white; padding:24px 40px; border-radius:12px;
+            box-shadow:0 8px 32px rgba(0,0,0,.15); z-index:9999;
+            display:none; text-align:center;
+        }
+        .loading.show { display:block; }
+        .loading i {
+            font-size:32px; color:#2d6a4f;
+            animation:spin 1s linear infinite; display:block; margin-bottom:10px;
+        }
+        @keyframes spin { 0% { transform:rotate(0); } 100% { transform:rotate(360deg); } }
+
+        @media (max-width:1000px) {
+            .kpi-strip { grid-template-columns:repeat(2,1fr); }
+            .main-layout { grid-template-columns:1fr; grid-template-rows:1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<header class="header">
+    <h1><i class="fas fa-water"></i> Seasonal Cumulative Rainfall</h1>
+    <a href="{% url 'fields_admin:field_dashboard' %}"><i class="fas fa-arrow-left"></i> Back</a>
+</header>
+
+<div class="toolbar">
+    <div class="control-group">
+        <label>Season Year:</label>
+        <select id="seasonYear"></select>
+    </div>
+    <div class="control-group">
+        <label>Season:</label>
+        <select id="seasonSelect">
+            <option value="ONDJFM" selected>ONDJFM (Oct-Mar, rainy season)</option>
+            <option value="FULL">Full Year (Jan-Dec)</option>
+            <option value="OND">OND (Oct-Dec early)</option>
+            <option value="DJF">DJF (Dec-Feb peak)</option>
+            <option value="JFM">JFM (Jan-Mar late)</option>
+        </select>
+    </div>
+    <div class="control-group">
+        <label>Province:</label>
+        <select id="provinceSelect">
+            <option value="">All Provinces (Average)</option>
+            <option value="Harare">Harare</option>
+            <option value="Bulawayo">Bulawayo</option>
+            <option value="Manicaland">Manicaland</option>
+            <option value="Mashonaland Central">Mashonaland Central</option>
+            <option value="Mashonaland East">Mashonaland East</option>
+            <option value="Mashonaland West">Mashonaland West</option>
+            <option value="Masvingo">Masvingo</option>
+            <option value="Matabeleland North">Matabeleland North</option>
+            <option value="Matabeleland South">Matabeleland South</option>
+            <option value="Midlands">Midlands</option>
+        </select>
+    </div>
+    <button class="btn-primary" onclick="loadAll()">
+        <i class="fas fa-sync-alt"></i> Load
+    </button>
+</div>
+
+<div class="kpi-strip">
+    <div class="kpi primary">
+        <div>
+            <div class="kpi-label">Season Total</div>
+            <div class="kpi-value" id="kpiTotal">—</div>
+            <div class="kpi-sub" id="kpiTotalSub">—</div>
+        </div>
+        <i class="fas fa-cloud-rain kpi-icon"></i>
+    </div>
+    <div class="kpi">
+        <div>
+            <div class="kpi-label">vs LTA</div>
+            <div class="kpi-value" id="kpiAnomaly">—</div>
+            <div class="kpi-sub" id="kpiAnomalyPct">—</div>
+        </div>
+        <i class="fas fa-chart-line kpi-icon"></i>
+    </div>
+    <div class="kpi">
+        <div>
+            <div class="kpi-label">Wettest Dekad</div>
+            <div class="kpi-value" id="kpiWettest">—</div>
+            <div class="kpi-sub" id="kpiWettestDate">—</div>
+        </div>
+        <i class="fas fa-tint kpi-icon"></i>
+    </div>
+    <div class="kpi">
+        <div>
+            <div class="kpi-label">Longest Dry Spell</div>
+            <div class="kpi-value" id="kpiDrySpell">—</div>
+            <div class="kpi-sub">consecutive dekads &lt; 5mm</div>
+        </div>
+        <i class="fas fa-sun kpi-icon"></i>
+    </div>
+</div>
+
+<div class="main-layout">
+    <div class="chart-panel">
+        <div class="chart-card">
+            <h3>
+                <span><i class="fas fa-chart-area" style="color:#2d6a4f;"></i> Cumulative Rainfall Progress</span>
+                <span class="hint" id="cumHint">—</span>
+            </h3>
+            <div class="chart-wrapper tall"><canvas id="cumChart"></canvas></div>
+        </div>
+    </div>
+
+    <div class="chart-panel">
+        <div class="chart-card">
+            <h3>
+                <span><i class="fas fa-chart-bar" style="color:#3b82f6;"></i> Dekadal Rainfall (10-day totals)</span>
+                <span class="hint">Red = below LTA, Green = above</span>
+            </h3>
+            <div class="chart-wrapper"><canvas id="dekadChart"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+            <h3>
+                <span><i class="fas fa-th" style="color:#f59e0b;"></i> Monthly Rainfall Heatmap</span>
+                <span class="hint">Rows = Years, Cols = Months</span>
+            </h3>
+            <div class="heatmap-wrapper">
+                <table class="heatmap-table" id="heatmapTable"></table>
+            </div>
+            <div class="heatmap-legend">
+                <span>Dry</span>
+                <div class="swatch" style="background:#fef3c7;"></div>
+                <div class="swatch" style="background:#fcd34d;"></div>
+                <div class="swatch" style="background:#a3e635;"></div>
+                <div class="swatch" style="background:#16a34a;"></div>
+                <div class="swatch" style="background:#0369a1;"></div>
+                <span>Wet</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="loading" id="loading">
+    <i class="fas fa-spinner"></i>
+    <div style="font-size:13px; color:#64748b;">Loading rainfall data...</div>
+</div>
+
+<script>
+    // -------------------------------------------------------------
+    // STATE
+    // -------------------------------------------------------------
+    var cumChart, dekadChart;
+    var state = {
+        seasonYear: null,
+        season: 'ONDJFM',
+        province: ''
+    };
+
+    // -------------------------------------------------------------
+    // INIT YEAR SELECTOR
+    // -------------------------------------------------------------
+    function initYearSelects() {
+        var now = new Date().getFullYear();
+        var sel = document.getElementById('seasonYear');
+        sel.innerHTML = '';
+        for (var y = now; y >= 2000; y--) {
+            sel.innerHTML += `<option value="${y}" ${y===now-1?'selected':''}>${y-1}/${y}</option>`;
+        }
+        state.seasonYear = parseInt(sel.value);
+        sel.onchange = () => { state.seasonYear = parseInt(sel.value); };
+    }
+
+    // -------------------------------------------------------------
+    // SEASON MONTH DEFINITIONS
+    // -------------------------------------------------------------
+    function getSeasonMonths(season, year) {
+        var defs = {
+            FULL:   { months: [1,2,3,4,5,6,7,8,9,10,11,12], cross: false },
+            OND:    { months: [10,11,12], cross: false },
+            DJF:    { months: [12,1,2], cross: true  },
+            JFM:    { months: [1,2,3], cross: false },
+            ONDJFM: { months: [10,11,12,1,2,3], cross: true  }
+        };
+        var def = defs[season] || defs.ONDJFM;
+        var out = [];
+        def.months.forEach(m => {
+            if (def.cross && m <= 3) {
+                out.push({ year: year, month: m });
+            } else if (def.cross && m >= 10) {
+                out.push({ year: year - 1, month: m });
+            } else {
+                out.push({ year: year, month: m });
+            }
+        });
+        return out;
+    }
+
+    function getSeasonDateRange(season, year) {
+        var months = getSeasonMonths(season, year);
+        var first = months[0], last = months[months.length - 1];
+        var start = `${first.year}-${String(first.month).padStart(2,'0')}-01`;
+        var lastDay = new Date(last.year, last.month, 0).getDate();
+        var end = `${last.year}-${String(last.month).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+        return { start, end };
+    }
+
+    // -------------------------------------------------------------
+    // LOADING
+    // -------------------------------------------------------------
+    function showLoading() { document.getElementById('loading').classList.add('show'); }
+    function hideLoading() { document.getElementById('loading').classList.remove('show'); }
+
+    // -------------------------------------------------------------
+    // MAIN LOAD
+    // -------------------------------------------------------------
+    function loadAll() {
+        state.season = document.getElementById('seasonSelect').value;
+        state.province = document.getElementById('provinceSelect').value;
+
+        showLoading();
+
+        var range = getSeasonDateRange(state.season, state.seasonYear);
+
+        var urlDek = `/api/rainfall/dekadal/?start_date=${range.start}&end_date=${range.end}`;
+        var urlMon = `/api/rainfall/monthly/?start_date=${range.start}&end_date=${range.end}`;
+        var urlAnn = `/api/rainfall/annual/?start_year=${state.seasonYear-5}&end_year=${state.seasonYear}&season=${state.season}`;
+
+        if (state.province) {
+            urlDek += `&province=${encodeURIComponent(state.province)}`;
+            urlMon += `&province=${encodeURIComponent(state.province)}`;
+            urlAnn += `&province=${encodeURIComponent(state.province)}`;
+        }
+
+        Promise.all([
+            fetch(urlDek).then(r => r.json()),
+            fetch(urlMon).then(r => r.json()),
+            fetch(urlAnn).then(r => r.json())
+        ])
+        .then(([dekData, monData, annData]) => {
+            renderCumulativeCurve(dekData);
+            renderDekadalBars(dekData);
+            renderMonthlyHeatmap(monData);
+            updateKPIs(dekData, annData);
+        })
+        .catch(e => console.error(e))
+        .finally(() => hideLoading());
+    }
+
+    // -------------------------------------------------------------
+    // CUMULATIVE CURVE
+    // -------------------------------------------------------------
+    function renderCumulativeCurve(dekData) {
+        if (!dekData || !dekData.data || !dekData.data.length) return;
+
+        var provinces = dekData.provinces || [];
+        var rows = dekData.data;
+
+        var dekadTotals = rows.map(r => {
+            return provinces.reduce((s, p) => s + (r[p] || 0), 0) / (provinces.length || 1);
+        });
+
+        var cumulative = [];
+        var cum = 0;
+        dekadTotals.forEach(v => { cum += v; cumulative.push(+cum.toFixed(1)); });
+
+        var labels = rows.map(r => `${r.month_abbr}-D${r.dekad}`);
+
+        var ltaCumulative = [];
+        var ltaCum = 0;
+        rows.forEach(r => {
+            var avgLta = provinces.reduce((s, p) => s + (r[`${p}_lta`] || 0), 0) / (provinces.length || 1);
+            ltaCum += avgLta;
+            ltaCumulative.push(+ltaCum.toFixed(1));
+        });
+
+        var datasets = [
+            {
+                label: 'Current Season',
+                data: cumulative,
+                borderColor: '#2d6a4f',
+                backgroundColor: 'rgba(45,106,79,.15)',
+                borderWidth: 3, pointRadius: 2, tension: .3, fill: true
+            },
+            {
+                label: 'Long-Term Average',
+                data: ltaCumulative,
+                borderColor: '#94a3b8',
+                backgroundColor: 'rgba(148,163,184,.08)',
+                borderWidth: 2, borderDash: [6,4], pointRadius: 0, tension: .3, fill: false
+            }
+        ];
+
+        if (cumChart) cumChart.destroy();
+        cumChart = new Chart(document.getElementById('cumChart').getContext('2d'), {
+            type: 'line',
+            data: { labels, datasets },
+            options: {
+                responsive:true, maintainAspectRatio:false, animation:false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position:'top', labels:{ boxWidth:12, font:{ size:11 } } },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(0)} mm`
+                        }
+                    }
+                },
+                scales: {
+                    x: { ticks:{ font:{ size:9 }, maxRotation:45 }, grid:{ display:false } },
+                    y: {
+                        beginAtZero: true,
+                        title: { display:true, text:'Cumulative Rainfall (mm)', font:{ size:10 } },
+                        ticks: { font:{ size:10 } }
+                    }
+                }
+            }
+        });
+
+        document.getElementById('cumHint').textContent =
+            `${state.season} ${state.seasonYear-1}/${state.seasonYear} · ${labels.length} dekads`;
+    }
+
+    // -------------------------------------------------------------
+    // DEKADAL BARS
+    // -------------------------------------------------------------
+    function renderDekadalBars(dekData) {
+        if (!dekData || !dekData.data || !dekData.data.length) return;
+
+        var provinces = dekData.provinces || [];
+        var rows = dekData.data;
+
+        var labels = rows.map(r => `${r.month_abbr}-D${r.dekad}`);
+        var actual = rows.map(r => provinces.reduce((s, p) => s + (r[p] || 0), 0) / (provinces.length || 1));
+        var lta    = rows.map(r => provinces.reduce((s, p) => s + (r[`${p}_lta`] || 0), 0) / (provinces.length || 1));
+
+        var colors = actual.map((v, i) => v >= lta[i] ? '#16a34a' : '#dc2626');
+
+        if (dekadChart) dekadChart.destroy();
+        dekadChart = new Chart(document.getElementById('dekadChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Actual', data: actual, backgroundColor: colors, borderRadius: 3 },
+                    {
+                        label: 'LTA', type: 'line', data: lta,
+                        borderColor: '#94a3b8', borderWidth: 2,
+                        borderDash: [4,3], pointRadius: 0, tension: .3, fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive:true, maintainAspectRatio:false, animation:false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position:'top', labels:{ boxWidth:10, font:{ size:10 } } },
+                    tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} mm` } }
+                },
+                scales: {
+                    x: { ticks:{ font:{ size:9 }, maxRotation:45 }, grid:{ display:false } },
+                    y: { beginAtZero:true, title:{ display:true, text:'Rainfall (mm)', font:{ size:10 } } }
+                }
+            }
+        });
+    }
+
+    // -------------------------------------------------------------
+    // MONTHLY HEATMAP
+    // -------------------------------------------------------------
+    function renderMonthlyHeatmap(monData) {
+        if (!monData || !monData.data || !monData.data.length) return;
+
+        var provinces = monData.provinces || [];
+        var rows = monData.data;
+
+        var lookup = {};
+        var yearsSet = new Set();
+        rows.forEach(r => {
+            var key = `${r.year}-${r.month}`;
+            var vals = provinces.map(p => r[p] || 0);
+            var avg = vals.reduce((a,b) => a+b, 0) / (provinces.length || 1);
+            lookup[key] = avg;
+            yearsSet.add(r.year);
+        });
+
+        var years = [...yearsSet].sort((a,b) => b - a);
+        var months = [1,2,3,4,5,6,7,8,9,10,11,12];
+        var monthAbbr = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+        var allVals = Object.values(lookup).filter(v => v > 0);
+        var minV = allVals.length ? Math.min(...allVals) : 0;
+        var maxV = allVals.length ? Math.max(...allVals) : 1;
+
+        function colorFor(v) {
+            if (v === undefined || v === null || v === 0) return '#f1f5f9';
+            var t = (v - minV) / (maxV - minV || 1);
+            if (t < 0.2) return '#fef3c7';
+            if (t < 0.4) return '#fcd34d';
+            if (t < 0.6) return '#a3e635';
+            if (t < 0.8) return '#16a34a';
+            return '#0369a1';
+        }
+
+        var html = '<thead><tr><th></th>';
+        monthAbbr.forEach(m => { html += `<th>${m}</th>`; });
+        html += '<th style="border-left:2px solid #e2e8f0;">Total</th></tr></thead><tbody>';
+
+        years.forEach(y => {
+            html += `<tr><th style="text-align:right; padding-right:8px;">${y}</th>`;
+            var total = 0;
+            months.forEach(m => {
+                var v = lookup[`${y}-${m}`] || 0;
+                total += v;
+                var disp = v > 0 ? v.toFixed(0) : '';
+                html += `<td style="background:${colorFor(v)};"
+                            title="${monthAbbr[m-1]} ${y}: ${v.toFixed(1)} mm">${disp}</td>`;
+            });
+            html += `<td style="background:#f8fafc; font-weight:700; color:#0f172a;">${total.toFixed(0)}</td></tr>`;
+        });
+        html += '</tbody>';
+        document.getElementById('heatmapTable').innerHTML = html;
+    }
+
+    // -------------------------------------------------------------
+    // KPIs
+    // -------------------------------------------------------------
+    function updateKPIs(dekData, annData) {
+        if (!dekData || !dekData.data || !dekData.data.length) return;
+
+        var provinces = dekData.provinces || [];
+        var rows = dekData.data;
+
+        var totalByProv = {};
+        provinces.forEach(p => { totalByProv[p] = 0; });
+        rows.forEach(r => {
+            provinces.forEach(p => { totalByProv[p] += (r[p] || 0); });
+        });
+
+        var totals = provinces.map(p => totalByProv[p]);
+        var seasonTotal = totals.reduce((a,b) => a+b, 0) / (provinces.length || 1);
+
+        var ltaTotal = 0;
+        rows.forEach(r => {
+            provinces.forEach(p => { ltaTotal += (r[`${p}_lta`] || 0); });
+        });
+        ltaTotal = ltaTotal / (provinces.length || 1);
+
+        var anomaly = seasonTotal - ltaTotal;
+        var pctOfLta = ltaTotal > 0 ? (seasonTotal / ltaTotal) * 100 : 0;
+
+        document.getElementById('kpiTotal').textContent = seasonTotal.toFixed(0) + ' mm';
+        document.getElementById('kpiTotalSub').textContent =
+            `${state.season} · ${provinces.length} provinces`;
+
+        document.getElementById('kpiAnomaly').textContent =
+            (anomaly >= 0 ? '+' : '') + anomaly.toFixed(0) + ' mm';
+        document.getElementById('kpiAnomaly').style.color =
+            anomaly >= 0 ? '#16a34a' : '#dc2626';
+        document.getElementById('kpiAnomalyPct').textContent =
+            `${pctOfLta.toFixed(0)}% of LTA`;
+
+        var dekadAvg = rows.map(r => ({
+            label: `${r.month_abbr}-D${r.dekad}`,
+            value: provinces.reduce((s, p) => s + (r[p] || 0), 0) / (provinces.length || 1)
+        }));
+        var wettest = dekadAvg.reduce((a, b) => a.value > b.value ? a : b);
+        document.getElementById('kpiWettest').textContent = wettest.value.toFixed(0) + ' mm';
+        document.getElementById('kpiWettestDate').textContent = wettest.label;
+
+        var maxDry = 0, curDry = 0;
+        dekadAvg.forEach(d => {
+            if (d.value < 5) { curDry++; maxDry = Math.max(maxDry, curDry); }
+            else { curDry = 0; }
+        });
+        document.getElementById('kpiDrySpell').textContent = maxDry + ' dekads';
+    }
+
+    // -------------------------------------------------------------
+    // INIT
+    // -------------------------------------------------------------
+    document.addEventListener('DOMContentLoaded', () => {
+        initYearSelects();
+        setTimeout(loadAll, 300);
+    });
+</script>
+</body>
+</html>

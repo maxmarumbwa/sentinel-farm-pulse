@@ -7508,8 +7508,13 @@ def rainfall_db_all(request):
 def rainfall_db_all_paged(request):
     return render(request, 'fields_admin/view_rainfall_db_all_paged.html', {})
 
-def rainfall_dashboad(request):
-    return render(request, 'fields_admin/rainfall_dashboard.html', {})
+def rainfall_dashboad_calendar(request):
+    return render(request, 'fields_admin/rainfall_dashboard_calendar.html', {})
+def rainfall_dashboad_cumm_heatmap(request):
+    return render(request, 'fields_admin/rainfall_dashboard_cumm_heatmap.html', {})
+
+
+
 def rainfall_to_db(request):
     return render(request, 'fields_admin/save_rain_to_db.html', {})
 def chart_rain(request):
@@ -8115,3 +8120,22 @@ def api_load_points(request):
             'error': str(e)
         }, status=500)
         
+
+
+####################################################################################################
+
+####################################################################################################
+####################################################################################################
+####################################################################################################
+####################################################################################################
+####################################################################################################
+####################################################################################################
+####################################################################################################
+
+def province_climate_view(request):
+    """Page: Provincial climate & vegetation explorer"""
+    return render(request, 'fields_admin/province_climate.html', {})
+
+def point_timeseries_view(request):
+    """Page: Point time-series analyzer"""
+    return render(request, 'fields_admin/point_timeseries.html', {})

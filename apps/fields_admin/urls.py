@@ -70,7 +70,10 @@ urlpatterns = [
     path('view/rainfall_db_all_paged/', views.rainfall_db_all_paged, name='rainfall_db_all_paged'),
     path('api/rainfall/export/', views.api_rainfall_export_csv, name='api_rainfall_export_csv'),
     path('api/rainfall_db_al_page/', views.api_rainfall_export_csv_paginated, name='api_rainfall_export'),
-    path('api/rainfall/dashboard/', views.rainfall_dashboad, name='rainfall_dashboad'),
+    path('rain/dashboard-calendar/', views.rainfall_dashboad_calendar, name='rainfall_dashboad_calendar'),
+    path('rain/dashboard-cumm-heatmap/', views.rainfall_dashboad_cumm_heatmap, name='rainfall_dashboad_cumm_heatmap'),
+    
+    
     ##### Db aggregation
         # Main aggregation endpoint
     path('api/climate/aggregate/', views.climate_aggregate, name='climate_aggregate'),
@@ -109,6 +112,5 @@ urlpatterns = [
         views.pixel_timeseries,
         name="pixel_timeseries")
         ,
-    
 ]
 

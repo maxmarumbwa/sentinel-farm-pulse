@@ -682,11 +682,11 @@
                 <div class="control-row">
                     <div class="control-group">
                         <label>Start</label>
-                        <input type="date" id="startDate" value="2025-06-01">
+                        <input type="date" id="startDate" value="2024-06-01">
                     </div>
                     <div class="control-group">
                         <label>End</label>
-                        <input type="date" id="endDate" value="2026-07-31">
+                        <input type="date" id="endDate" value="2025-07-28">
                     </div>
                 </div>
                 <div class="control-row">
@@ -919,6 +919,10 @@
         var isPlaying = false;
         var modalActiveFieldId = null;
 
+        // Default date range (used on init)
+        var DEFAULT_START_DATE = '2024-06-01';
+        var DEFAULT_END_DATE   = '2025-07-28';
+
         // ============================================================
         // INIT MAP
         // ============================================================
@@ -930,11 +934,9 @@
                 maxZoom: 19
             }).addTo(map);
 
-            var today = new Date();
-            var thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(today.getDate() - 30);
-            document.getElementById('endDate').value = today.toISOString().split('T')[0];
-            document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+            // Set default dates from constants
+            document.getElementById('startDate').value = DEFAULT_START_DATE;
+            document.getElementById('endDate').value = DEFAULT_END_DATE;
 
             if (!map.getPane("provincePane")) {
                 map.createPane("provincePane");
@@ -1705,13 +1707,11 @@
                 container.appendChild(badge);
             });
 
-            // Render chart AFTER layout has updated
             renderComparisonChart();
             renderDataTableAndSummary();
             setupTimeLapse();
             updateAlertUI(globalAlerts);
 
-            // Make sure chart resizes properly after the container is visible
             setTimeout(function() {
                 if (chartInstance) {
                     chartInstance.resize();
@@ -1731,12 +1731,10 @@
             updateFieldList();
         }
 
-        // ===== FIXED: renderComparisonChart with proper sizing =====
         function renderComparisonChart() {
             var canvas = document.getElementById('ndviChart');
             if (!canvas) return;
 
-            // Destroy old chart instance
             if (chartInstance) {
                 chartInstance.destroy();
                 chartInstance = null;
@@ -1762,7 +1760,6 @@
 
             var labels = selectedFields.length > 0 ? selectedFields[0].data.map(d => d.date) : [];
 
-            // Create chart with animation disabled so it renders immediately
             chartInstance = new Chart(ctx, {
                 type: 'line',
                 data: { labels: labels, datasets: datasets },
@@ -1801,7 +1798,6 @@
                 }
             });
 
-            // Force a resize after the chart is created so it fits the container
             setTimeout(function() {
                 if (chartInstance) { chartInstance.resize(); }
             }, 50);

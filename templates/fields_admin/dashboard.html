@@ -558,11 +558,12 @@
     <header class="header">
         <h1><i class="fas fa-map-marked-alt"></i> My Fields</h1>
         <div class="header-actions">
-            <a href="{% url 'fields_admin:sentinel_truecolour' %}">📊 Home - digitise fields</a>  
+            <a href="{% url 'fields_admin:sentinel_truecolour' %}" class="active">📊 Home - digitise fields</a>
             <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
             <a href="{% url 'fields_admin:ndvi_map' %}">🛰️ Monitor Fields</a>
             <a href="{% url 'fields_admin:chart_rain' %}">🌧️ Rainfall station</a>
-            <a href="{% url 'fields_admin:pixel_indicators' %}" class="active">📈 Farm indicators</a>
+            <a href="{% url 'fields_admin:pixel_indicators' %}">📈 Farm indicators</a>
+            <a href="{% url 'fields_admin:field_ndvi_graph' %}">📈 Analytics & Alerts</a>
         </div>
     </header>
 

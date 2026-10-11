@@ -30,55 +30,75 @@
             flex-direction: column;
         }
 
-        /* --- HEADER --- */
+        /* ============================================
+           MAIN HEADER (matches Rainfall Dashboard)
+           ============================================ */
         .header {
-            background: #ffffff;
-            border-bottom: 1px solid #e2e8f0;
-            padding: 12px 24px;
+            background: #2c3e50;
+            color: white;
+            padding: 12px 25px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            height: auto;
-            min-height: 64px;
             flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
             z-index: 10;
-            flex-wrap: wrap;
-            gap: 12px;
         }
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .header h1 { 
-            font-size: 18px; 
-            font-weight: 600; 
-            color: #0f172a;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .header h1 i { color: #2d6a4f; }
-        .header .badge {
-            background: #e8f5e9;
-            color: #2d6a4f;
-            font-size: 10px;
+        .header h1 {
+            font-size: 20px;
             font-weight: 600;
-            padding: 4px 10px;
-            border-radius: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .header h1 i { margin-right: 4px; }
+
+        #header-links{
+            display:flex;
+            gap:8px;
+            align-items:center;
+        }
+        #header-links a{
+            color:white;
+            text-decoration:none;
+            font-size:13px;
+            font-weight:500;
+            padding:6px 12px;
+            border-radius:4px;
+            transition:background 0.2s ease;
+        }
+        #header-links a:hover{
+            background:rgba(255,255,255,0.15);
+        }
+        #header-links a.active{
+            background:rgba(255,255,255,0.2);
         }
 
-        /* --- HEADER TOOLS CONTAINER --- */
-        .header-tools {
+        /* ============================================
+           SECONDARY TOOLBAR (tools moved below header)
+           ============================================ */
+        .toolbar {
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 8px 25px;
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 12px;
             flex-wrap: wrap;
+            flex-shrink: 0;
+            z-index: 9;
         }
-        
-        .header-tools a, .header-tools button {
+        .toolbar-left,
+        .toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar a, .toolbar button {
             color: #475569;
             text-decoration: none;
             padding: 6px 12px;
@@ -94,9 +114,11 @@
             align-items: center;
             gap: 6px;
         }
-        .header-tools a:hover, .header-tools button:hover { background: #f1f5f9; color: #0f172a; }
-        
-        /* Climate Intel Tool Button - Special Styling */
+        .toolbar a:hover, .toolbar button:hover { background: #f1f5f9; color: #0f172a; }
+        .toolbar a.outline-btn { border: 1px solid #e2e8f0; }
+        .toolbar a.outline-btn:hover { background: #f8fafc; }
+
+        /* Climate Intel Tool Button */
         .climate-intel-btn {
             background: #2d6a4f !important;
             color: white !important;
@@ -112,14 +134,13 @@
             background: #ef4444 !important;
             animation: pulse 1.5s ease-in-out infinite;
         }
-        
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.05); }
             100% { transform: scale(1); }
         }
 
-        /* Time-Lapse Specific Header Styles */
+        /* Time-Lapse Specific Toolbar Styles */
         .tl-controls {
             display: flex;
             align-items: center;
@@ -136,7 +157,7 @@
         }
         .tl-controls span { font-size: 11px; font-weight: 500; color: #475569; min-width: 110px; text-align: right; }
         .tl-controls input[type="range"] { 
-            width: 80px; 
+            width: 100px; 
             height: 4px; 
             -webkit-appearance: none; 
             appearance: none; 
@@ -162,7 +183,7 @@
         }
         .tl-controls .play-btn:hover { background: #1b4332; }
 
-        /* --- SEARCH INPUT IN HEADER --- */
+        /* SEARCH INPUT IN TOOLBAR */
         .header-search-wrapper {
             display: flex;
             align-items: center;
@@ -218,284 +239,14 @@
             background: #f1f5f9;
             color: #1e3a2f;
         }
-        #headerSearchResults div:last-child {
-            border-bottom: none;
-        }
+        #headerSearchResults div:last-child { border-bottom: none; }
 
-        /* Climate Intel Popup */
-        #climateIntelPopup {
-            position: fixed;
-            bottom: 100px;
-            right: 30px;
-            width: 420px;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-            padding: 20px;
-            z-index: 9999;
-            display: none;
-            max-height: 620px;
-            overflow-y: auto;
-        }
-        #climateIntelPopup.open {
-            display: block;
-            animation: slideUp 0.3s ease;
-        }
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        #climateIntelPopup .popup-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        #climateIntelPopup .popup-header h3 {
-            font-size: 14px;
-            font-weight: 600;
-            color: #0f172a;
-            margin: 0;
-        }
-        #climateIntelPopup .popup-header h3 i {
-            color: #2d6a4f;
-            margin-right: 8px;
-        }
-        #climateIntelPopup .close-popup {
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            color: #94a3b8;
-            font-size: 18px;
-            transition: 0.2s;
-        }
-        #climateIntelPopup .close-popup:hover { color: #d32f2f; }
-        
-        /* Coordinate Search in Popup */
-        #climateIntelPopup .coord-search {
-            background: #f8fafc;
-            border-radius: 8px;
-            padding: 12px 16px;
-            margin-bottom: 12px;
-            border: 1px solid #e2e8f0;
-        }
-        #climateIntelPopup .coord-search .label-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        #climateIntelPopup .coord-search .label-row label {
-            font-size: 12px;
-            font-weight: 600;
-            color: #475569;
-        }
-        #climateIntelPopup .coord-search .label-row .current-coords {
-            font-size: 11px;
-            color: #2d6a4f;
-            font-weight: 600;
-        }
-        #climateIntelPopup .coord-search .input-row {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        #climateIntelPopup .coord-search .input-group {
-            display: flex;
-            flex-direction: column;
-            flex: 1;
-            gap: 2px;
-        }
-        #climateIntelPopup .coord-search .input-group label {
-            font-size: 9px;
-            text-transform: uppercase;
-            color: #94a3b8;
-            font-weight: 600;
-        }
-        #climateIntelPopup .coord-search .input-group input {
-            padding: 6px 8px;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            font-size: 13px;
-            font-family: 'Inter', sans-serif;
-            background: #ffffff;
-            color: #1e293b;
-            width: 100%;
-        }
-        #climateIntelPopup .coord-search .input-group input:focus {
-            border-color: #2d6a4f;
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.1);
-        }
-        #climateIntelPopup .coord-search .go-btn {
-            background: #2d6a4f;
-            color: white;
-            border: none;
-            padding: 6px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 500;
-            font-family: 'Inter', sans-serif;
-            transition: 0.2s;
-            white-space: nowrap;
-            align-self: flex-end;
-            margin-bottom: 2px;
-        }
-        #climateIntelPopup .coord-search .go-btn:hover {
-            background: #1b4332;
-        }
-
-        /* Buffer Settings in Popup */
-        #climateIntelPopup .buffer-settings {
-            background: #f8fafc;
-            border-radius: 8px;
-            padding: 12px 16px;
-            margin-bottom: 12px;
-            border: 1px solid #e2e8f0;
-        }
-        #climateIntelPopup .buffer-settings .label-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        #climateIntelPopup .buffer-settings .label-row label {
-            font-size: 12px;
-            font-weight: 600;
-            color: #475569;
-        }
-        #climateIntelPopup .buffer-settings .label-row .current-buffer {
-            font-size: 11px;
-            color: #2d6a4f;
-            font-weight: 600;
-        }
-        #climateIntelPopup .buffer-settings .input-group {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        #climateIntelPopup .buffer-settings .input-group input[type="number"] {
-            flex: 1;
-            padding: 6px 10px;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            font-size: 13px;
-            font-family: 'Inter', sans-serif;
-            background: #ffffff;
-            color: #1e293b;
-            width: 100px;
-        }
-        #climateIntelPopup .buffer-settings .input-group input[type="number"]:focus {
-            border-color: #2d6a4f;
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.1);
-        }
-        #climateIntelPopup .buffer-settings .input-group .unit-label {
-            font-size: 12px;
-            color: #94a3b8;
-        }
-        #climateIntelPopup .buffer-settings .apply-btn {
-            background: #2d6a4f;
-            color: white;
-            border: none;
-            padding: 6px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 500;
-            font-family: 'Inter', sans-serif;
-            transition: 0.2s;
-            white-space: nowrap;
-        }
-        #climateIntelPopup .buffer-settings .apply-btn:hover {
-            background: #1b4332;
-        }
-        #climateIntelPopup .buffer-settings .reset-btn {
-            background: transparent;
-            color: #64748b;
-            border: 1px solid #e2e8f0;
-            padding: 6px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 500;
-            font-family: 'Inter', sans-serif;
-            transition: 0.2s;
-        }
-        #climateIntelPopup .buffer-settings .reset-btn:hover {
-            background: #f1f5f9;
-        }
-
-        #climateIntelPopup .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-        #climateIntelPopup .info-item {
-            background: #f8fafc;
-            border-radius: 6px;
-            padding: 10px 12px;
-            text-align: center;
-        }
-        #climateIntelPopup .info-item .label {
-            font-size: 9px;
-            text-transform: uppercase;
-            color: #94a3b8;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-        #climateIntelPopup .info-item .value {
-            font-size: 18px;
-            font-weight: 700;
-            color: #0f172a;
-            margin-top: 2px;
-        }
-        #climateIntelPopup .info-item .value.high { color: #2d6a4f; }
-        #climateIntelPopup .info-item .value.medium { color: #f59e0b; }
-        #climateIntelPopup .info-item .value.low { color: #ef4444; }
-        #climateIntelPopup .info-item .date-label {
-            font-size: 9px;
-            color: #94a3b8;
-            margin-top: 4px;
-            font-weight: 400;
-        }
-        #climateIntelPopup .info-item .date-label i {
-            margin-right: 3px;
-            font-size: 8px;
-        }
-        #climateIntelPopup .info-item .sub-value {
-            font-size: 10px;
-            color: #94a3b8;
-            margin-top: 2px;
-        }
-        #climateIntelPopup .loading-spinner {
-            text-align: center;
-            padding: 20px;
-            color: #94a3b8;
-        }
-        #climateIntelPopup .loading-spinner i {
-            font-size: 32px;
-            display: block;
-            margin-bottom: 10px;
-            color: #2d6a4f;
-        }
-        #climateIntelPopup .error-message {
-            color: #ef4444;
-            text-align: center;
-            padding: 20px;
-        }
-
-        /* --- NOTIFICATION & SETTINGS STYLES --- */
+        /* Alert wrapper */
         .alert-wrapper {
             position: relative;
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            margin-left: 4px;
         }
         .alert-wrapper button {
             background: transparent;
@@ -616,15 +367,272 @@
         }
         .settings-input-group button:hover { background: #1b4332; }
 
+        /* Climate Intel Popup */
+        #climateIntelPopup {
+            position: fixed;
+            bottom: 100px;
+            right: 30px;
+            width: 420px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+            padding: 20px;
+            z-index: 9999;
+            display: none;
+            max-height: 620px;
+            overflow-y: auto;
+        }
+        #climateIntelPopup.open {
+            display: block;
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        #climateIntelPopup .popup-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        #climateIntelPopup .popup-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #0f172a;
+            margin: 0;
+        }
+        #climateIntelPopup .popup-header h3 i {
+            color: #2d6a4f;
+            margin-right: 8px;
+        }
+        #climateIntelPopup .close-popup {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: #94a3b8;
+            font-size: 18px;
+            transition: 0.2s;
+        }
+        #climateIntelPopup .close-popup:hover { color: #d32f2f; }
+        
+        #climateIntelPopup .coord-search {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        #climateIntelPopup .coord-search .label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        #climateIntelPopup .coord-search .label-row label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+        }
+        #climateIntelPopup .coord-search .label-row .current-coords {
+            font-size: 11px;
+            color: #2d6a4f;
+            font-weight: 600;
+        }
+        #climateIntelPopup .coord-search .input-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        #climateIntelPopup .coord-search .input-group {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            gap: 2px;
+        }
+        #climateIntelPopup .coord-search .input-group label {
+            font-size: 9px;
+            text-transform: uppercase;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+        #climateIntelPopup .coord-search .input-group input {
+            padding: 6px 8px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'Inter', sans-serif;
+            background: #ffffff;
+            color: #1e293b;
+            width: 100%;
+        }
+        #climateIntelPopup .coord-search .input-group input:focus {
+            border-color: #2d6a4f;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.1);
+        }
+        #climateIntelPopup .coord-search .go-btn {
+            background: #2d6a4f;
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            transition: 0.2s;
+            white-space: nowrap;
+            align-self: flex-end;
+            margin-bottom: 2px;
+        }
+        #climateIntelPopup .coord-search .go-btn:hover { background: #1b4332; }
+
+        #climateIntelPopup .buffer-settings {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        #climateIntelPopup .buffer-settings .label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        #climateIntelPopup .buffer-settings .label-row label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+        }
+        #climateIntelPopup .buffer-settings .label-row .current-buffer {
+            font-size: 11px;
+            color: #2d6a4f;
+            font-weight: 600;
+        }
+        #climateIntelPopup .buffer-settings .input-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        #climateIntelPopup .buffer-settings .input-group input[type="number"] {
+            flex: 1;
+            padding: 6px 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'Inter', sans-serif;
+            background: #ffffff;
+            color: #1e293b;
+            width: 100px;
+        }
+        #climateIntelPopup .buffer-settings .input-group input[type="number"]:focus {
+            border-color: #2d6a4f;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.1);
+        }
+        #climateIntelPopup .buffer-settings .input-group .unit-label {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+        #climateIntelPopup .buffer-settings .apply-btn {
+            background: #2d6a4f;
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            transition: 0.2s;
+            white-space: nowrap;
+        }
+        #climateIntelPopup .buffer-settings .apply-btn:hover { background: #1b4332; }
+        #climateIntelPopup .buffer-settings .reset-btn {
+            background: transparent;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            transition: 0.2s;
+        }
+        #climateIntelPopup .buffer-settings .reset-btn:hover { background: #f1f5f9; }
+
+        #climateIntelPopup .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        #climateIntelPopup .info-item {
+            background: #f8fafc;
+            border-radius: 6px;
+            padding: 10px 12px;
+            text-align: center;
+        }
+        #climateIntelPopup .info-item .label {
+            font-size: 9px;
+            text-transform: uppercase;
+            color: #94a3b8;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        #climateIntelPopup .info-item .value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-top: 2px;
+        }
+        #climateIntelPopup .info-item .value.high { color: #2d6a4f; }
+        #climateIntelPopup .info-item .value.medium { color: #f59e0b; }
+        #climateIntelPopup .info-item .value.low { color: #ef4444; }
+        #climateIntelPopup .info-item .date-label {
+            font-size: 9px;
+            color: #94a3b8;
+            margin-top: 4px;
+            font-weight: 400;
+        }
+        #climateIntelPopup .info-item .date-label i {
+            margin-right: 3px;
+            font-size: 8px;
+        }
+        #climateIntelPopup .info-item .sub-value {
+            font-size: 10px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+        #climateIntelPopup .loading-spinner {
+            text-align: center;
+            padding: 20px;
+            color: #94a3b8;
+        }
+        #climateIntelPopup .loading-spinner i {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 10px;
+            color: #2d6a4f;
+        }
+        #climateIntelPopup .error-message {
+            color: #ef4444;
+            text-align: center;
+            padding: 20px;
+        }
+
         /* --- LAYOUT: SIDEBAR & MAP --- */
         .app-layout {
             display: flex;
             flex: 1;
-            height: calc(100vh - 64px);
             overflow: hidden;
         }
 
-        /* --- LEFT SIDEBAR (Wider = 550px) --- */
         #sidebar {
             width: 550px;
             background: #ffffff;
@@ -639,7 +647,6 @@
         #sidebar::-webkit-scrollbar { width: 4px; }
         #sidebar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 
-        /* Controls Section */
         .control-section { margin-bottom: 20px; }
         .control-section h3 { font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
         
@@ -691,7 +698,6 @@
         }
         .btn-outline:hover { background: #f1f5f9; }
 
-        /* Field Info Cards */
         .field-card {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
@@ -703,7 +709,6 @@
         .field-card .meta { font-size: 12px; color: #64748b; margin-top: 4px; }
         .field-card .meta i { width: 16px; margin-right: 6px; }
 
-        /* --- CHART SECTION with Multi-Field Header --- */
         .chart-wrapper {
             flex: 1;
             min-height: 250px;
@@ -743,7 +748,6 @@
         }
         #chart-header .field-title p i { margin-right: 4px; color: #2d6a4f; }
 
-        /* --- MULTI-FIELD SELECTION BADGES --- */
         #selection-container {
             display: flex;
             flex-wrap: wrap;
@@ -795,9 +799,29 @@
         }
         .chart-status i { display: block; font-size: 32px; margin-bottom: 10px; color: #cbd5e1; }
 
-        /* --- MAP CONTAINER --- */
         #map-container { flex: 1; position: relative; background: #e2e8f0; z-index: 1; }
         #map { height: 100%; width: 100%; }
+
+        /* ===== PROVINCE LABELS — BLACK ===== */
+        .province-label {
+            background: rgba(255, 255, 255, 0.0);
+            border: none;
+            box-shadow: none;
+            color: #000000;
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            text-shadow:
+                0 0 3px #ffffff,
+                0 0 5px #ffffff,
+                0 0 7px #ffffff,
+                0 0 9px #ffffff;
+            padding: 0;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .province-label::before { display: none; }
 
         .loading-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -813,7 +837,6 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* --- ENHANCED BOTTOM DATA TABLE --- */
         #bottom-data-container {
             position: absolute;
             bottom: 20px;
@@ -884,7 +907,6 @@
         }
         .bottom-table-scroll td:last-child { border-right: none; }
 
-        /* --- SUMMARY & CONCLUSION SECTION --- */
         #summary-section {
             margin-top: 12px;
             border-top: 2px solid #e2e8f0;
@@ -952,7 +974,6 @@
         }
         #conclusion-box p i { color: #f59e0b; margin-right: 6px; }
 
-        /* --- TOGGLE SEARCH CARD --- */
         #searchToggle {
             color: #2d6a4f;
             font-weight: 500;
@@ -1004,42 +1025,53 @@
             #headerSearchInput { width: 140px; }
             #headerSearchInput:focus { width: 180px; }
             #climateIntelPopup { width: 90%; right: 5%; bottom: 80px; }
+            .header { flex-direction: column; align-items: flex-start; gap: 8px; }
+            #header-links { flex-wrap: wrap; }
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .toolbar-left, .toolbar-right { justify-content: center; }
         }
     </style>
 </head>
 <body>
 
+    <!-- ============================================
+         MAIN HEADER
+         ============================================ -->
     <header class="header">
-        <div class="header-left">
-            <h1>
-                <i class="fas fa-satellite-dish"></i> Sentinel Field Pulse
-                <span class="badge">Farm DSS | Time-Lapse</span>
-            </h1>
+        <h1><i>🛰️</i> Sentinel 2 - Field Digitization</h1>
+        <div id="header-links">
+            <a href="{% url 'fields_admin:sentinel_truecolour' %}">📊 Home - digitise fields</a>
+            <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
+            <a href="{% url 'fields_admin:ndvi_map' %}">🛰️ Monitor Fields</a>
+            <a href="{% url 'fields_admin:chart_rain' %}">🌧️ Rainfall station</a>
+            <a href="{% url 'fields_admin:pixel_indicators' %}">📈 Farm indicators</a>
+            <a href="{% url 'fields_admin:field_ndvi_graph' %}" class="active">📈 Analytics & Alerts</a>
         </div>
-        
-        <div class="header-tools">
-            
-            <!-- TIME-LAPSE CONTROLS -->
+    </header>
+
+    <!-- ============================================
+         SECONDARY TOOLBAR
+         ============================================ -->
+    <div class="toolbar">
+        <div class="toolbar-left">
             <div id="timeLapseSection" class="tl-controls disabled">
                 <button class="play-btn" id="playBtn"><i class="fas fa-play"></i></button>
                 <input type="range" id="timeSlider" min="0" max="100" value="0">
                 <span id="sliderDateLabel">Select a field</span>
             </div>
 
-            <!-- SEARCH MY FIELD -->
             <div class="header-search-wrapper">
                 <i class="fas fa-search"></i>
                 <input type="text" id="headerSearchInput" placeholder="Search field..." autocomplete="off">
                 <div id="headerSearchResults"></div>
             </div>
+        </div>
 
-            <!-- NOTIFICATIONS & SETTINGS -->
+        <div class="toolbar-right">
             <div class="alert-wrapper">
-                <!-- ⚙️ SETTINGS GEAR -->
                 <button id="settingsBtn" onclick="toggleSettingsDropdown()">
                     <i class="fas fa-cog"></i>
                 </button>
-                <!-- 🔔 BELL ICON -->
                 <button id="alertBell" onclick="toggleAlertDropdown()">
                     <i class="fas fa-bell"></i>
                 </button>
@@ -1050,7 +1082,7 @@
                         <label class="settings-label">NDVI Alert Threshold</label>
                         <div class="settings-input-group">
                             <span>Alert if NDVI &lt;</span>
-                            <input type="number" id="thresholdInput" value="0.60" step="0.05" min="0" max="1">
+                            <input type="number" id="thresholdInput" value="0.20" step="0.05" min="0" max="1">
                             <button onclick="updateThreshold()">Apply</button>
                         </div>
                     </div>
@@ -1061,16 +1093,14 @@
                 </div>
             </div>
 
-            <!-- ✅ CLIMATE INTEL TOOL -->
             <button class="climate-intel-btn" id="climateIntelBtn" onclick="toggleClimateIntel()">
                 <i class="fas fa-cloud-sun"></i> Climate Intel
             </button>
 
-            <a href="#" onclick="clearAllSelections()"><i class="fas fa-undo-alt"></i> Clear All</a>
-            <a href="#" id="exportBtn"><i class="fas fa-file-csv"></i> Export Report</a>
-
+            <a href="#" onclick="clearAllSelections()" class="outline-btn"><i class="fas fa-undo-alt"></i> Clear All</a>
+            <a href="#" id="exportBtn" class="outline-btn"><i class="fas fa-file-csv"></i> Export Report</a>
         </div>
-    </header>
+    </div>
 
     <div class="app-layout">
         
@@ -1205,20 +1235,14 @@
                 <div class="bottom-table-scroll">
                     <table>
                         <thead>
-                            <tr id="dataTableHeader">
-                                <!-- Populated via JS -->
-                            </tr>
+                            <tr id="dataTableHeader"></tr>
                         </thead>
-                        <tbody id="dataTableBody">
-                            <!-- Data populates here via JS -->
-                        </tbody>
+                        <tbody id="dataTableBody"></tbody>
                     </table>
                 </div>
 
                 <!-- Summary & Conclusion Section -->
                 <div id="summary-section">
-                    
-                    <!-- Summary Stats Table -->
                     <div id="summary-table-container">
                         <table>
                             <thead>
@@ -1229,13 +1253,10 @@
                                     <th>Status</th>
                                 </tr>
                             </thead>
-                            <tbody id="summaryTableBody">
-                                <!-- Populated via JS -->
-                            </tbody>
+                            <tbody id="summaryTableBody"></tbody>
                         </table>
                     </div>
 
-                    <!-- Best Performing Conclusion -->
                     <div id="conclusion-box">
                         <h5><i class="fas fa-trophy"></i> Season Conclusion</h5>
                         <p id="conclusionText">Select fields to compare.</p>
@@ -1252,7 +1273,6 @@
             <button class="close-popup" onclick="closeClimateIntel()">&times;</button>
         </div>
         
-        <!-- Coordinate Search -->
         <div class="coord-search">
             <div class="label-row">
                 <label><i class="fas fa-map-pin"></i> Search by Coordinates</label>
@@ -1271,7 +1291,6 @@
             </div>
         </div>
         
-        <!-- Buffer Settings -->
         <div class="buffer-settings">
             <div class="label-row">
                 <label for="climateBufferInput"><i class="fas fa-expand"></i> Buffer Zone</label>
@@ -1297,18 +1316,19 @@
     
     <script>
         var map, fieldLayer = null;
+        var provinceLayer = null;                                       // ← province boundaries
         var chartInstance = null;
         var fields = [];
         var selectedFields = []; 
         var currentColors = ['#2d6a4f', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'];
         var allDataCache = {};
+        var PROVINCES_GEOJSON_URL = "/static/geojson/zwe_admin1.geojson"; // ← same file as other pages
 
         // --- Climate Intel State ---
         var climateIntelActive = false;
         var climateMarker = null;
-        var climateBuffer = 0; // Default buffer in meters
+        var climateBuffer = 0;
         
-        // Default coordinates: Harare, Zimbabwe
         var DEFAULT_LAT = -17.8252;
         var DEFAULT_LON = 31.0335;
 
@@ -1319,7 +1339,11 @@
         // --- Time-Lapse Variables ---
         var animationInterval = null;
         var isPlaying = false;
+        var modalActiveFieldId = null;
 
+        // ==========================================
+        // INIT MAP
+        // ==========================================
         function initMap() {
             map = L.map('map').setView([DEFAULT_LAT, DEFAULT_LON], 6);
             L.tileLayer('https://tiles.openfreemap.org/styles/liberty/{z}/{x}/{y}.png', {
@@ -1327,10 +1351,68 @@
                 maxZoom: 19
             }).addTo(map);
             
+            addProvinceBoundaries();   // ← black province outlines & labels
             loadFields();
             loadLatestHealthData();
             
             window.addEventListener('resize', function() { map.invalidateSize(); });
+        }
+
+        // ==========================================
+        // PROVINCIAL BOUNDARIES — BLACK COLOUR
+        // ==========================================
+        function addProvinceBoundaries() {
+            fetch(PROVINCES_GEOJSON_URL)
+                .then(function (res) {
+                    if (!res.ok) throw new Error("HTTP " + res.status);
+                    return res.json();
+                })
+                .then(function (geojson) {
+                    provinceLayer = L.geoJSON(geojson, {
+                        style: function () {
+                            return {
+                                color: "#000000",       // ← BLACK boundary
+                                weight: 2.2,            // thicker for visibility
+                                opacity: 0.9,
+                                fillColor: "#000000",
+                                fillOpacity: 0.0,       // NO fill — pure outlines
+                                interactive: false      // don't intercept clicks on fields
+                            };
+                        },
+                        onEachFeature: function (feature, layer) {
+                            var props = feature.properties || {};
+                            var name =
+                                props.adm1_name ||
+                                props.ADM1_NAME ||
+                                props.PROVINCE ||
+                                props.province ||
+                                props.NAME_1 ||
+                                props.name ||
+                                props.NAME ||
+                                null;
+
+                            if (name) {
+                                layer.bindTooltip(name, {
+                                    permanent: true,
+                                    direction: "center",
+                                    className: "province-label",
+                                    opacity: 1
+                                });
+                            }
+                        }
+                    }).addTo(map);
+
+                    // Push provinces to the BACK so field polygons sit on top
+                    if (provinceLayer.bringToBack) {
+                        provinceLayer.bringToBack();
+                    }
+                    if (fieldLayer && fieldLayer.bringToFront) {
+                        fieldLayer.bringToFront();
+                    }
+                })
+                .catch(function (err) {
+                    console.warn("Could not load province boundaries:", err.message);
+                });
         }
 
         // ==========================================
@@ -1352,7 +1434,6 @@
                     </div>
                 `;
                 
-                // Enable map click
                 map.on('click', onMapClick);
                 map.getContainer().style.cursor = 'crosshair';
             } else {
@@ -1360,11 +1441,9 @@
                 btn.innerHTML = '<i class="fas fa-cloud-sun"></i> Climate Intel';
                 popup.classList.remove('open');
                 
-                // Disable map click
                 map.off('click', onMapClick);
                 map.getContainer().style.cursor = '';
                 
-                // Remove marker
                 if (climateMarker) {
                     map.removeLayer(climateMarker);
                     climateMarker = null;
@@ -1399,13 +1478,9 @@
                 return;
             }
             
-            // Update display
             document.getElementById('currentCoordsDisplay').textContent = `Lat: ${lat.toFixed(4)}, Lon: ${lon.toFixed(4)}`;
-            
-            // Pan map to location
             map.setView([lat, lon], 12);
             
-            // Add/update marker
             if (climateMarker) {
                 map.removeLayer(climateMarker);
             }
@@ -1418,7 +1493,6 @@
                 })
             }).addTo(map);
             
-            // Fetch data for coordinates
             fetchClimateData(lat, lon);
         }
 
@@ -1429,7 +1503,6 @@
                 climateBuffer = val;
                 document.getElementById('currentBufferDisplay').textContent = climateBuffer + ' m';
                 
-                // If there's a marker already, re-fetch with new buffer
                 if (climateMarker) {
                     var lat = climateMarker.getLatLng().lat;
                     var lng = climateMarker.getLatLng().lng;
@@ -1446,7 +1519,6 @@
             document.getElementById('climateBufferInput').value = 0;
             document.getElementById('currentBufferDisplay').textContent = '0 m';
             
-            // Re-fetch if there's a marker
             if (climateMarker) {
                 var lat = climateMarker.getLatLng().lat;
                 var lng = climateMarker.getLatLng().lng;
@@ -1460,12 +1532,10 @@
             var lat = e.latlng.lat;
             var lng = e.latlng.lng;
             
-            // Update search inputs
             document.getElementById('searchLat').value = lat.toFixed(6);
             document.getElementById('searchLon').value = lng.toFixed(6);
             document.getElementById('currentCoordsDisplay').textContent = `Lat: ${lat.toFixed(4)}, Lon: ${lng.toFixed(4)}`;
             
-            // Add marker
             if (climateMarker) {
                 map.removeLayer(climateMarker);
             }
@@ -1478,7 +1548,6 @@
                 })
             }).addTo(map);
             
-            // Fetch climate data with current buffer
             fetchClimateData(lat, lng);
         }
 
@@ -1492,7 +1561,6 @@
                 </div>
             `;
             
-            // Use the current buffer value
             var url = `/api/geo-intel/?lat=${lat}&lon=${lng}&buffer=${climateBuffer}`;
             
             fetch(url)
@@ -1516,7 +1584,6 @@
         function displayClimateData(data) {
             var content = document.getElementById('climateIntelContent');
             
-            // Determine NDVI status
             var ndvi = data.sentinel_ndvi;
             var ndviStatus = 'high';
             var ndviLabel = 'Excellent';
@@ -1526,7 +1593,6 @@
                 else { ndviStatus = 'high'; ndviLabel = 'Excellent'; }
             }
             
-            // Determine soil moisture status
             var soil = data.soil_moisture;
             var soilStatus = 'medium';
             if (soil !== null && soil !== undefined) {
@@ -1535,7 +1601,6 @@
                 else { soilStatus = 'high'; }
             }
             
-            // Format dates
             function formatDate(dateStr) {
                 if (!dateStr || dateStr === 'N/A' || dateStr === null || dateStr === undefined) {
                     return 'N/A';
@@ -1750,9 +1815,19 @@
                 onEachFeature: function(feature, layer) {
                     var p = feature.properties;
                     var fieldId = p.id || p.field_id || p.pk || feature.id;
-                    layer.on('click', function() { toggleFieldSelection(fieldId); });
+                    layer.on('click', function() { 
+                        if (!climateIntelActive) toggleFieldSelection(fieldId); 
+                    });
                 }
             }).addTo(map);
+
+            // Keep provinces behind fields
+            if (provinceLayer && provinceLayer.bringToBack) {
+                provinceLayer.bringToBack();
+            }
+            if (fieldLayer.bringToFront) {
+                fieldLayer.bringToFront();
+            }
             
             try {
                 var bounds = fieldLayer.getBounds();
@@ -2454,11 +2529,6 @@
             window._lastQueryContext.endDate = currentEndDate;
             window._lastQueryContext.cloudCover = currentCloudCover;
             
-            var cacheKeysToRemove = [];
-            for (var key in allDataCache) {
-                cacheKeysToRemove.push(key);
-            }
-            
             var ids = selectedFields.map(f => f.id);
             ids.forEach(id => {
                 delete allDataCache[id];
@@ -2533,9 +2603,6 @@
         document.addEventListener('DOMContentLoaded', function() {
             initMap();
             setupHeaderSearch();
-            
-            // Auto-search default coordinates (Harare) when tool opens
-            // This will be triggered when user clicks Climate Intel button
         });
     </script>
 

@@ -27,17 +27,20 @@
         }
         .header h1 { font-size: 20px; font-weight: 600; }
         .header h1 i { margin-right: 10px; }
+        .header-info { display: flex; gap: 20px; font-size: 13px; color: #bdc3c7; }
+        .header-info span { display: flex; align-items: center; gap: 5px; }
+        .header-info strong { color: white; }
         
         #header-links{
             display:flex;
-            gap:12px;
+            gap:20px;
             align-items:center;
         }
 
         #header-links a{
             color:white;
             text-decoration:none;
-            font-size:13px;
+            font-size:14px;
             font-weight:500;
             padding:6px 12px;
             border-radius:4px;
@@ -48,9 +51,13 @@
             background:rgba(255,255,255,0.15);
         }
 
-        #header-links a.active {
-            background: rgba(255,255,255,0.22);
-            font-weight: 600;
+        #header-links a.disabled-link{
+            color:#95a5a6;
+            cursor:not-allowed;
+        }
+
+        #header-links a.disabled-link:hover{
+            background:transparent;
         }
 
         /* ========== MAIN LAYOUT ========== */
@@ -65,6 +72,13 @@
             overflow-y: auto;
             border-right: 1px solid #e0e0e0;
             flex-shrink: 0;
+        }
+        .left-panel h3 {
+            font-size: 14px;
+            color: #2c3e50;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #ecf0f1;
         }
         
         .control-group {
@@ -123,8 +137,13 @@
         .btn-group { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
         .btn-group .btn { flex: 1; min-width: 60px; padding: 5px 10px; font-size: 12px; }
         
-        .btn-lta { background: #f8f9fa; color: #e67e22; border: 1px solid #e67e22; }
-        .btn-lta:hover { background: #e67e22; color: white; }
+        .btn-lta { background: #fdedec; color: #e74c3c; border: 1px solid #e74c3c; }
+        .btn-lta:hover { background: #e74c3c; color: white; }
+        .btn-lta.active { background: #e74c3c; color: white; }
+        
+        .btn-obs { background: #ebf5fb; color: #3498db; border: 1px solid #3498db; }
+        .btn-obs:hover { background: #3498db; color: white; }
+        .btn-obs.active { background: #3498db; color: white; }
         
         .badge {
             display: inline-block;
@@ -134,7 +153,7 @@
             font-weight: 600;
         }
         .badge.obs { background: #3498db; color: white; }
-        .badge.lta { background: #e67e22; color: white; }
+        .badge.lta { background: #e74c3c; color: white; }
         
         .db-stats {
             background: #f8f9fa;
@@ -150,80 +169,44 @@
         /* ========== RIGHT PANEL ========== */
         .right-panel {
             flex: 1;
-            padding: 16px;
+            padding: 20px;
             overflow-y: auto;
             background: #f0f2f5;
             display: flex;
             flex-direction: column;
-            gap: 14px;
-            min-height: 0;
+            gap: 15px;
         }
         
-        /* ========== CHART ========== */
         .chart-wrapper {
             background: white;
             border-radius: 8px;
-            padding: 18px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-            border: 1px solid #e5e7eb;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
             flex: 1 1 auto;
             min-height: 0;
             display: flex;
             flex-direction: column;
         }
         .chart-wrapper .chart-title {
-            font-size: 17px;
+            font-size: 18px;
             font-weight: 600;
             color: #2c3e50;
             text-align: center;
-            margin-bottom: 4px;
+            margin-bottom: 5px;
         }
         .chart-wrapper .chart-subtitle {
-            font-size: 12px;
+            font-size: 13px;
             color: #95a5a6;
             text-align: center;
-            margin-bottom: 12px;
+            margin-bottom: 15px;
         }
-        .chart-container { position: relative; width: 100%; height: 280px; }
-        
-        /* ========== LEGEND TOGGLES ========== */
-        .legend-toggle {
-            display: flex;
-            gap: 20px;
-            justify-content: center;
-            padding: 8px 0 10px 0;
-            flex-wrap: wrap;
-            border-bottom: 1px solid #ecf0f1;
-            margin-bottom: 10px;
-        }
-        .legend-toggle .item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 12.5px;
-            cursor: pointer;
-            padding: 4px 12px;
-            border-radius: 4px;
-            transition: 0.2s;
-            user-select: none;
-            color: #4b5563;
-        }
-        .legend-toggle .item:hover { background: #f5f7fa; }
-        .legend-toggle .item .color {
-            width: 20px;
-            height: 4px;
-            border-radius: 2px;
-            display: inline-block;
-        }
-        .legend-toggle .item .color.bar { height: 12px; width: 12px; border-radius: 3px; background: #3498db; }
-        .legend-toggle .item .color.line { width: 22px; height: 3px; background: #e67e22; }
-        .legend-toggle .item.hidden { opacity: 0.35; text-decoration: line-through; }
+        .chart-container { position: relative; width: 80%; height: 920px; }
         
         /* ========== BOTTOM ROW: MAP (1/3) + TABLE (2/3) ========== */
         .bottom-row {
             display: grid;
             grid-template-columns: 1fr 2fr;
-            gap: 14px;
+            gap: 15px;
             flex: 0 0 340px;
             min-height: 0;
         }
@@ -232,8 +215,7 @@
         .table-side {
             background: white;
             border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-            border: 1px solid #e5e7eb;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -243,19 +225,17 @@
         .map-wrapper .map-header,
         .table-side .table-header {
             padding: 8px 14px;
-            font-size: 12.5px;
+            font-size: 13px;
             font-weight: 600;
             color: #2c3e50;
-            border-bottom: 1px solid #eef2f7;
-            background: #fafbfc;
+            border-bottom: 1px solid #ecf0f1;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-shrink: 0;
         }
 
-        .map-wrapper .map-header .map-hint,
-        .table-side .table-header .map-hint {
+        .map-wrapper .map-header .map-hint {
             font-size: 11px;
             color: #95a5a6;
             font-weight: 400;
@@ -268,7 +248,7 @@
             background: #eef2f7;
         }
 
-        /* Table side */
+        /* Table side: scrollable full-height table */
         .table-side .table-scroll {
             flex: 1 1 auto;
             min-height: 0;
@@ -282,62 +262,79 @@
         }
 
         .table-side thead th {
-            background: #f4f6f8;
-            color: #4b5563;
-            padding: 7px 10px;
+            background: #2c3e50;
+            color: white;
+            padding: 6px 8px;
             text-align: left;
             position: sticky;
             top: 0;
             z-index: 1;
             font-weight: 600;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            border-bottom: 1px solid #e0e0e0;
         }
 
         .table-side tbody td {
-            padding: 6px 10px;
-            border-bottom: 1px solid #f0f2f5;
-            color: #374151;
+            padding: 5px 8px;
+            border-bottom: 1px solid #ecf0f1;
         }
 
-        .table-side tbody tr:hover { background: #f9fafb; }
+        .table-side tbody tr:hover { background: #f8f9fa; }
 
-        .positive { color: #16a34a; font-weight: 500; }
-        .negative { color: #dc2626; font-weight: 500; }
-
-        /* ========== PROFESSIONAL PROVINCE LABELS (no red) ========== */
+        /* Province labels */
         .province-label {
-            background: transparent;
+            background: rgba(255, 255, 255, 0.0);
             border: none;
             box-shadow: none;
             color: #1e293b;
-            font-size: 10.5px;
-            font-weight: 600;
-            letter-spacing: 0.4px;
+            font-size: 11px;
+            font-weight: 700;
             text-transform: uppercase;
-            text-shadow:
-                -1px -1px 0 #ffffff,
-                 1px -1px 0 #ffffff,
-                -1px  1px 0 #ffffff,
-                 1px  1px 0 #ffffff,
-                 0    0   4px rgba(255,255,255,0.9);
+            letter-spacing: 0.6px;
+            text-shadow: 0 0 3px #ffffff, 0 0 5px #ffffff;
             padding: 0;
             pointer-events: none;
             white-space: nowrap;
-            opacity: 0.9;
         }
         .province-label::before {
             display: none;
         }
-
-        /* ========== STATS MINI ========== */
+        
+        /* ========== LEGEND - CLICKABLE TOGGLES ========== */
+        .legend-toggle {
+            display: flex;
+            gap: 25px;
+            justify-content: center;
+            padding: 8px 0 12px 0;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #ecf0f1;
+            margin-bottom: 12px;
+        }
+        .legend-toggle .item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            padding: 4px 12px;
+            border-radius: 4px;
+            transition: 0.2s;
+            user-select: none;
+        }
+        .legend-toggle .item:hover { background: #f0f0f0; }
+        .legend-toggle .item .color {
+            width: 20px;
+            height: 4px;
+            border-radius: 2px;
+            display: inline-block;
+        }
+        .legend-toggle .item .color.bar { height: 14px; width: 14px; border-radius: 3px; background: #3498db; }
+        .legend-toggle .item .color.line { width: 25px; background: #e74c3c; }
+        .legend-toggle .item.hidden { opacity: 0.3; text-decoration: line-through; }
+        
         .stats-mini {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
             gap: 10px;
-            margin-top: 12px;
+            margin: 15px 0;
         }
         .stats-mini .card {
             background: #f8f9fa;
@@ -347,6 +344,9 @@
         }
         .stats-mini .card .num { font-size: 18px; font-weight: bold; color: #2c3e50; }
         .stats-mini .card .lbl { font-size: 10px; color: #95a5a6; text-transform: uppercase; letter-spacing: 0.3px; }
+        
+        .positive { color: #e74c3c; }
+        .negative { color: #3498db; }
         
         .loading { text-align: center; padding: 40px; color: #95a5a6; }
         .spinner {
@@ -360,28 +360,71 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         
-        .error { color: #dc2626; padding: 15px; background: #fef2f2; border-radius: 4px; border-left: 4px solid #dc2626; }
+        .error { color: #e74c3c; padding: 15px; background: #fdf2f2; border-radius: 4px; border-left: 4px solid #e74c3c; }
         .no-data { color: #7f8c8d; padding: 20px; text-align: center; }
         
         /* ========== SCROLLBAR ========== */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #f1f3f5; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #ecf0f1; }
+        ::-webkit-scrollbar-thumb { background: #bdc3c7; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #95a5a6; }
         
         /* ========== RESPONSIVE ========== */
         @media (max-width: 900px) {
             .main { flex-direction: column; }
             .left-panel { width: 100%; min-width: unset; max-height: 300px; border-right: none; border-bottom: 1px solid #e0e0e0; }
-            .right-panel { padding: 12px; }
+            .right-panel { padding: 15px; }
             .header { flex-wrap: wrap; gap: 8px; }
-            .chart-container { height: 240px; }
+            .header-info { flex-wrap: wrap; font-size: 12px; }
+            .chart-container { height: 760px; }
             .bottom-row {
                 grid-template-columns: 1fr;
                 flex: 0 0 auto;
             }
-            .map-wrapper { height: 220px; }
+            .map-wrapper { height: 240px; }
             .table-side { height: 220px; }
+        }
+
+        /* === COMPACT CHART OVERRIDES === */
+        .chart-wrapper {
+            padding: 12px 12px 10px 12px;
+        }
+        .chart-wrapper .chart-title {
+            font-size: 15px;
+            margin-bottom: 2px;
+        }
+        .chart-wrapper .chart-subtitle {
+            font-size: 11px;
+            margin-bottom: 8px;
+        }
+        .legend-toggle {
+            gap: 12px;
+            padding: 4px 0 6px 0;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        .legend-toggle .item {
+            font-size: 11px;
+            gap: 5px;
+            padding: 2px 8px;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 370px; 
+        }
+        .stats-mini {
+            margin: 8px 0 0 0;
+            gap: 6px;
+        }
+        .stats-mini .card {
+            padding: 6px 8px;
+        }
+        .stats-mini .card .num {
+            font-size: 15px;
+        }
+        .stats-mini .card .lbl {
+            font-size: 9px;
         }
     </style>
 </head>
@@ -389,13 +432,14 @@
 
 <!-- ===== HEADER ===== -->
 <header class="header">
-    <h1><i>🌧️</i> Rainfall Monitoring Dashboard</h1>
+    <h1><i>🌧️</i> Provincial Rainfall Monitoring Dashboard</h1>
     <div id="header-links">
-        <a href="{% url 'fields_admin:sentinel_truecolour' %}">📊 Home - digitise fields</a>
-        <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
-        <a href="{% url 'fields_admin:ndvi_map' %}">🛰️ Monitor Fields</a>
-        <a href="{% url 'fields_admin:chart_rain' %}">🌧️ Rainfall station</a>
-        <a href="{% url 'fields_admin:pixel_indicators' %}" class="active">📈 Farm indicators</a>
+            <a href="{% url 'fields_admin:sentinel_truecolour' %}">📊 Home - digitise fields</a>
+            <a href="{% url 'fields_admin:field_dashboard' %}">📊 Fields Dashboard</a>
+            <a href="{% url 'fields_admin:ndvi_map' %}">🛰️ Monitor Fields</a>
+            <a href="{% url 'fields_admin:chart_rain' %}">🌧️ Rainfall station</a>
+            <a href="{% url 'fields_admin:pixel_indicators' %}">📈 Farm indicators</a>
+            <a href="{% url 'fields_admin:field_ndvi_graph' %}" class="active">📈 Analytics & Alerts</a>
     </div>
 </header>
 
@@ -405,6 +449,7 @@
     <!-- LEFT PANEL -->
     <div class="left-panel">
 
+        <!-- Observation Period -->
         <div class="control-group">
             <label>🔵 Observation Period <span class="badge obs">Selected</span></label>
             <div class="date-range">
@@ -419,8 +464,9 @@
             </div>
         </div>
 
+        <!-- LTA Period -->
         <div class="control-group">
-            <label>🟠 LTA Period <span class="badge lta">Selected</span></label>
+            <label>🔴 LTA Period <span class="badge lta">Selected</span></label>
             <div class="date-range">
                 <div class="field">
                     <label>Start</label>
@@ -438,6 +484,7 @@
             </div>
         </div>
 
+        <!-- Province -->
         <div class="control-group">
             <label>📍 Province</label>
             <select id="provinceSelect">
@@ -455,6 +502,7 @@
             </select>
         </div>
 
+        <!-- Actions -->
         <div class="control-group">
             <button class="btn btn-primary" onclick="loadData()">📊 Load Data</button>
             <div style="display:flex; gap:6px; margin-top:4px;">
@@ -463,17 +511,19 @@
             </div>
         </div>
 
+        <!-- DB Info -->
         <div class="db-stats" id="dbInfo" style="display:none;">
             <span>📊 <strong id="dbRecordCount">-</strong> total records</span>
             <span>📅 <strong id="dbDateRange">-</strong> full range</span>
             <span>📍 <strong id="dbProvinceCount">-</strong> provinces</span>
+            <span style="color:#f39c12; margin-top:3px; font-size:11px;">💡 LTA defaults to full database</span>
         </div>
     </div>
 
     <!-- RIGHT PANEL -->
     <div class="right-panel">
 
-        <!-- CHART -->
+        <!-- Chart Card -->
         <div class="chart-wrapper" id="chartCard">
             <div id="loadingState" style="display:none;">
                 <div class="loading">
@@ -483,9 +533,11 @@
             </div>
 
             <div id="contentState">
+                <!-- Chart Title -->
                 <div class="chart-title" id="chartTitle">Harare</div>
                 <div class="chart-subtitle" id="periodInfo">Select date ranges and click Load Data</div>
 
+                <!-- Clickable Legend Toggles -->
                 <div class="legend-toggle" id="legendToggles">
                     <div class="item active" data-dataset="0" onclick="toggleDataset(0)">
                         <span class="color bar"></span> Observed Rainfall
@@ -510,7 +562,7 @@
         <!-- BOTTOM ROW: map (1/3) + table (2/3) -->
         <div class="bottom-row" id="bottomRow">
 
-            <!-- MAP -->
+            <!-- MAP — 1/3 width -->
             <div class="map-wrapper">
                 <div class="map-header">
                     <span>🗺️ Click a Province</span>
@@ -519,7 +571,7 @@
                 <div id="rainfallMap"></div>
             </div>
 
-            <!-- TABLE -->
+            <!-- TABLE — 2/3 width -->
             <div class="table-side" id="tableContainer" style="display:none;">
                 <div class="table-header">
                     <span>📋 Dekadal Rainfall Data</span>
@@ -545,38 +597,15 @@
     let chart = null;
     let currentData = null;
     let dbInfo = null;
-    let datasetVisibility = [true, true];
+    let datasetVisibility = [true, true]; // [rainfall, lta]
 
     // ============================================================
-    // MAP — OpenFreeMap + province boundaries + click
+    // MAP — OpenFreeMap (vector) + province boundaries + click
     // ============================================================
     let map = null;
     let provinceLayer = null;
     let selectedProvinceLayer = null;
     const PROVINCES_GEOJSON_URL = "/static/geojson/zwe_admin1.geojson";
-
-    // Professional muted palette (no harsh red)
-    const PROV_STYLE_DEFAULT = {
-        color: "#64748b",         // slate-500
-        weight: 1.2,
-        opacity: 0.8,
-        fillColor: "#60a5fa",     // blue-400
-        fillOpacity: 0.08
-    };
-    const PROV_STYLE_HOVER = {
-        color: "#334155",         // slate-700
-        weight: 2,
-        opacity: 1,
-        fillColor: "#3b82f6",     // blue-500
-        fillOpacity: 0.22
-    };
-    const PROV_STYLE_SELECTED = {
-        color: "#1e40af",         // blue-800
-        weight: 2.5,
-        opacity: 1,
-        fillColor: "#2563eb",     // blue-600
-        fillOpacity: 0.35
-    };
 
     function initMap() {
         if (map) return;
@@ -587,15 +616,10 @@
             scrollWheelZoom: false
         }).setView([-19.0, 29.5], 6);
 
-        // ============================================================
-        // OpenFreeMap vector basemap — completely free, no limits,
-        // no API key, no registration
-        // ============================================================
         L.maplibreGL({
-            style: 'https://tiles.openfreemap.org/styles/liberty'
+            style: 'https://tiles.openfreemap.org/styles/liberty/{z}/{x}/{y}.png'
         }).addTo(map);
 
-        // Manual attribution
         L.control.attribution({
             position: 'bottomright',
             prefix: false
@@ -604,7 +628,6 @@
             '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
         ).addTo(map);
 
-        // Province boundaries
         fetch(PROVINCES_GEOJSON_URL)
             .then(function (res) {
                 if (!res.ok) throw new Error("HTTP " + res.status);
@@ -612,7 +635,15 @@
             })
             .then(function (geojson) {
                 provinceLayer = L.geoJSON(geojson, {
-                    style: function () { return Object.assign({}, PROV_STYLE_DEFAULT); },
+                    style: function () {
+                        return {
+                            color: "#2c3e50",
+                            weight: 1.3,
+                            opacity: 0.75,
+                            fillColor: "#3498db",
+                            fillOpacity: 0.10
+                        };
+                    },
                     onEachFeature: function (feature, layer) {
                         var props = feature.properties || {};
                         var name =
@@ -627,7 +658,6 @@
 
                         if (name) {
                             layer.feature.properties.__name = name;
-
                             layer.bindTooltip(name, {
                                 permanent: true,
                                 direction: "center",
@@ -638,14 +668,23 @@
 
                         layer.on("mouseover", function () {
                             if (layer !== selectedProvinceLayer) {
-                                layer.setStyle(PROV_STYLE_HOVER);
+                                layer.setStyle({
+                                    weight: 2.5,
+                                    fillOpacity: 0.30,
+                                    color: "#2980b9"
+                                });
                             }
                         });
                         layer.on("mouseout", function () {
                             if (layer !== selectedProvinceLayer) {
-                                layer.setStyle(PROV_STYLE_DEFAULT);
+                                layer.setStyle({
+                                    weight: 1.3,
+                                    fillOpacity: 0.10,
+                                    color: "#2c3e50"
+                                });
                             }
                         });
+
                         layer.on("click", function () {
                             selectProvinceOnMap(layer);
                         });
@@ -665,11 +704,21 @@
         var name = (layer.feature && layer.feature.properties && layer.feature.properties.__name) || "";
 
         if (selectedProvinceLayer && selectedProvinceLayer !== layer) {
-            selectedProvinceLayer.setStyle(PROV_STYLE_DEFAULT);
+            selectedProvinceLayer.setStyle({
+                weight: 1.3,
+                fillOpacity: 0.10,
+                color: "#2c3e50",
+                fillColor: "#3498db"
+            });
         }
 
         selectedProvinceLayer = layer;
-        layer.setStyle(PROV_STYLE_SELECTED);
+        layer.setStyle({
+            weight: 3,
+            fillOpacity: 0.40,
+            color: "#e74c3c",
+            fillColor: "#e74c3c"
+        });
 
         var dropdown = document.getElementById('provinceSelect');
         var found = false;
@@ -690,11 +739,13 @@
         }
 
         document.getElementById('chartTitle').textContent = name || 'All';
+
         loadData();
     }
 
     function syncMapToDropdown() {
         if (!provinceLayer) return;
+
         var selected = document.getElementById('provinceSelect').value;
         if (!selected) return;
 
@@ -702,7 +753,12 @@
             var name = (layer.feature && layer.feature.properties && layer.feature.properties.__name) || "";
             if (name === selected) {
                 selectedProvinceLayer = layer;
-                layer.setStyle(PROV_STYLE_SELECTED);
+                layer.setStyle({
+                    weight: 3,
+                    fillOpacity: 0.40,
+                    color: "#e74c3c",
+                    fillColor: "#e74c3c"
+                });
             }
         });
     }
@@ -715,16 +771,27 @@
             var selected = dropdown.value;
 
             if (selectedProvinceLayer) {
-                selectedProvinceLayer.setStyle(PROV_STYLE_DEFAULT);
+                selectedProvinceLayer.setStyle({
+                    weight: 1.3,
+                    fillOpacity: 0.10,
+                    color: "#2c3e50",
+                    fillColor: "#3498db"
+                });
                 selectedProvinceLayer = null;
             }
+
             if (!selected) return;
 
             provinceLayer.eachLayer(function (layer) {
                 var name = (layer.feature && layer.feature.properties && layer.feature.properties.__name) || "";
                 if (name === selected) {
                     selectedProvinceLayer = layer;
-                    layer.setStyle(PROV_STYLE_SELECTED);
+                    layer.setStyle({
+                        weight: 3,
+                        fillOpacity: 0.40,
+                        color: "#e74c3c",
+                        fillColor: "#e74c3c"
+                    });
                 }
             });
         });
@@ -761,11 +828,16 @@
         return d.toISOString().split('T')[0];
     }
 
-    function getDateYearStart(year) { return `${year}-01-01`; }
-    function getDateYearEnd(year) { return `${year}-12-31`; }
+    function getDateYearStart(year) {
+        return `${year}-01-01`;
+    }
+
+    function getDateYearEnd(year) {
+        return `${year}-12-31`;
+    }
 
     // ============================================================
-    // TOGGLE DATASET
+    // TOGGLE DATASET (Clickable Legend)
     // ============================================================
 
     function toggleDataset(index) {
@@ -776,7 +848,9 @@
 
         const items = document.querySelectorAll('.legend-toggle .item');
         items.forEach((item, i) => {
-            if (i === index) item.classList.toggle('hidden');
+            if (i === index) {
+                item.classList.toggle('hidden');
+            }
         });
     }
 
@@ -834,9 +908,16 @@
         const ltaEnd = document.getElementById('ltaEnd').value;
         const province = document.getElementById('provinceSelect').value;
 
-        if (!obsStart || !obsEnd) { alert('Please select observation period dates.'); return; }
-        if (!ltaStart || !ltaEnd) { alert('Please select LTA period dates.'); return; }
+        if (!obsStart || !obsEnd) {
+            alert('Please select observation period dates.');
+            return;
+        }
+        if (!ltaStart || !ltaEnd) {
+            alert('Please select LTA period dates.');
+            return;
+        }
 
+        const chartCard = document.getElementById('chartCard');
         const loadingState = document.getElementById('loadingState');
         const contentState = document.getElementById('contentState');
         const noDataState = document.getElementById('noDataState');
@@ -847,10 +928,14 @@
 
         try {
             let url = `/api/rainfall/dekadal/?start_date=${obsStart}&end_date=${obsEnd}&lta_start=${ltaStart.split('-')[0]}&lta_end=${ltaEnd.split('-')[0]}`;
-            if (province) url += `&province=${province}`;
+            if (province) {
+                url += `&province=${province}`;
+            }
 
+            console.log('Fetching:', url);
             const response = await fetch(url);
             const data = await response.json();
+            console.log('Data:', data);
 
             loadingState.style.display = 'none';
 
@@ -861,6 +946,7 @@
 
                 const displayProvince = province || data.provinces[0] || 'All';
                 document.getElementById('chartTitle').textContent = displayProvince;
+
                 document.getElementById('periodInfo').textContent = `LTA: ${data.lta_period.description}`;
 
                 renderChart(data, province);
@@ -878,21 +964,27 @@
             noDataState.style.display = 'block';
             noDataState.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
             document.getElementById('tableContainer').style.display = 'none';
+            console.error('Error:', error);
         }
     }
 
     // ============================================================
-    // RENDER CHART
+    // RENDER CHART — now uses start dekad for labels
     // ============================================================
 
     function renderChart(data, province) {
         const p = province || data.provinces[0];
-        const labels = data.data.map(d => d.period);
+
+        // Use the start date of each dekad as the label (D1 start)
+        const labels = data.data.map(d => d.start_date);   // ← changed from d.period
         const rainfall = data.data.map(d => d[p] || 0);
         const lta = data.data.map(d => d[`${p}_lta`] || 0);
 
         const ctx = document.getElementById('rainfallChart').getContext('2d');
-        if (chart) chart.destroy();
+
+        if (chart) {
+            chart.destroy();
+        }
 
         chart = new Chart(ctx, {
             type: 'bar',
@@ -902,7 +994,7 @@
                     {
                         label: 'Observed Rainfall',
                         data: rainfall,
-                        backgroundColor: 'rgba(52, 152, 219, 0.75)',
+                        backgroundColor: 'rgba(52, 152, 219, 0.7)',
                         borderColor: 'rgba(52, 152, 219, 1)',
                         borderWidth: 1,
                         order: 1,
@@ -912,9 +1004,15 @@
                         label: 'LTA',
                         data: lta,
                         type: 'bar',
-                        backgroundColor: 'rgba(230, 126, 34, 0.85)',
-                        borderColor: 'rgba(230, 126, 34, 1)',
-                        borderWidth: 1,
+                        borderColor: 'rgba(231, 76, 60, 1)',
+                        backgroundColor: 'rgba(231, 76, 60, 1)',
+                        borderWidth: 3,
+                        pointBackgroundColor: 'rgba(231, 76, 60, 1)',
+                        pointBorderColor: 'white',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        fill: false,
+                        tension: 0.3,
                         order: 0,
                         yAxisID: 'y',
                     }
@@ -924,7 +1022,9 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false },
+                    legend: {
+                        display: false,
+                    },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
@@ -943,11 +1043,15 @@
                 scales: {
                     x: {
                         grid: { display: false },
-                        ticks: { maxRotation: 90, minRotation: 45, font: { size: 9 } }
+                        ticks: {
+                            maxRotation: 90,
+                            minRotation: 45,
+                            font: { size: 8 }   // slightly smaller for compactness
+                        }
                     },
                     y: {
                         beginAtZero: true,
-                        title: { display: true, text: 'Rainfall (mm)', font: { size: 12 } },
+                        title: { display: true, text: 'Rainfall (mm)', font: { size: 11 } },
                         grid: { color: 'rgba(0,0,0,0.05)' }
                     }
                 }
@@ -957,15 +1061,28 @@
         chart.getDatasetMeta(0).hidden = !datasetVisibility[0];
         chart.getDatasetMeta(1).hidden = !datasetVisibility[1];
         chart.update();
-        setTimeout(() => chart.resize(), 100);
+
+        setTimeout(() => { chart.resize(); }, 100);
     }
 
     // ============================================================
-    // STATS (unchanged, no-op as before)
+    // RENDER STATS
     // ============================================================
 
     function renderStats(data, province) {
-        // (original: no visual output — kept as-is)
+        const p = province || data.provinces[0];
+
+        const rainfallValues = data.data.map(d => d[p] || 0).filter(v => v > 0);
+        const ltaValues = data.data.map(d => d[`${p}_lta`] || 0).filter(v => v > 0);
+        const anomalies = data.data.map(d => d[`${p}_anomaly`] || 0);
+
+        const totalRainfall = rainfallValues.reduce((a, b) => a + b, 0);
+        const avgLTA = ltaValues.reduce((a, b) => a + b, 0) / (ltaValues.length || 1);
+        const avgAnomaly = anomalies.reduce((a, b) => a + b, 0) / (anomalies.length || 1);
+        const maxRainfall = Math.max(...rainfallValues, 0);
+        const minRainfall = Math.min(...rainfallValues, 0);
+
+        // (original: no return value — kept as-is)
     }
 
     // ============================================================
@@ -1025,7 +1142,10 @@
     // ============================================================
 
     function exportCSV() {
-        if (!currentData) { alert('Please load data first.'); return; }
+        if (!currentData) {
+            alert('Please load data first.');
+            return;
+        }
 
         const province = document.getElementById('provinceSelect').value || currentData.provinces[0];
         const obsStart = document.getElementById('obsStart').value;
